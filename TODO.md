@@ -15,6 +15,25 @@
 
 ---
 
+---
+
+## Linux Homelab Assignment (Virgil, 19 Feb 2026)
+
+This package is assigned to the Linux homelab agent. The homelab can run Qdrant and Ollama natively, giving the dedicated Claude real vector DB and embedding infrastructure to test against.
+
+### Linux-Specific Tasks
+
+- [ ] **Run Qdrant locally** — Docker or native binary on the homelab. Test against real Qdrant instance, not mocks.
+- [ ] **Run Ollama locally** — Install Ollama on Linux. Test embedding generation with real models (nomic-embed-text, etc.).
+- [ ] **Full pipeline integration test** — Ingest → chunk → embed → store → query end-to-end with real Qdrant + Ollama.
+- [ ] **AMD GPU embeddings** — Ollama supports ROCm. Test embedding generation on the RX 7800 XT for faster processing.
+
+### Platform
+
+- **OS**: Ubuntu 24.04 (linux/amd64)
+- **GPU**: AMD RX 7800 XT (ROCm, for Ollama GPU acceleration)
+- **Co-located with**: go-rocm (AMD GPU inference), go-p2p (networking)
+
 ## Workflow
 
 1. Virgil in core/go writes tasks here after research
