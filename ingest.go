@@ -40,8 +40,8 @@ type IngestStats struct {
 // IngestProgress is called during ingestion to report progress.
 type IngestProgress func(file string, chunks int, total int)
 
-// Ingest processes a directory of documents and stores them in Qdrant.
-func Ingest(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, cfg IngestConfig, progress IngestProgress) (*IngestStats, error) {
+// Ingest processes a directory of documents and stores them in the vector store.
+func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg IngestConfig, progress IngestProgress) (*IngestStats, error) {
 	stats := &IngestStats{}
 
 	// Validate batch size to prevent infinite loop
@@ -64,21 +64,21 @@ func Ingest(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, cfg
 	}
 
 	// Check/create collection
-	exists, err := qdrant.CollectionExists(ctx, cfg.Collection)
+	exists, err := store.CollectionExists(ctx, cfg.Collection)
 	if err != nil {
 		return nil, log.E("rag.Ingest", "error checking collection", err)
 	}
 
 	if cfg.Recreate && exists {
-		if err := qdrant.DeleteCollection(ctx, cfg.Collection); err != nil {
+		if err := store.DeleteCollection(ctx, cfg.Collection); err != nil {
 			return nil, log.E("rag.Ingest", "error deleting collection", err)
 		}
 		exists = false
 	}
 
 	if !exists {
-		vectorDim := ollama.EmbedDimension()
-		if err := qdrant.CreateCollection(ctx, cfg.Collection, vectorDim); err != nil {
+		vectorDim := embedder.EmbedDimension()
+		if err := store.CreateCollection(ctx, cfg.Collection, vectorDim); err != nil {
 			return nil, log.E("rag.Ingest", "error creating collection", err)
 		}
 	}
@@ -127,7 +127,7 @@ func Ingest(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, cfg
 
 		for _, chunk := range chunks {
 			// Generate embedding
-			embedding, err := ollama.Embed(ctx, chunk.Text)
+			embedding, err := embedder.Embed(ctx, chunk.Text)
 			if err != nil {
 				stats.Errors++
 				if cfg.Verbose {
@@ -157,7 +157,7 @@ func Ingest(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, cfg
 		}
 	}
 
-	// Batch upsert to Qdrant
+	// Batch upsert to vector store
 	if len(points) > 0 {
 		for i := 0; i < len(points); i += cfg.BatchSize {
 			end := i + cfg.BatchSize
@@ -165,7 +165,7 @@ func Ingest(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, cfg
 				end = len(points)
 			}
 			batch := points[i:end]
-			if err := qdrant.UpsertPoints(ctx, cfg.Collection, batch); err != nil {
+			if err := store.UpsertPoints(ctx, cfg.Collection, batch); err != nil {
 				return stats, log.E("rag.Ingest", fmt.Sprintf("error upserting batch %d", i/cfg.BatchSize+1), err)
 			}
 		}
@@ -174,8 +174,8 @@ func Ingest(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, cfg
 	return stats, nil
 }
 
-// IngestFile processes a single file and stores it in Qdrant.
-func IngestFile(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
+// IngestFile processes a single file and stores it in the vector store.
+func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return 0, log.E("rag.IngestFile", "error reading file", err)
@@ -190,7 +190,7 @@ func IngestFile(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient,
 
 	var points []Point
 	for _, chunk := range chunks {
-		embedding, err := ollama.Embed(ctx, chunk.Text)
+		embedding, err := embedder.Embed(ctx, chunk.Text)
 		if err != nil {
 			return 0, log.E("rag.IngestFile", fmt.Sprintf("error embedding chunk %d", chunk.Index), err)
 		}
@@ -208,7 +208,7 @@ func IngestFile(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient,
 		})
 	}
 
-	if err := qdrant.UpsertPoints(ctx, collection, points); err != nil {
+	if err := store.UpsertPoints(ctx, collection, points); err != nil {
 		return 0, log.E("rag.IngestFile", "error upserting points", err)
 	}
 

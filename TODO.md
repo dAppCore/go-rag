@@ -30,12 +30,12 @@ All pure-function tests complete. Remaining untested functions require live serv
 - [ ] **Ollama client tests** — Embed single text, embed batch, verify model. Skip if Ollama unavailable.
 - [ ] **Query integration test** — Ingest a test doc, query it, verify results.
 
-## Phase 2: Test Infrastructure
+## Phase 2: Test Infrastructure (38.8% -> 69.0% coverage)
 
-- [ ] **Interface extraction** — Extract `Embedder` interface (Embed, EmbedBatch, EmbedDimension) and `VectorStore` interface (Search, Upsert, etc.) so Qdrant and Ollama can be mocked in unit tests.
-- [ ] **Mock embedder** — Returns deterministic vectors for testing query/ingest without Ollama.
-- [ ] **Mock vector store** — In-memory implementation for testing ingest/query without Qdrant.
-- [ ] **Re-test with mocks** — Rewrite ingest + query tests using mock interfaces for fast, reliable CI.
+- [x] **Interface extraction** — Extracted `Embedder` interface (embedder.go) and `VectorStore` interface (vectorstore.go). Updated `Ingest`, `IngestFile`, `Query` to accept interfaces. Added `QueryWith`, `QueryContextWith`, `IngestDirWith`, `IngestFileWith` helpers. (PENDING_COMMIT)
+- [x] **Mock embedder** — Returns deterministic 0.1 vectors, tracks all calls, supports error injection and custom embed functions. (PENDING_COMMIT)
+- [x] **Mock vector store** — In-memory map, stores points, returns them on search with fake descending scores, supports filtering, tracks all calls. (PENDING_COMMIT)
+- [x] **Re-test with mocks** — 69 new mock-based tests across ingest (23), query (12), and helpers (16). Coverage from 38.8% to 69.0%. (PENDING_COMMIT)
 
 ## Phase 3: Enhancements
 
@@ -56,7 +56,7 @@ All pure-function tests complete. Remaining untested functions require live serv
 
 1. **go.mod had wrong replace path** — `../core` should be `../go`. Fixed by Charon.
 2. **Qdrant and Ollama not running on snider-linux** — Need docker setup for Qdrant, native install for Ollama.
-3. **No mocks/interfaces** — All external calls go directly to Qdrant/Ollama clients. Unit tests require live services until interfaces are extracted.
+3. ~~**No mocks/interfaces**~~ — **Resolved in Phase 2.** `Embedder` and `VectorStore` interfaces extracted; mock implementations in `mock_test.go`.
 4. **`log.E` returns error** — `forge.lthn.ai/core/go/pkg/log.E` wraps errors with component context. This is the framework's logging pattern.
 
 ## Platform

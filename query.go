@@ -36,10 +36,10 @@ type QueryResult struct {
 	Score      float32
 }
 
-// Query searches for similar documents in Qdrant.
-func Query(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, query string, cfg QueryConfig) ([]QueryResult, error) {
+// Query searches for similar documents in the vector store.
+func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
 	// Generate embedding for query
-	embedding, err := ollama.Embed(ctx, query)
+	embedding, err := embedder.Embed(ctx, query)
 	if err != nil {
 		return nil, log.E("rag.Query", "error generating query embedding", err)
 	}
@@ -50,8 +50,8 @@ func Query(ctx context.Context, qdrant *QdrantClient, ollama *OllamaClient, quer
 		filter = map[string]string{"category": cfg.Category}
 	}
 
-	// Search Qdrant
-	results, err := qdrant.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
+	// Search vector store
+	results, err := store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
 	if err != nil {
 		return nil, log.E("rag.Query", "error searching", err)
 	}

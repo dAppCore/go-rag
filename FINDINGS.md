@@ -110,3 +110,86 @@ All targeted pure functions now at 100% coverage:
 | ollama_test.go | 8 | DefaultOllamaConfig, EmbedDimension (5 models), Model |
 | qdrant_test.go | 24 | DefaultQdrantConfig, pointIDToString, valueToGo (all types + nesting), Point, SearchResult |
 | chunk_test.go (extended) | 16 new | Empty input, headers-only, unicode/emoji, long paragraphs, config boundaries, ChunkID edge cases, DefaultChunkConfig, DefaultIngestConfig |
+
+---
+
+## 2026-02-20: Phase 2 Test Infrastructure Complete (go-rag agent)
+
+### Coverage Improvement
+
+```
+Before: 38.8% (66 tests across 4 test files)
+After:  69.0% (135 leaf-level tests across 7 test files)
+```
+
+### Interface Extraction
+
+Two interfaces extracted to decouple business logic from external services:
+
+| Interface | File | Methods | Satisfied By |
+|-----------|------|---------|--------------|
+| `Embedder` | embedder.go | Embed, EmbedBatch, EmbedDimension | `*OllamaClient` |
+| `VectorStore` | vectorstore.go | CreateCollection, CollectionExists, DeleteCollection, UpsertPoints, Search | `*QdrantClient` |
+
+### Signature Changes
+
+The following functions now accept interfaces instead of concrete types:
+
+| Function | Old Signature | New Signature |
+|----------|--------------|---------------|
+| `Ingest` | `*QdrantClient, *OllamaClient` | `VectorStore, Embedder` |
+| `IngestFile` | `*QdrantClient, *OllamaClient` | `VectorStore, Embedder` |
+| `Query` | `*QdrantClient, *OllamaClient` | `VectorStore, Embedder` |
+
+These changes are backwards-compatible because `*QdrantClient` satisfies `VectorStore` and `*OllamaClient` satisfies `Embedder`.
+
+### New Helper Functions
+
+Added interface-accepting helpers that the convenience wrappers now delegate to:
+
+| Function | Purpose |
+|----------|---------|
+| `QueryWith` | Query with provided store + embedder |
+| `QueryContextWith` | Query + format as context XML |
+| `IngestDirWith` | Ingest directory with provided store + embedder |
+| `IngestFileWith` | Ingest single file with provided store + embedder |
+
+### Per-Function Coverage (Phase 2 targets)
+
+| Function | File | Coverage | Notes |
+|----------|------|----------|-------|
+| Ingest | ingest.go | 86.8% | Uncovered: filepath.Rel error branch |
+| IngestFile | ingest.go | 100% | |
+| Query | query.go | 100% | |
+| QueryWith | helpers.go | 100% | |
+| QueryContextWith | helpers.go | 100% | |
+| IngestDirWith | helpers.go | 100% | |
+| IngestFileWith | helpers.go | 100% | |
+
+### Discoveries
+
+1. **Interface method signatures must match exactly** -- `EmbedDimension()` returns `uint64` (not `int`), and `Search` takes `limit uint64` and `filter map[string]string` (not `limit int, threshold float32`). The task description suggested approximate signatures; the actual code was the source of truth.
+
+2. **Convenience wrappers cannot be mocked** -- `QueryDocs`, `IngestDirectory`, `IngestSingleFile` construct their own concrete clients internally. Added `*With` variants that accept interfaces for testability. The convenience wrappers now delegate to these.
+
+3. **ChunkMarkdown preserves section headers in chunk text** -- Small sections that fit within the chunk size include the `## Header` line in the chunk text. Tests must use `Contains` rather than `Equal` when checking chunk text.
+
+4. **Mock vector store score calculation** -- The mock assigns scores as `1.0 - index*0.1`, so the second stored point gets 0.9. Tests using threshold must account for this.
+
+5. **Remaining 31% untested** is entirely in concrete client implementations (QdrantClient methods, OllamaClient.Embed/EmbedBatch, NewOllamaClient, NewQdrantClient) and the convenience wrapper functions that construct live clients. These are Phase 3 (integration test with live services) targets.
+
+### Test Files Created/Modified
+
+| File | New Tests | What It Covers |
+|------|-----------|----------------|
+| mock_test.go | -- | mockEmbedder + mockVectorStore implementations |
+| ingest_test.go (new) | 23 | Ingest (17 subtests) + IngestFile (6 subtests) with mocks |
+| query_test.go (extended) | 12 | Query function with mocks: embedding, search, threshold, errors, payload extraction |
+| helpers_test.go (new) | 16 | QueryWith (4), QueryContextWith (3), IngestDirWith (4), IngestFileWith (5) |
+
+### New Source Files
+
+| File | Purpose |
+|------|---------|
+| embedder.go | `Embedder` interface definition |
+| vectorstore.go | `VectorStore` interface definition |

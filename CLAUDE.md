@@ -18,11 +18,13 @@ go test -v -run TestChunk        # Single test
 | File | Purpose |
 |------|---------|
 | `chunk.go` | Document chunking — splits markdown/text into semantic chunks |
-| `ingest.go` | Ingestion pipeline — reads files, chunks, embeds, stores |
-| `query.go` | Query interface — search vectors, format results as text/JSON/XML |
-| `qdrant.go` | Qdrant vector DB client — create collections, upsert, search |
-| `ollama.go` | Ollama embedding client — generate embeddings for chunks |
-| `helpers.go` | Shared utilities |
+| `embedder.go` | `Embedder` interface — abstraction for embedding providers |
+| `vectorstore.go` | `VectorStore` interface — abstraction for vector storage backends |
+| `ingest.go` | Ingestion pipeline — reads files, chunks, embeds, stores (accepts interfaces) |
+| `query.go` | Query interface — search vectors, format results as text/JSON/XML (accepts interfaces) |
+| `qdrant.go` | Qdrant vector DB client — implements `VectorStore` |
+| `ollama.go` | Ollama embedding client — implements `Embedder` |
+| `helpers.go` | Convenience wrappers — `*With` variants accept interfaces, defaults construct live clients |
 
 ## Dependencies
 

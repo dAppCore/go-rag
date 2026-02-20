@@ -1,7 +1,9 @@
 package rag
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -270,5 +272,250 @@ func TestFormatResultsJSON(t *testing.T) {
 		output := FormatResultsJSON(results)
 
 		assert.Contains(t, output, "0.1235")
+	})
+}
+
+// --- Query function tests with mocks ---
+
+func TestQuery(t *testing.T) {
+	t.Run("generates embedding for query text", func(t *testing.T) {
+		store := newMockVectorStore()
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+
+		_, err := Query(context.Background(), store, embedder, "what is Go?", cfg)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, embedder.embedCallCount())
+		assert.Equal(t, "what is Go?", embedder.embedCalls[0])
+	})
+
+	t.Run("search is called with correct parameters", func(t *testing.T) {
+		store := newMockVectorStore()
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "my-docs"
+		cfg.Limit = 3
+
+		_, err := Query(context.Background(), store, embedder, "test query", cfg)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, store.searchCallCount())
+
+		call := store.searchCalls[0]
+		assert.Equal(t, "my-docs", call.Collection)
+		assert.Equal(t, uint64(3), call.Limit)
+		assert.Len(t, call.Vector, 768) // Vector should be 768 dimensions
+		assert.Nil(t, call.Filter)      // No category filter
+	})
+
+	t.Run("category filter is passed to search", func(t *testing.T) {
+		store := newMockVectorStore()
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+		cfg.Category = "documentation"
+
+		_, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		call := store.searchCalls[0]
+		assert.Equal(t, map[string]string{"category": "documentation"}, call.Filter)
+	})
+
+	t.Run("returns results above threshold", func(t *testing.T) {
+		store := newMockVectorStore()
+		// Pre-populate store with points
+		store.points["test-col"] = []Point{
+			{ID: "1", Vector: []float32{0.1}, Payload: map[string]any{
+				"text": "high score", "source": "a.md", "section": "S", "category": "docs", "chunk_index": 0,
+			}},
+			{ID: "2", Vector: []float32{0.1}, Payload: map[string]any{
+				"text": "mid score", "source": "b.md", "section": "S", "category": "docs", "chunk_index": 1,
+			}},
+		}
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+		cfg.Limit = 10
+		cfg.Threshold = 0.95 // Only the first result (score 1.0) should pass; second gets 0.9
+
+		results, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		assert.Len(t, results, 1)
+		assert.Equal(t, "high score", results[0].Text)
+		assert.Equal(t, "a.md", results[0].Source)
+		assert.Equal(t, "S", results[0].Section)
+		assert.Equal(t, "docs", results[0].Category)
+	})
+
+	t.Run("empty results when nothing above threshold", func(t *testing.T) {
+		store := newMockVectorStore()
+		// No points stored — search returns empty
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "empty-col"
+		cfg.Threshold = 0.5
+
+		results, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+
+	t.Run("empty results when store has no matching points", func(t *testing.T) {
+		store := newMockVectorStore()
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "no-data"
+
+		results, err := Query(context.Background(), store, embedder, "test query", cfg)
+
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+
+	t.Run("embedder failure returns error", func(t *testing.T) {
+		store := newMockVectorStore()
+		embedder := newMockEmbedder(768)
+		embedder.embedErr = fmt.Errorf("ollama down")
+
+		cfg := DefaultQueryConfig()
+
+		_, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "error generating query embedding")
+		// Search should not be called if embedding fails
+		assert.Equal(t, 0, store.searchCallCount())
+	})
+
+	t.Run("search failure returns error", func(t *testing.T) {
+		store := newMockVectorStore()
+		store.searchErr = fmt.Errorf("qdrant timeout")
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+
+		_, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "error searching")
+	})
+
+	t.Run("extracts all payload fields correctly", func(t *testing.T) {
+		store := newMockVectorStore()
+		store.points["test-col"] = []Point{
+			{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{
+				"text":        "Full payload test.",
+				"source":      "docs/guide.md",
+				"section":     "Getting Started",
+				"category":    "documentation",
+				"chunk_index": 5,
+			}},
+		}
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+		cfg.Limit = 10
+		cfg.Threshold = 0.0
+
+		results, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+
+		r := results[0]
+		assert.Equal(t, "Full payload test.", r.Text)
+		assert.Equal(t, "docs/guide.md", r.Source)
+		assert.Equal(t, "Getting Started", r.Section)
+		assert.Equal(t, "documentation", r.Category)
+		assert.Equal(t, 5, r.ChunkIndex)
+	})
+
+	t.Run("handles int64 chunk_index from Qdrant", func(t *testing.T) {
+		store := newMockVectorStore()
+		store.points["test-col"] = []Point{
+			{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{
+				"text":        "Test.",
+				"source":      "a.md",
+				"section":     "",
+				"category":    "docs",
+				"chunk_index": int64(42),
+			}},
+		}
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+		cfg.Threshold = 0.0
+
+		results, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, 42, results[0].ChunkIndex)
+	})
+
+	t.Run("handles float64 chunk_index from JSON", func(t *testing.T) {
+		store := newMockVectorStore()
+		store.points["test-col"] = []Point{
+			{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{
+				"text":        "Test.",
+				"source":      "a.md",
+				"section":     "",
+				"category":    "docs",
+				"chunk_index": float64(7),
+			}},
+		}
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+		cfg.Threshold = 0.0
+
+		results, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, 7, results[0].ChunkIndex)
+	})
+
+	t.Run("results respect limit", func(t *testing.T) {
+		store := newMockVectorStore()
+		// Add many points
+		for i := 0; i < 10; i++ {
+			store.points["test-col"] = append(store.points["test-col"], Point{
+				ID:     fmt.Sprintf("p%d", i),
+				Vector: []float32{0.1},
+				Payload: map[string]any{
+					"text":        fmt.Sprintf("Result %d", i),
+					"source":      "doc.md",
+					"section":     "",
+					"category":    "docs",
+					"chunk_index": i,
+				},
+			})
+		}
+		embedder := newMockEmbedder(768)
+
+		cfg := DefaultQueryConfig()
+		cfg.Collection = "test-col"
+		cfg.Limit = 3
+		cfg.Threshold = 0.0
+
+		results, err := Query(context.Background(), store, embedder, "test", cfg)
+
+		require.NoError(t, err)
+		assert.Len(t, results, 3)
 	})
 }

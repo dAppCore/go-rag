@@ -5,6 +5,42 @@ import (
 	"fmt"
 )
 
+// QueryWith queries the vector store using the provided embedder and store.
+func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) ([]QueryResult, error) {
+	cfg := DefaultQueryConfig()
+	cfg.Collection = collectionName
+	cfg.Limit = uint64(topK)
+
+	return Query(ctx, store, embedder, question, cfg)
+}
+
+// QueryContextWith queries and returns context-formatted results using the
+// provided embedder and store.
+func QueryContextWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) (string, error) {
+	results, err := QueryWith(ctx, store, embedder, question, collectionName, topK)
+	if err != nil {
+		return "", err
+	}
+	return FormatResultsContext(results), nil
+}
+
+// IngestDirWith ingests all documents in a directory using the provided
+// embedder and store.
+func IngestDirWith(ctx context.Context, store VectorStore, embedder Embedder, directory, collectionName string, recreateCollection bool) error {
+	cfg := DefaultIngestConfig()
+	cfg.Directory = directory
+	cfg.Collection = collectionName
+	cfg.Recreate = recreateCollection
+
+	_, err := Ingest(ctx, store, embedder, cfg, nil)
+	return err
+}
+
+// IngestFileWith ingests a single file using the provided embedder and store.
+func IngestFileWith(ctx context.Context, store VectorStore, embedder Embedder, filePath, collectionName string) (int, error) {
+	return IngestFile(ctx, store, embedder, collectionName, filePath, DefaultChunkConfig())
+}
+
 // QueryDocs queries the RAG database with default clients.
 func QueryDocs(ctx context.Context, question, collectionName string, topK int) ([]QueryResult, error) {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
@@ -18,11 +54,7 @@ func QueryDocs(ctx context.Context, question, collectionName string, topK int) (
 		return nil, err
 	}
 
-	cfg := DefaultQueryConfig()
-	cfg.Collection = collectionName
-	cfg.Limit = uint64(topK)
-
-	return Query(ctx, qdrantClient, ollamaClient, question, cfg)
+	return QueryWith(ctx, qdrantClient, ollamaClient, question, collectionName, topK)
 }
 
 // QueryDocsContext queries the RAG database and returns context-formatted results.
@@ -55,13 +87,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 		return err
 	}
 
-	cfg := DefaultIngestConfig()
-	cfg.Directory = directory
-	cfg.Collection = collectionName
-	cfg.Recreate = recreateCollection
-
-	_, err = Ingest(ctx, qdrantClient, ollamaClient, cfg, nil)
-	return err
+	return IngestDirWith(ctx, qdrantClient, ollamaClient, directory, collectionName, recreateCollection)
 }
 
 // IngestSingleFile ingests a single file with default clients.
@@ -85,5 +111,5 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 		return 0, err
 	}
 
-	return IngestFile(ctx, qdrantClient, ollamaClient, collectionName, filePath, DefaultChunkConfig())
+	return IngestFileWith(ctx, qdrantClient, ollamaClient, filePath, collectionName)
 }
