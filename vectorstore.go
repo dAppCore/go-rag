@@ -15,10 +15,26 @@ type VectorStore interface {
 	// DeleteCollection deletes the collection with the given name.
 	DeleteCollection(ctx context.Context, name string) error
 
+	// ListCollections returns all collection names in the store.
+	ListCollections(ctx context.Context) ([]string, error)
+
+	// CollectionInfo returns metadata about a collection. Implementations
+	// should populate at least PointCount and VectorSize in the returned
+	// CollectionInfo struct.
+	CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error)
+
 	// UpsertPoints inserts or updates points in the named collection.
 	UpsertPoints(ctx context.Context, collection string, points []Point) error
 
 	// Search performs a vector similarity search, returning up to limit results.
 	// An optional filter map restricts results by payload field values.
 	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error)
+}
+
+// CollectionInfo holds backend-agnostic metadata about a collection.
+type CollectionInfo struct {
+	Name       string
+	PointCount uint64
+	VectorSize uint64
+	Status     string // e.g. "green", "yellow", "red", "unknown"
 }

@@ -97,9 +97,36 @@ func (q *QdrantClient) DeleteCollection(ctx context.Context, name string) error 
 	return q.client.DeleteCollection(ctx, name)
 }
 
-// CollectionInfo returns information about a collection.
-func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*qdrant.CollectionInfo, error) {
-	return q.client.GetCollectionInfo(ctx, name)
+// CollectionInfo returns backend-agnostic metadata about a collection.
+func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
+	info, err := q.client.GetCollectionInfo(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	ci := &CollectionInfo{
+		Name:       name,
+		PointCount: info.GetPointsCount(),
+	}
+
+	// Extract vector size from the Qdrant config
+	if params := info.GetConfig().GetParams().GetVectorsConfig().GetParams(); params != nil {
+		ci.VectorSize = params.GetSize()
+	}
+
+	// Map Qdrant status to a simple string
+	switch info.Status {
+	case qdrant.CollectionStatus_Green:
+		ci.Status = "green"
+	case qdrant.CollectionStatus_Yellow:
+		ci.Status = "yellow"
+	case qdrant.CollectionStatus_Red:
+		ci.Status = "red"
+	default:
+		ci.Status = "unknown"
+	}
+
+	return ci, nil
 }
 
 // Point represents a vector point with payload.

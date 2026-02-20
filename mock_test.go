@@ -91,6 +91,8 @@ type mockVectorStore struct {
 	createCalls []createCollectionCall
 	existsCalls []string
 	deleteCalls []string
+	listCalls   int
+	infoCalls   []string
 	upsertCalls []upsertCall
 	searchCalls []searchCall
 
@@ -98,6 +100,8 @@ type mockVectorStore struct {
 	createErr  error
 	existsErr  error
 	deleteErr  error
+	listErr    error
+	infoErr    error
 	upsertErr  error
 	searchErr  error
 }
@@ -167,6 +171,49 @@ func (m *mockVectorStore) DeleteCollection(ctx context.Context, name string) err
 	delete(m.collections, name)
 	delete(m.points, name)
 	return nil
+}
+
+func (m *mockVectorStore) ListCollections(ctx context.Context) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.listCalls++
+
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+
+	names := make([]string, 0, len(m.collections))
+	for name := range m.collections {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.infoCalls = append(m.infoCalls, name)
+
+	if m.infoErr != nil {
+		return nil, m.infoErr
+	}
+
+	vectorSize, exists := m.collections[name]
+	if !exists {
+		return nil, fmt.Errorf("collection %q not found", name)
+	}
+
+	pointCount := uint64(len(m.points[name]))
+
+	return &CollectionInfo{
+		Name:       name,
+		PointCount: pointCount,
+		VectorSize: vectorSize,
+		Status:     "green",
+	}, nil
 }
 
 func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, points []Point) error {

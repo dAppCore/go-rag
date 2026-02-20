@@ -15,6 +15,7 @@ type QueryConfig struct {
 	Limit      uint64
 	Threshold  float32 // Minimum similarity score (0-1)
 	Category   string  // Filter by category
+	Keywords   bool    // When true, extract keywords from query and boost matching results
 }
 
 // DefaultQueryConfig returns default query configuration.
@@ -91,6 +92,14 @@ func Query(ctx context.Context, store VectorStore, embedder Embedder, query stri
 		}
 
 		queryResults = append(queryResults, qr)
+	}
+
+	// Apply keyword boosting when enabled
+	if cfg.Keywords && len(queryResults) > 0 {
+		keywords := extractKeywords(query)
+		if len(keywords) > 0 {
+			queryResults = KeywordFilter(queryResults, keywords)
+		}
 	}
 
 	return queryResults, nil

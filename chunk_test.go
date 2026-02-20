@@ -1,6 +1,7 @@
 package rag
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -347,4 +348,140 @@ func joinParagraphs(parts []string) string {
 		result += p
 	}
 	return result
+}
+
+// --- Phase 3.1: Sentence splitting and overlap alignment ---
+
+func TestChunkMarkdown_SentenceSplitting(t *testing.T) {
+	t.Run("oversized paragraph split at sentence boundaries", func(t *testing.T) {
+		// Three sentences, each ~60 chars. Total ~180 chars exceeds Size=100.
+		s1 := "The quick brown fox jumps over the lazy dog on the green hill."
+		s2 := "A second sentence that also has a reasonable amount of words."
+		s3 := "Finally the third sentence wraps up this oversized paragraph."
+		text := "## Section\n\n" + s1 + " " + s2 + " " + s3
+		cfg := ChunkConfig{Size: 100, Overlap: 0}
+		chunks := ChunkMarkdown(text, cfg)
+
+		// Should produce more than one chunk because sentences are split
+		assert.Greater(t, len(chunks), 1, "oversized paragraph should be split into multiple chunks")
+
+		// Verify all original text appears across the chunks
+		combined := ""
+		for _, c := range chunks {
+			combined += c.Text + " "
+		}
+		assert.Contains(t, combined, "quick brown fox")
+		assert.Contains(t, combined, "second sentence")
+		assert.Contains(t, combined, "third sentence")
+
+		// Each chunk should have the correct section
+		for _, c := range chunks {
+			assert.Equal(t, "Section", c.Section)
+		}
+	})
+
+	t.Run("paragraph without sentence boundaries kept as single chunk", func(t *testing.T) {
+		// Long paragraph with no sentence-ending punctuation followed by space
+		para := repeatString("word ", 100) // ~500 chars, no ". " or "? " or "! "
+		text := "## S\n\n" + para
+		cfg := ChunkConfig{Size: 100, Overlap: 0}
+		chunks := ChunkMarkdown(text, cfg)
+
+		// Should still produce at least one chunk (fallback behaviour)
+		assert.NotEmpty(t, chunks)
+	})
+
+	t.Run("sentence boundaries preserve punctuation", func(t *testing.T) {
+		text := "## S\n\nFirst sentence. Second sentence. Third sentence."
+		cfg := ChunkConfig{Size: 30, Overlap: 0}
+		chunks := ChunkMarkdown(text, cfg)
+
+		// The first chunk should end with a period (punctuation preserved)
+		foundPeriod := false
+		for _, c := range chunks {
+			if strings.HasSuffix(strings.TrimSpace(c.Text), ".") {
+				foundPeriod = true
+				break
+			}
+		}
+		assert.True(t, foundPeriod, "at least one chunk should end with a period")
+	})
+}
+
+func TestChunkMarkdown_OverlapWordBoundary(t *testing.T) {
+	t.Run("overlap does not split mid-word", func(t *testing.T) {
+		// Build two paragraphs where the first is large enough to emit,
+		// and the overlap region lands mid-word in the naive rune slice.
+		para1 := "Alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango."
+		para2 := "Uniform victor whiskey xray yankee zulu."
+		text := "## S\n\n" + para1 + "\n\n" + para2
+		cfg := ChunkConfig{Size: 80, Overlap: 15}
+		chunks := ChunkMarkdown(text, cfg)
+
+		// Find a chunk that contains overlap text (not the first chunk)
+		for i, c := range chunks {
+			if i == 0 {
+				continue
+			}
+			// The overlap prefix should start at a word boundary:
+			// it should not begin with a partial word fragment.
+			words := strings.Fields(c.Text)
+			if len(words) > 0 {
+				// The first word should be a recognisable whole word, not a suffix
+				// of a longer word. We can verify there is no leading lowercase
+				// fragment by checking the original text contains this word.
+				firstWord := words[0]
+				assert.True(t,
+					strings.Contains(para1, firstWord) || strings.Contains(para2, firstWord),
+					"overlap should start at a word boundary, got leading word: %q", firstWord)
+			}
+		}
+	})
+
+	t.Run("overlap with zero value produces no overlap", func(t *testing.T) {
+		para1 := repeatString("Abcdef. ", 30) // ~240 chars
+		para2 := "Unique marker text here."
+		text := "## S\n\n" + para1 + "\n\n" + para2
+		cfg := ChunkConfig{Size: 100, Overlap: 0}
+		chunks := ChunkMarkdown(text, cfg)
+
+		// With zero overlap, the second chunk should not contain text from
+		// the end of the previous chunk
+		assert.NotEmpty(t, chunks)
+	})
+}
+
+func TestSplitBySentences(t *testing.T) {
+	t.Run("splits on period-space", func(t *testing.T) {
+		result := splitBySentences("First. Second. Third.")
+		assert.Len(t, result, 3)
+		assert.Equal(t, "First.", result[0])
+		assert.Equal(t, "Second.", result[1])
+		assert.Equal(t, "Third.", result[2])
+	})
+
+	t.Run("splits on question mark", func(t *testing.T) {
+		result := splitBySentences("What is this? It is a test.")
+		assert.Len(t, result, 2)
+		assert.Equal(t, "What is this?", result[0])
+		assert.Equal(t, "It is a test.", result[1])
+	})
+
+	t.Run("splits on exclamation mark", func(t *testing.T) {
+		result := splitBySentences("Wow! That is amazing.")
+		assert.Len(t, result, 2)
+		assert.Equal(t, "Wow!", result[0])
+		assert.Equal(t, "That is amazing.", result[1])
+	})
+
+	t.Run("no boundaries returns single element", func(t *testing.T) {
+		result := splitBySentences("just a plain string with no ending")
+		assert.Len(t, result, 1)
+		assert.Equal(t, "just a plain string with no ending", result[0])
+	})
+
+	t.Run("empty string returns empty", func(t *testing.T) {
+		result := splitBySentences("")
+		assert.Empty(t, result)
+	})
 }

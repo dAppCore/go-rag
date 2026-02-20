@@ -30,7 +30,9 @@ type Chunk struct {
 }
 
 // ChunkMarkdown splits markdown text into chunks by sections and paragraphs.
-// Preserves context with configurable overlap.
+// Preserves context with configurable overlap. When a paragraph exceeds the
+// configured Size, it is split at sentence boundaries. Overlap is aligned to
+// word boundaries to avoid splitting mid-word.
 func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
 	if cfg.Size <= 0 {
 		cfg.Size = 500
@@ -80,28 +82,40 @@ func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
 				continue
 			}
 
-			if len(currentChunk)+len(para)+2 <= cfg.Size {
-				if currentChunk != "" {
-					currentChunk += "\n\n" + para
-				} else {
-					currentChunk = para
+			// If the paragraph itself exceeds Size, split at sentence
+			// boundaries and treat each sentence (or group of sentences)
+			// as a separate sub-paragraph.
+			subParas := []string{para}
+			if len(para) > cfg.Size {
+				if sentences := splitBySentences(para); len(sentences) > 1 {
+					subParas = sentences
 				}
-			} else {
-				if currentChunk != "" {
-					chunks = append(chunks, Chunk{
-						Text:    strings.TrimSpace(currentChunk),
-						Section: title,
-						Index:   chunkIndex,
-					})
-					chunkIndex++
+			}
+
+			for _, sp := range subParas {
+				sp = strings.TrimSpace(sp)
+				if sp == "" {
+					continue
 				}
-				// Start new chunk with overlap from previous (rune-safe for UTF-8)
-				runes := []rune(currentChunk)
-				if cfg.Overlap > 0 && len(runes) > cfg.Overlap {
-					overlapText := string(runes[len(runes)-cfg.Overlap:])
-					currentChunk = overlapText + "\n\n" + para
+
+				if len(currentChunk)+len(sp)+2 <= cfg.Size {
+					if currentChunk != "" {
+						currentChunk += "\n\n" + sp
+					} else {
+						currentChunk = sp
+					}
 				} else {
-					currentChunk = para
+					if currentChunk != "" {
+						chunks = append(chunks, Chunk{
+							Text:    strings.TrimSpace(currentChunk),
+							Section: title,
+							Index:   chunkIndex,
+						})
+						chunkIndex++
+					}
+					// Start new chunk with overlap from previous,
+					// aligned to the nearest word boundary.
+					currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
 				}
 			}
 		}
@@ -118,6 +132,76 @@ func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
 	}
 
 	return chunks
+}
+
+// overlapPrefix builds the start of a new chunk by taking word-boundary-aligned
+// overlap text from the previous chunk and prepending it to the new paragraph.
+func overlapPrefix(prevChunk string, overlap int, newPara string) string {
+	if overlap <= 0 {
+		return newPara
+	}
+
+	runes := []rune(prevChunk)
+	if len(runes) <= overlap {
+		return newPara
+	}
+
+	// Slice from the end of the previous chunk
+	overlapRunes := runes[len(runes)-overlap:]
+
+	// Align to the nearest word boundary: find the first space within the
+	// overlap slice and start after it to avoid a partial leading word.
+	overlapText := string(overlapRunes)
+	if idx := strings.IndexByte(overlapText, ' '); idx >= 0 {
+		overlapText = overlapText[idx+1:]
+	}
+
+	if overlapText == "" {
+		return newPara
+	}
+
+	return overlapText + "\n\n" + newPara
+}
+
+// splitBySentences splits text at sentence boundaries (". ", "? ", "! ").
+// Returns the original text in a single-element slice when no boundaries are found.
+func splitBySentences(text string) []string {
+	var sentences []string
+	remaining := text
+
+	for len(remaining) > 0 {
+		// Find the earliest sentence boundary
+		bestIdx := -1
+		var bestSep string
+		for _, sep := range []string{". ", "? ", "! "} {
+			idx := strings.Index(remaining, sep)
+			if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
+				bestIdx = idx
+				bestSep = sep
+			}
+		}
+
+		if bestIdx < 0 {
+			// No more boundaries — append remainder
+			sentences = append(sentences, remaining)
+			break
+		}
+
+		// Include the punctuation mark in the sentence, but not the trailing space
+		sentence := remaining[:bestIdx+len(bestSep)-1]
+		sentences = append(sentences, strings.TrimSpace(sentence))
+		remaining = remaining[bestIdx+len(bestSep):]
+	}
+
+	// Filter out empty entries
+	var filtered []string
+	for _, s := range sentences {
+		if strings.TrimSpace(s) != "" {
+			filtered = append(filtered, s)
+		}
+	}
+
+	return filtered
 }
 
 // splitBySections splits text by ## headers while preserving the header with its content.
