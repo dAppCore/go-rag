@@ -26,9 +26,9 @@ All pure-function tests complete. Remaining untested functions require live serv
 
 ### Require External Services (use build tag `//go:build rag`)
 
-- [x] **Qdrant client tests** — Create collection, upsert, search, delete, list, info, filter, overwrite. Skip if Qdrant unavailable. 11 subtests in `qdrant_integration_test.go`. (PHASE3_COMMIT)
-- [x] **Ollama client tests** — Embed single text, embed batch, verify model, consistency, dimension check, different texts, non-zero values, empty string. 9 subtests in `ollama_integration_test.go`. (PHASE3_COMMIT)
-- [x] **Full pipeline integration test** — Ingest directory, query, format results, all helpers (QueryWith, QueryContextWith, IngestDirWith, IngestFileWith, QueryDocs, IngestDirectory), recreate flag, semantic similarity. 12 subtests in `integration_test.go`. (PHASE3_COMMIT)
+- [x] **Qdrant client tests** — Create collection, upsert, search, delete, list, info, filter, overwrite. Skip if Qdrant unavailable. 11 subtests in `qdrant_integration_test.go`. (e90f281)
+- [x] **Ollama client tests** — Embed single text, embed batch, verify model, consistency, dimension check, different texts, non-zero values, empty string. 9 subtests in `ollama_integration_test.go`. (e90f281)
+- [x] **Full pipeline integration test** — Ingest directory, query, format results, all helpers (QueryWith, QueryContextWith, IngestDirWith, IngestFileWith, QueryDocs, IngestDirectory), recreate flag, semantic similarity. 12 subtests in `integration_test.go`. (e90f281)
 
 ## Phase 2: Test Infrastructure (38.8% -> 69.0% coverage)
 
