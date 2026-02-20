@@ -6,10 +6,10 @@ Dispatched from core/go orchestration. Pick up tasks in phase order.
 
 ## Phase 0: Environment Setup
 
-- [x] **Fix go.mod replace directive** — Was `../core`, corrected to `../go`. Commit and push. (Charon, 19 Feb 2026)
-- [x] **Run Qdrant locally** — Docker: `docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant`. Test with `curl http://localhost:6334/healthz`.
-- [x] **Install Ollama** — `curl -fsSL https://ollama.com/install.sh | sh`. Pull embedding model: `ollama pull nomic-embed-text`.
-- [x] **Verify both services** — Both running on snider-linux.
+- [x] **Fix go.mod replace directive** — Was `../core`, corrected to `../go`. (Charon, 19 Feb 2026)
+- [x] **Run Qdrant locally** — Docker on localhost:6333/6334, v1.16.3. (Charon, 19 Feb 2026)
+- [x] **Install Ollama** — Native with ROCm on snider-linux. Model: nomic-embed-text (F16). (Charon, 19 Feb 2026)
+- [x] **Verify both services** — Integration tests pass: 32 tests across qdrant/ollama/full pipeline. (Charon, 20 Feb 2026)
 
 ## Phase 1: Unit Tests (18.4% -> 38.8% coverage)
 
@@ -74,11 +74,11 @@ All tasks are pure Go, testable with existing mocks. No external services needed
   - `BenchmarkFormatResults` — FormatResultsText/Context/JSON with 20 results
   - `BenchmarkKeywordFilter` — 100 results, 5 keywords (cf26e88)
 
-## Phase 4: GPU Embeddings
+## Phase 4: GPU Embeddings — COMPLETE
 
-- [ ] **ROCm Ollama** — Test Ollama with ROCm on the RX 7800 XT. Measure embedding throughput.
-- [ ] **Batch optimisation** — EmbedBatch currently calls Embed sequentially. Ollama may support batch API.
-- [ ] **Integration benchmarks** — Live Qdrant + Ollama chunking/embedding/search latency.
+- [x] **ROCm Ollama** — Tested on RX 7800 XT. 97 embeds/sec single, 10.3ms latency. See FINDINGS.md. (Charon, 20 Feb 2026)
+- [x] **Batch optimisation** — Investigated: Ollama has no batch API. EmbedBatch is inherently sequential (one HTTP call per text). No optimisation possible without upstream changes. (Charon, 20 Feb 2026)
+- [x] **Benchmarks** — Go benchmarks added: BenchmarkEmbedSingle, BenchmarkEmbedBatch, BenchmarkEmbedVaryingLength, BenchmarkChunkMarkdown, BenchmarkQdrantSearch, BenchmarkFullPipeline + throughput/latency tests. (Charon, 20 Feb 2026)
 
 ---
 

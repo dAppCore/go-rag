@@ -246,3 +246,45 @@ All integration tests use `//go:build rag` to isolate them from CI runs that lac
 go test ./... -count=1               # 135 tests, 69.0% — mock-only, no services needed
 go test -tags rag ./... -count=1     # 204 tests, 89.2% — requires Qdrant + Ollama
 ```
+
+---
+
+## 2026-02-20: Phase 4 GPU Benchmarks (Charon)
+
+### Hardware
+
+- **CPU**: AMD Ryzen 9 9950X (32 threads @ 5.7GHz)
+- **GPU**: AMD Radeon RX 7800 XT (ROCm, gfx1100)
+- **Ollama**: Native with ROCm, nomic-embed-text (F16, 137M params)
+- **Qdrant**: v1.16.3 (Docker, localhost)
+
+### Benchmark Results
+
+| Operation | Latency | Throughput | Notes |
+|-----------|---------|------------|-------|
+| Single embed | 10.3ms | 97/sec | nomic-embed-text via Ollama ROCm |
+| Batch embed (10 texts) | 102ms | 98/sec effective | Sequential calls, no batch API |
+| Embed 50 chars | ~10ms | — | Text length has negligible impact |
+| Embed 2000 chars | ~10ms | — | Tokeniser dominates, not GPU |
+| Qdrant search (100 pts) | 111µs | 9,042 QPS | Cosine similarity, top-5 |
+| Qdrant search (200 pts) | 152µs | 6,580 QPS | Cosine similarity, top-5 |
+| Chunk 50 sections | 11.2µs | 89K/sec | Pure CPU, no I/O |
+| Chunk 1000 paragraphs | 107µs | 9.4K/sec | Scales linearly |
+
+### Key Findings
+
+1. **EmbedBatch is sequential** — `EmbedBatch` calls `Embed` in a loop. Ollama's `/api/embed` endpoint accepts a single `input` string. There is no batch API at the HTTP level — each text requires a separate request. Batch throughput equals single throughput.
+
+2. **Text length barely affects latency** — 50-character and 2000-character texts both embed in ~10ms. The tokeniser and model forward pass dominate; HTTP overhead is negligible on localhost.
+
+3. **Qdrant search is sub-millisecond** — Even with 200 points, search takes 152µs. The bottleneck in any RAG pipeline will be embedding, not search.
+
+4. **Pipeline bottleneck is embedding** — A full ingest+query cycle for 5 documents takes ~1.5s, with ~95% of that time in embedding calls. Optimisation efforts should focus on reducing embedding round-trips.
+
+5. **Ollama ROCm GPU utilisation** — The nomic-embed-text model (137M params, F16) fits easily in 16GB VRAM. GPU utilisation during embedding is brief (~2ms compute per call) — the remaining ~8ms is HTTP + serialisation overhead.
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| benchmark_test.go | Go benchmarks + throughput tests (build tag: rag) |
