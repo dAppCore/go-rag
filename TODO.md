@@ -32,10 +32,10 @@ All pure-function tests complete. Remaining untested functions require live serv
 
 ## Phase 2: Test Infrastructure (38.8% -> 69.0% coverage)
 
-- [x] **Interface extraction** — Extracted `Embedder` interface (embedder.go) and `VectorStore` interface (vectorstore.go). Updated `Ingest`, `IngestFile`, `Query` to accept interfaces. Added `QueryWith`, `QueryContextWith`, `IngestDirWith`, `IngestFileWith` helpers. (PENDING_COMMIT)
-- [x] **Mock embedder** — Returns deterministic 0.1 vectors, tracks all calls, supports error injection and custom embed functions. (PENDING_COMMIT)
-- [x] **Mock vector store** — In-memory map, stores points, returns them on search with fake descending scores, supports filtering, tracks all calls. (PENDING_COMMIT)
-- [x] **Re-test with mocks** — 69 new mock-based tests across ingest (23), query (12), and helpers (16). Coverage from 38.8% to 69.0%. (PENDING_COMMIT)
+- [x] **Interface extraction** — Extracted `Embedder` interface (embedder.go) and `VectorStore` interface (vectorstore.go). Updated `Ingest`, `IngestFile`, `Query` to accept interfaces. Added `QueryWith`, `QueryContextWith`, `IngestDirWith`, `IngestFileWith` helpers. (a49761b)
+- [x] **Mock embedder** — Returns deterministic 0.1 vectors, tracks all calls, supports error injection and custom embed functions. (a49761b)
+- [x] **Mock vector store** — In-memory map, stores points, returns them on search with fake descending scores, supports filtering, tracks all calls. (a49761b)
+- [x] **Re-test with mocks** — 69 new mock-based tests across ingest (23), query (12), and helpers (16). Coverage from 38.8% to 69.0%. (a49761b)
 
 ## Phase 3: Enhancements
 
