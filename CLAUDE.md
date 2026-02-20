@@ -1,54 +1,69 @@
 # CLAUDE.md
 
-## What This Is
+Module: `forge.lthn.ai/core/go-rag`
 
-Retrieval-Augmented Generation with vector search. Module: `forge.lthn.ai/core/go-rag`
-
-Provides document chunking, embedding via Ollama, vector storage/search via Qdrant, and formatted context retrieval for AI prompts.
+Retrieval-Augmented Generation — document chunking, Ollama embeddings, Qdrant vector storage and search.
 
 ## Commands
 
 ```bash
-go test ./...                    # Run all tests
-go test -v -run TestChunk        # Single test
+go test ./...                        # Unit + mock tests (no services needed)
+go test -tags rag ./...              # Full suite including live Qdrant + Ollama
+go test -v -run TestName ./...       # Single test
+go test -bench=. -benchmem ./...     # Benchmarks (mock-only)
+go test -tags rag -bench=. ./...     # Benchmarks with live services
 ```
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
-| `chunk.go` | Document chunking — splits markdown/text into semantic chunks |
-| `embedder.go` | `Embedder` interface — abstraction for embedding providers |
-| `vectorstore.go` | `VectorStore` interface — abstraction for vector storage backends |
-| `ingest.go` | Ingestion pipeline — reads files, chunks, embeds, stores (accepts interfaces) |
-| `query.go` | Query interface — search vectors, format results as text/JSON/XML (accepts interfaces) |
-| `qdrant.go` | Qdrant vector DB client — implements `VectorStore` |
-| `ollama.go` | Ollama embedding client — implements `Embedder` |
-| `helpers.go` | Convenience wrappers — `*With` variants accept interfaces, defaults construct live clients |
+| `embedder.go` | `Embedder` interface |
+| `vectorstore.go` | `VectorStore` interface + `CollectionInfo` |
+| `chunk.go` | Markdown chunking — sections, paragraphs, sentences, overlap |
+| `ollama.go` | `OllamaClient` — implements `Embedder` |
+| `qdrant.go` | `QdrantClient` — implements `VectorStore` |
+| `ingest.go` | Ingestion pipeline |
+| `query.go` | Query pipeline + result formatting |
+| `keyword.go` | Keyword boosting post-filter |
+| `collections.go` | Collection management helpers |
+| `helpers.go` | Convenience wrappers (`*With` and default-client variants) |
 
-## Dependencies
-
-- `forge.lthn.ai/core/go` — Logging (pkg/log)
-- `github.com/ollama/ollama` — Embedding API client
-- `github.com/qdrant/go-client` — Vector DB gRPC client
-- `github.com/stretchr/testify` — Tests
+See `docs/architecture.md` for full design detail.
 
 ## Key API
 
 ```go
-// Ingest documents
-rag.IngestFile(ctx, cfg, "/path/to/doc.md")
-rag.Ingest(ctx, cfg, reader, "source-name")
+// Ingest a directory (interface-accepting variant)
+IngestDirWith(ctx, store, embedder, directory, collectionName string, recreate bool) error
+
+// Ingest a single file
+IngestFileWith(ctx, store, embedder, filePath, collectionName string) (int, error)
 
 // Query for relevant context
-results, err := rag.Query(ctx, cfg, "search query")
-context := rag.FormatResults(results, "text") // or "json", "xml"
+results, err := QueryWith(ctx, store, embedder, question, collectionName string, topK int)
+context, err := QueryContextWith(ctx, store, embedder, question, collectionName string, topK int)
+
+// Format results
+FormatResultsText(results)    // plain text
+FormatResultsContext(results) // XML for LLM injection
+FormatResultsJSON(results)    // JSON array
 ```
 
 ## Coding Standards
 
-- UK English
-- Tests: testify assert/require
-- Conventional commits
+- UK English (colour, organisation, initialise, behaviour)
+- Conventional commits: `type(scope): description`
 - Co-Author: `Co-Authored-By: Virgil <virgil@lethean.io>`
 - Licence: EUPL-1.2
+- Tests: testify assert/require
+- Integration tests: `//go:build rag` build tag
+- Mocks: `mockEmbedder` and `mockVectorStore` in `mock_test.go`
+
+## Service Defaults
+
+| Service | Host | Port | Notes |
+|---------|------|------|-------|
+| Qdrant | localhost | 6334 | gRPC |
+| Ollama | localhost | 11434 | HTTP |
+| Model | — | — | `nomic-embed-text` (768 dims) |
