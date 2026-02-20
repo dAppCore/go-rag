@@ -11,18 +11,18 @@ Dispatched from core/go orchestration. Pick up tasks in phase order.
 - [ ] **Install Ollama** — `curl -fsSL https://ollama.com/install.sh | sh`. Pull embedding model: `ollama pull nomic-embed-text`.
 - [ ] **Verify both services** — `go test -v -run TestQdrant ./...` and `go test -v -run TestOllama ./...` (write these tests in Phase 1).
 
-## Phase 1: Unit Tests (currently 18.4% coverage)
+## Phase 1: Unit Tests (18.4% -> 38.8% coverage)
 
-Only `chunk.go` has tests. Everything else is untested.
+All pure-function tests complete. Remaining untested functions require live services (Phase 2/3).
 
 ### Testable Without External Services
 
-- [ ] **FormatResults tests** — FormatResultsText, FormatResultsContext, FormatResultsJSON with known QueryResult inputs. Pure string formatting, no deps.
-- [ ] **DefaultConfig tests** — Verify DefaultQdrantConfig, DefaultOllamaConfig, DefaultQueryConfig, DefaultChunkConfig, DefaultIngestConfig return expected values.
-- [ ] **EmbedDimension tests** — OllamaClient.EmbedDimension() for each model name (nomic-embed-text=768, mxbai-embed-large=1024, all-minilm=384, unknown=768).
-- [ ] **Point/SearchResult types** — Round-trip tests for Point struct and pointIDToString helper.
-- [ ] **valueToGo tests** — Qdrant value conversion for string, int, double, bool, list, struct, nil.
-- [ ] **Additional chunk tests** — Empty input, only headers no content, unicode/emoji, very long paragraph.
+- [x] **FormatResults tests** — FormatResultsText, FormatResultsContext, FormatResultsJSON with known QueryResult inputs. Pure string formatting, no deps. (acb987a)
+- [x] **DefaultConfig tests** — Verify DefaultQdrantConfig, DefaultOllamaConfig, DefaultQueryConfig, DefaultChunkConfig, DefaultIngestConfig return expected values. (acb987a)
+- [x] **EmbedDimension tests** — OllamaClient.EmbedDimension() for each model name (nomic-embed-text=768, mxbai-embed-large=1024, all-minilm=384, unknown=768). (acb987a)
+- [x] **Point/SearchResult types** — Round-trip tests for Point struct and pointIDToString helper. (acb987a)
+- [x] **valueToGo tests** — Qdrant value conversion for string, int, double, bool, list, struct, nil. (acb987a)
+- [x] **Additional chunk tests** — Empty input, only headers no content, unicode/emoji, very long paragraph. (acb987a)
 
 ### Require External Services (use build tag `//go:build rag`)
 
