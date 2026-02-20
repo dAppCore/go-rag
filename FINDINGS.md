@@ -193,3 +193,56 @@ Added interface-accepting helpers that the convenience wrappers now delegate to:
 |------|---------|
 | embedder.go | `Embedder` interface definition |
 | vectorstore.go | `VectorStore` interface definition |
+
+---
+
+## 2026-02-20: Phase 3 Integration Tests with Live Services (go-rag agent)
+
+### Coverage Improvement
+
+```
+Before: 69.0% (135 tests across 7 test files, mock-based only)
+After:  89.2% (204 tests across 10 test files, includes live Qdrant + Ollama)
+```
+
+### Infrastructure Verified
+
+| Service | Version | Status | Connection |
+|---------|---------|--------|------------|
+| Qdrant | 1.16.3 | Running (Docker) | gRPC localhost:6334, REST localhost:6333 |
+| Ollama | native + ROCm | Running | HTTP localhost:11434, model: nomic-embed-text (F16, 274MB) |
+
+### Discoveries
+
+1. **Qdrant point IDs must be valid UUIDs** -- `qdrant.NewID()` wraps the string as a UUID field. Qdrant's server-side UUID parser accepts 32-character hex strings (as produced by `ChunkID` via MD5) but rejects arbitrary strings like `point-alpha`. Error: `Unable to parse UUID: point-alpha`. Integration tests must use `ChunkID()` or MD5 hex format for point IDs.
+
+2. **Qdrant Go client version warning is benign** -- The client library (v1.16.2) logs `WARN Unable to compare versions` and `Client version is not compatible with server version` when connecting to Qdrant v1.16.3. This is a cosmetic mismatch in version parsing — all operations function correctly despite the warning.
+
+3. **Qdrant indexing latency** -- After upserting points, a 500ms sleep is needed before searching to avoid flaky results. For small datasets the indexing is nearly instant, but the sleep provides a safety margin on slower machines.
+
+4. **Ollama embedding determinism** -- Embedding the same text twice with `nomic-embed-text` produces bit-identical vectors (`float32` level). This is important for idempotent ingest operations.
+
+5. **Ollama accepts empty strings** -- `Embed(ctx, "")` returns a valid 768-dimension vector without error. This is Ollama-specific behaviour and may differ with other embedding providers.
+
+6. **Semantic similarity works as expected** -- When ingesting both programming and cooking documents, a query about "Go functions and closures" correctly ranks the programming document highest. The cosine distance metric in Qdrant combined with nomic-embed-text embeddings provides meaningful semantic differentiation.
+
+7. **Convenience wrappers (QueryDocs, IngestDirectory) create their own gRPC connections** -- Each call to `QueryDocs` or `IngestDirectory` establishes a new Qdrant gRPC connection. In production this is fine for CLI commands, but for high-throughput scenarios the `*With` variants that accept pre-created clients should be preferred.
+
+8. **Remaining ~11% untested** -- The uncovered code is primarily error-handling branches in `NewQdrantClient` (connection failure), `Close()`, and the `filepath.Rel` error branch in `Ingest`. These represent defensive code paths that are difficult to trigger in normal operation.
+
+### Test Files Created
+
+| File | Tests | What It Covers |
+|------|-------|----------------|
+| qdrant_integration_test.go | 11 | Health check, create/delete/list/info collection, exists check, upsert+search, filter, empty upsert, ID validation, overwrite |
+| ollama_integration_test.go | 9 | Verify model, embed single, embed batch, consistency, dimension match, model name, different texts, non-zero values, empty string |
+| integration_test.go | 12 | End-to-end ingest+query, format results, IngestFile, QueryWith, QueryContextWith, IngestDirWith, IngestFileWith, QueryDocs, IngestDirectory, recreate flag, semantic similarity |
+
+### Build Tag Strategy
+
+All integration tests use `//go:build rag` to isolate them from CI runs that lack live services:
+
+```bash
+go test ./... -count=1               # 135 tests, 69.0% — mock-only, no services needed
+go test -tags rag ./... -count=1     # 204 tests, 89.2% — requires Qdrant + Ollama
+```

@@ -26,9 +26,9 @@ All pure-function tests complete. Remaining untested functions require live serv
 
 ### Require External Services (use build tag `//go:build rag`)
 
-- [ ] **Qdrant client tests** — Create collection, upsert, search, delete. Skip if Qdrant unavailable.
-- [ ] **Ollama client tests** — Embed single text, embed batch, verify model. Skip if Ollama unavailable.
-- [ ] **Query integration test** — Ingest a test doc, query it, verify results.
+- [x] **Qdrant client tests** — Create collection, upsert, search, delete, list, info, filter, overwrite. Skip if Qdrant unavailable. 11 subtests in `qdrant_integration_test.go`. (PHASE3_COMMIT)
+- [x] **Ollama client tests** — Embed single text, embed batch, verify model, consistency, dimension check, different texts, non-zero values, empty string. 9 subtests in `ollama_integration_test.go`. (PHASE3_COMMIT)
+- [x] **Full pipeline integration test** — Ingest directory, query, format results, all helpers (QueryWith, QueryContextWith, IngestDirWith, IngestFileWith, QueryDocs, IngestDirectory), recreate flag, semantic similarity. 12 subtests in `integration_test.go`. (PHASE3_COMMIT)
 
 ## Phase 2: Test Infrastructure (38.8% -> 69.0% coverage)
 
@@ -55,7 +55,7 @@ All pure-function tests complete. Remaining untested functions require live serv
 ## Known Issues
 
 1. **go.mod had wrong replace path** — `../core` should be `../go`. Fixed by Charon.
-2. **Qdrant and Ollama not running on snider-linux** — Need docker setup for Qdrant, native install for Ollama.
+2. ~~**Qdrant and Ollama not running on snider-linux**~~ — **Resolved.** Qdrant v1.16.3 (Docker) and Ollama with ROCm + nomic-embed-text now running on localhost.
 3. ~~**No mocks/interfaces**~~ — **Resolved in Phase 2.** `Embedder` and `VectorStore` interfaces extracted; mock implementations in `mock_test.go`.
 4. **`log.E` returns error** — `forge.lthn.ai/core/go/pkg/log.E` wraps errors with component context. This is the framework's logging pattern.
 
