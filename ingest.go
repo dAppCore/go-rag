@@ -160,10 +160,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 	// Batch upsert to vector store
 	if len(points) > 0 {
 		for i := 0; i < len(points); i += cfg.BatchSize {
-			end := i + cfg.BatchSize
-			if end > len(points) {
-				end = len(points)
-			}
+			end := min(i+cfg.BatchSize, len(points))
 			batch := points[i:end]
 			if err := store.UpsertPoints(ctx, cfg.Collection, batch); err != nil {
 				return stats, log.E("rag.Ingest", fmt.Sprintf("error upserting batch %d", i/cfg.BatchSize+1), err)

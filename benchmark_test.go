@@ -15,9 +15,9 @@ func generateMarkdownDoc() string {
 	sb.WriteString("# Benchmark Document\n\n")
 	sb.WriteString("This document is generated for benchmarking the chunking pipeline.\n\n")
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		sb.WriteString(fmt.Sprintf("## Section %d\n\n", i+1))
-		for j := 0; j < 5; j++ {
+		for j := range 5 {
 			sb.WriteString(fmt.Sprintf(
 				"Paragraph %d in section %d contains representative text for testing. "+
 					"It includes multiple sentences to exercise the sentence-aware splitter. "+
@@ -76,7 +76,7 @@ func BenchmarkQuery_Mock(b *testing.B) {
 	store := newMockVectorStore()
 	store.collections["bench-col"] = 768
 	// Pre-populate with 50 points
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		store.points["bench-col"] = append(store.points["bench-col"], Point{
 			ID:     fmt.Sprintf("p%d", i),
 			Vector: make([]float32, 768),
@@ -106,7 +106,7 @@ func BenchmarkQuery_Mock(b *testing.B) {
 func BenchmarkIngest_Mock(b *testing.B) {
 	dir := b.TempDir()
 	// Create 10 markdown files
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		content := fmt.Sprintf("## File %d\n\nThis is file number %d with some test content for benchmarking.\n", i, i)
 		path := filepath.Join(dir, fmt.Sprintf("doc%d.md", i))
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {

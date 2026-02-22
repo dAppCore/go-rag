@@ -47,7 +47,7 @@ func TestIngest(t *testing.T) {
 		// Create content large enough to produce multiple chunks
 		var content string
 		content = "## Big Section\n\n"
-		for i := 0; i < 30; i++ {
+		for i := range 30 {
 			content += fmt.Sprintf("Paragraph %d with some meaningful content for testing. ", i)
 			if i%3 == 0 {
 				content += "\n\n"
@@ -187,7 +187,7 @@ func TestIngest(t *testing.T) {
 	t.Run("batch size handling — multiple batches", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create enough content for multiple chunks
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			writeFile(t, filepath.Join(dir, fmt.Sprintf("doc%d.md", i)),
 				fmt.Sprintf("## Section %d\n\nContent for document %d.\n", i, i))
 		}

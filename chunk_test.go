@@ -217,7 +217,7 @@ func TestChunkMarkdown_Edge_VeryLongSingleParagraph(t *testing.T) {
 	t.Run("long paragraph with line breaks produces chunks", func(t *testing.T) {
 		// Create long text with paragraph breaks so chunking can split
 		var parts []string
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			parts = append(parts, "This is paragraph number that contains some meaningful text for testing purposes.")
 		}
 		longText := "## Long Content\n\n" + joinParagraphs(parts)
@@ -331,23 +331,23 @@ func TestDefaultIngestConfig(t *testing.T) {
 
 // Helper: repeat a string n times
 func repeatString(s string, n int) string {
-	result := ""
-	for i := 0; i < n; i++ {
-		result += s
+	var result strings.Builder
+	for range n {
+		result.WriteString(s)
 	}
-	return result
+	return result.String()
 }
 
 // Helper: join paragraphs with double newlines
 func joinParagraphs(parts []string) string {
-	result := ""
+	var result strings.Builder
 	for i, p := range parts {
 		if i > 0 {
-			result += "\n\n"
+			result.WriteString("\n\n")
 		}
-		result += p
+		result.WriteString(p)
 	}
-	return result
+	return result.String()
 }
 
 // --- Phase 3.1: Sentence splitting and overlap alignment ---

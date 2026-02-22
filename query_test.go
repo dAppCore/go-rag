@@ -493,7 +493,7 @@ func TestQuery(t *testing.T) {
 	t.Run("results respect limit", func(t *testing.T) {
 		store := newMockVectorStore()
 		// Add many points
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			store.points["test-col"] = append(store.points["test-col"], Point{
 				ID:     fmt.Sprintf("p%d", i),
 				Vector: []float32{0.1},

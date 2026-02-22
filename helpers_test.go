@@ -32,7 +32,7 @@ func TestQueryWith(t *testing.T) {
 
 	t.Run("respects topK parameter", func(t *testing.T) {
 		store := newMockVectorStore()
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			store.points["col"] = append(store.points["col"], Point{
 				ID:     fmt.Sprintf("p%d", i),
 				Vector: []float32{0.1},
