@@ -3,7 +3,7 @@ module forge.lthn.ai/core/go-rag
 go 1.25.5
 
 require (
-	forge.lthn.ai/core/go v0.0.0-20260221191103-d091fa62023f
+	forge.lthn.ai/core/go main
 	github.com/ollama/ollama v0.16.1
 	github.com/qdrant/go-client v1.16.2
 	github.com/spf13/cobra v1.10.2
