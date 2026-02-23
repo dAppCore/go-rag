@@ -3,6 +3,7 @@ package rag
 import (
 	"crypto/md5"
 	"fmt"
+	"iter"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -34,6 +35,11 @@ type Chunk struct {
 // configured Size, it is split at sentence boundaries. Overlap is aligned to
 // word boundaries to avoid splitting mid-word.
 func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
+	return slices.Collect(ChunkMarkdownSeq(text, cfg))
+}
+
+// ChunkMarkdownSeq returns an iterator that yields document chunks from markdown text.
+func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	if cfg.Size <= 0 {
 		cfg.Size = 500
 	}
@@ -41,97 +47,105 @@ func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
 		cfg.Overlap = 0
 	}
 
-	var chunks []Chunk
+	return func(yield func(Chunk) bool) {
+		chunkIndex := 0
 
-	// Split by ## headers
-	sections := splitBySections(text)
-
-	chunkIndex := 0
-	for _, section := range sections {
-		section = strings.TrimSpace(section)
-		if section == "" {
-			continue
-		}
-
-		// Extract section title
-		lines := strings.SplitN(section, "\n", 2)
-		title := ""
-		if strings.HasPrefix(lines[0], "#") {
-			title = strings.TrimLeft(lines[0], "#")
-			title = strings.TrimSpace(title)
-		}
-
-		// If section is small enough, yield as-is
-		if len(section) <= cfg.Size {
-			chunks = append(chunks, Chunk{
-				Text:    section,
-				Section: title,
-				Index:   chunkIndex,
-			})
-			chunkIndex++
-			continue
-		}
-
-		// Otherwise, chunk by paragraphs
-		paragraphs := splitByParagraphs(section)
-		currentChunk := ""
-
-		for _, para := range paragraphs {
-			para = strings.TrimSpace(para)
-			if para == "" {
+		// Split by ## headers
+		for section := range splitBySectionsSeq(text) {
+			section = strings.TrimSpace(section)
+			if section == "" {
 				continue
 			}
 
-			// If the paragraph itself exceeds Size, split at sentence
-			// boundaries and treat each sentence (or group of sentences)
-			// as a separate sub-paragraph.
-			subParas := []string{para}
-			if len(para) > cfg.Size {
-				if sentences := splitBySentences(para); len(sentences) > 1 {
-					subParas = sentences
-				}
+			// Extract section title
+			lines := strings.SplitN(section, "\n", 2)
+			title := ""
+			if strings.HasPrefix(lines[0], "#") {
+				title = strings.TrimLeft(lines[0], "#")
+				title = strings.TrimSpace(title)
 			}
 
-			for _, sp := range subParas {
-				sp = strings.TrimSpace(sp)
-				if sp == "" {
+			// If section is small enough, yield as-is
+			if len(section) <= cfg.Size {
+				if !yield(Chunk{
+					Text:    section,
+					Section: title,
+					Index:   chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
+				continue
+			}
+
+			// Otherwise, chunk by paragraphs
+			currentChunk := ""
+			for para := range splitByParagraphsSeq(section) {
+				para = strings.TrimSpace(para)
+				if para == "" {
 					continue
 				}
 
-				if len(currentChunk)+len(sp)+2 <= cfg.Size {
-					if currentChunk != "" {
-						currentChunk += "\n\n" + sp
+				// If the paragraph itself exceeds Size, split at sentence
+				// boundaries and treat each sentence (or group of sentences)
+				// as a separate sub-paragraph.
+				for sp := range yieldSubParas(para, cfg.Size) {
+					sp = strings.TrimSpace(sp)
+					if sp == "" {
+						continue
+					}
+
+					if len(currentChunk)+len(sp)+2 <= cfg.Size {
+						if currentChunk != "" {
+							currentChunk += "\n\n" + sp
+						} else {
+							currentChunk = sp
+						}
 					} else {
-						currentChunk = sp
+						if currentChunk != "" {
+							if !yield(Chunk{
+								Text:    strings.TrimSpace(currentChunk),
+								Section: title,
+								Index:   chunkIndex,
+							}) {
+								return
+							}
+							chunkIndex++
+						}
+						// Start new chunk with overlap from previous,
+						// aligned to the nearest word boundary.
+						currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
 					}
-				} else {
-					if currentChunk != "" {
-						chunks = append(chunks, Chunk{
-							Text:    strings.TrimSpace(currentChunk),
-							Section: title,
-							Index:   chunkIndex,
-						})
-						chunkIndex++
-					}
-					// Start new chunk with overlap from previous,
-					// aligned to the nearest word boundary.
-					currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
 				}
 			}
-		}
 
-		// Don't forget the last chunk
-		if strings.TrimSpace(currentChunk) != "" {
-			chunks = append(chunks, Chunk{
-				Text:    strings.TrimSpace(currentChunk),
-				Section: title,
-				Index:   chunkIndex,
-			})
-			chunkIndex++
+			// Don't forget the last chunk of the section
+			if strings.TrimSpace(currentChunk) != "" {
+				if !yield(Chunk{
+					Text:    strings.TrimSpace(currentChunk),
+					Section: title,
+					Index:   chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
+			}
 		}
 	}
+}
 
-	return chunks
+func yieldSubParas(para string, size int) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if len(para) <= size {
+			yield(para)
+			return
+		}
+		for s := range splitBySentencesSeq(para) {
+			if !yield(s) {
+				return
+			}
+		}
+	}
 }
 
 // overlapPrefix builds the start of a new chunk by taking word-boundary-aligned
@@ -166,79 +180,99 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 // splitBySentences splits text at sentence boundaries (". ", "? ", "! ").
 // Returns the original text in a single-element slice when no boundaries are found.
 func splitBySentences(text string) []string {
-	var sentences []string
-	remaining := text
+	return slices.Collect(splitBySentencesSeq(text))
+}
 
-	for len(remaining) > 0 {
-		// Find the earliest sentence boundary
-		bestIdx := -1
-		var bestSep string
-		for _, sep := range []string{". ", "? ", "! "} {
-			idx := strings.Index(remaining, sep)
-			if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
-				bestIdx = idx
-				bestSep = sep
+// splitBySentencesSeq returns an iterator that yields sentences split at
+// boundaries (". ", "? ", "! ").
+func splitBySentencesSeq(text string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		remaining := text
+
+		for len(remaining) > 0 {
+			// Find the earliest sentence boundary
+			bestIdx := -1
+			var bestSep string
+			for _, sep := range []string{". ", "? ", "! "} {
+				idx := strings.Index(remaining, sep)
+				if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
+					bestIdx = idx
+					bestSep = sep
+				}
 			}
-		}
 
-		if bestIdx < 0 {
-			// No more boundaries — append remainder
-			sentences = append(sentences, remaining)
-			break
-		}
+			if bestIdx < 0 {
+				// No more boundaries — yield remainder if not empty
+				if s := strings.TrimSpace(remaining); s != "" {
+					if !yield(s) {
+						return
+					}
+				}
+				break
+			}
 
-		// Include the punctuation mark in the sentence, but not the trailing space
-		sentence := remaining[:bestIdx+len(bestSep)-1]
-		sentences = append(sentences, strings.TrimSpace(sentence))
-		remaining = remaining[bestIdx+len(bestSep):]
+			// Include the punctuation mark in the sentence, but not the trailing space
+			sentence := remaining[:bestIdx+len(bestSep)-1]
+			if s := strings.TrimSpace(sentence); s != "" {
+				if !yield(s) {
+					return
+				}
+			}
+			remaining = remaining[bestIdx+len(bestSep):]
+		}
 	}
-
-	// Filter out empty entries
-	var filtered []string
-	for _, s := range sentences {
-		if strings.TrimSpace(s) != "" {
-			filtered = append(filtered, s)
-		}
-	}
-
-	return filtered
 }
 
 // splitBySections splits text by ## headers while preserving the header with its content.
 func splitBySections(text string) []string {
-	var sections []string
-	lines := strings.Split(text, "\n")
+	return slices.Collect(splitBySectionsSeq(text))
+}
 
-	var currentSection strings.Builder
-	for _, line := range lines {
-		// Check if this line is a ## header
-		if strings.HasPrefix(line, "## ") {
-			// Save previous section if exists
-			if currentSection.Len() > 0 {
-				sections = append(sections, currentSection.String())
-				currentSection.Reset()
+// splitBySectionsSeq returns an iterator that yields text sections split by ## headers.
+func splitBySectionsSeq(text string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		var currentSection strings.Builder
+		for line := range strings.SplitSeq(text, "\n") {
+			// Check if this line is a ## header
+			if strings.HasPrefix(line, "## ") {
+				// Yield previous section if exists
+				if currentSection.Len() > 0 {
+					if !yield(currentSection.String()) {
+						return
+					}
+					currentSection.Reset()
+				}
 			}
+			currentSection.WriteString(line)
+			currentSection.WriteString("\n")
 		}
-		currentSection.WriteString(line)
-		currentSection.WriteString("\n")
-	}
 
-	// Don't forget the last section
-	if currentSection.Len() > 0 {
-		sections = append(sections, currentSection.String())
+		// Don't forget the last section
+		if currentSection.Len() > 0 {
+			yield(currentSection.String())
+		}
 	}
-
-	return sections
 }
 
 // splitByParagraphs splits text by double newlines.
 func splitByParagraphs(text string) []string {
-	// Replace multiple newlines with a marker, then split
-	normalized := text
-	for strings.Contains(normalized, "\n\n\n") {
-		normalized = strings.ReplaceAll(normalized, "\n\n\n", "\n\n")
+	return slices.Collect(splitByParagraphsSeq(text))
+}
+
+// splitByParagraphsSeq returns an iterator that yields paragraphs split by double newlines.
+func splitByParagraphsSeq(text string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		// Replace multiple newlines with a marker, then split
+		normalized := text
+		for strings.Contains(normalized, "\n\n\n") {
+			normalized = strings.ReplaceAll(normalized, "\n\n\n", "\n\n")
+		}
+		for s := range strings.SplitSeq(normalized, "\n\n") {
+			if !yield(s) {
+				return
+			}
+		}
 	}
-	return strings.Split(normalized, "\n\n")
 }
 
 // Category determines the document category from file path.

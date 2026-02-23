@@ -3,7 +3,7 @@ package rag
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 )
 
@@ -83,8 +83,8 @@ func (m *mockEmbedder) embedCallCount() int {
 // It tracks all calls for verification in tests.
 type mockVectorStore struct {
 	mu          sync.Mutex
-	collections map[string]uint64            // collection name -> vector size
-	points      map[string][]Point           // collection name -> stored points
+	collections map[string]uint64  // collection name -> vector size
+	points      map[string][]Point // collection name -> stored points
 	searchFunc  func(collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error)
 
 	// Call tracking
@@ -97,13 +97,13 @@ type mockVectorStore struct {
 	searchCalls []searchCall
 
 	// Error injection
-	createErr  error
-	existsErr  error
-	deleteErr  error
-	listErr    error
-	infoErr    error
-	upsertErr  error
-	searchErr  error
+	createErr error
+	existsErr error
+	deleteErr error
+	listErr   error
+	infoErr   error
+	upsertErr error
+	searchErr error
 }
 
 type createCollectionCall struct {
@@ -187,7 +187,7 @@ func (m *mockVectorStore) ListCollections(ctx context.Context) ([]string, error)
 	for name := range m.collections {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names, nil
 }
 
@@ -277,8 +277,13 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 	}
 
 	// Sort by score descending
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
+	slices.SortFunc(results, func(a, b SearchResult) int {
+		if a.Score > b.Score {
+			return -1
+		} else if a.Score < b.Score {
+			return 1
+		}
+		return 0
 	})
 
 	// Apply limit

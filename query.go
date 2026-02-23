@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"iter"
+	"slices"
 	"strings"
 
 	"forge.lthn.ai/core/go/pkg/log"
@@ -39,6 +41,15 @@ type QueryResult struct {
 
 // Query searches for similar documents in the vector store.
 func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
+	it, err := QuerySeq(ctx, store, embedder, query, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Collect(it), nil
+}
+
+// QuerySeq returns an iterator that yields query results from the vector store.
+func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error) {
 	// Generate embedding for query
 	embedding, err := embedder.Embed(ctx, query)
 	if err != nil {
@@ -57,52 +68,61 @@ func Query(ctx context.Context, store VectorStore, embedder Embedder, query stri
 		return nil, log.E("rag.Query", "error searching", err)
 	}
 
-	// Convert and filter by threshold
-	var queryResults []QueryResult
-	for _, r := range results {
-		if r.Score < cfg.Threshold {
-			continue
+	// Filter by threshold and convert to iterator
+	filteredIt := func(yield func(QueryResult) bool) {
+		var queryResults []QueryResult
+
+		for _, r := range results {
+			if r.Score < cfg.Threshold {
+				continue
+			}
+
+			qr := QueryResult{
+				Score: r.Score,
+			}
+
+			// Extract payload fields
+			if text, ok := r.Payload["text"].(string); ok {
+				qr.Text = text
+			}
+			if source, ok := r.Payload["source"].(string); ok {
+				qr.Source = source
+			}
+			if section, ok := r.Payload["section"].(string); ok {
+				qr.Section = section
+			}
+			if category, ok := r.Payload["category"].(string); ok {
+				qr.Category = category
+			}
+			// Handle chunk_index from various types (JSON unmarshaling produces float64)
+			switch idx := r.Payload["chunk_index"].(type) {
+			case int64:
+				qr.ChunkIndex = int(idx)
+			case float64:
+				qr.ChunkIndex = int(idx)
+			case int:
+				qr.ChunkIndex = idx
+			}
+
+			queryResults = append(queryResults, qr)
 		}
 
-		qr := QueryResult{
-			Score: r.Score,
+		// Apply keyword boosting when enabled
+		if cfg.Keywords && len(queryResults) > 0 {
+			keywords := extractKeywords(query)
+			if len(keywords) > 0 {
+				queryResults = KeywordFilter(queryResults, keywords)
+			}
 		}
 
-		// Extract payload fields
-		if text, ok := r.Payload["text"].(string); ok {
-			qr.Text = text
+		for _, qr := range queryResults {
+			if !yield(qr) {
+				return
+			}
 		}
-		if source, ok := r.Payload["source"].(string); ok {
-			qr.Source = source
-		}
-		if section, ok := r.Payload["section"].(string); ok {
-			qr.Section = section
-		}
-		if category, ok := r.Payload["category"].(string); ok {
-			qr.Category = category
-		}
-		// Handle chunk_index from various types (JSON unmarshaling produces float64)
-		switch idx := r.Payload["chunk_index"].(type) {
-		case int64:
-			qr.ChunkIndex = int(idx)
-		case float64:
-			qr.ChunkIndex = int(idx)
-		case int:
-			qr.ChunkIndex = idx
-		}
-
-		queryResults = append(queryResults, qr)
 	}
 
-	// Apply keyword boosting when enabled
-	if cfg.Keywords && len(queryResults) > 0 {
-		keywords := extractKeywords(query)
-		if len(keywords) > 0 {
-			queryResults = KeywordFilter(queryResults, keywords)
-		}
-	}
-
-	return queryResults, nil
+	return filteredIt, nil
 }
 
 // FormatResultsText formats query results as plain text.

@@ -1,7 +1,8 @@
 package rag
 
 import (
-	"sort"
+	"iter"
+	"slices"
 	"strings"
 )
 
@@ -16,10 +17,13 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 	}
 
 	// Normalise keywords to lowercase once
-	lowerKeywords := make([]string, len(keywords))
-	for i, kw := range keywords {
-		lowerKeywords[i] = strings.ToLower(kw)
-	}
+	lowerKeywords := slices.Collect(func(yield func(string) bool) {
+		for _, kw := range keywords {
+			if !yield(strings.ToLower(kw)) {
+				return
+			}
+		}
+	})
 
 	// Apply boost
 	boosted := make([]QueryResult, len(results))
@@ -39,22 +43,45 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 	}
 
 	// Re-sort by boosted score descending
-	sort.Slice(boosted, func(i, j int) bool {
-		return boosted[i].Score > boosted[j].Score
+	slices.SortFunc(boosted, func(a, b QueryResult) int {
+		if a.Score > b.Score {
+			return -1
+		} else if a.Score < b.Score {
+			return 1
+		}
+		return 0
 	})
 
 	return boosted
 }
 
+// KeywordFilterSeq is an iterator version of KeywordFilter.
+func KeywordFilterSeq(results []QueryResult, keywords []string) iter.Seq[QueryResult] {
+	return func(yield func(QueryResult) bool) {
+		filtered := KeywordFilter(results, keywords)
+		for _, r := range filtered {
+			if !yield(r) {
+				return
+			}
+		}
+	}
+}
+
 // extractKeywords splits query text into individual keywords for filtering.
 // Words shorter than 3 characters are discarded as they tend to be noise.
 func extractKeywords(query string) []string {
-	words := strings.Fields(strings.ToLower(query))
-	var keywords []string
-	for _, w := range words {
-		if len(w) >= 3 {
-			keywords = append(keywords, w)
+	return slices.Collect(extractKeywordsSeq(query))
+}
+
+// extractKeywordsSeq returns an iterator that yields keywords from a query.
+func extractKeywordsSeq(query string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for w := range strings.FieldsSeq(strings.ToLower(query)) {
+			if len(w) >= 3 {
+				if !yield(w) {
+					return
+				}
+			}
 		}
 	}
-	return keywords
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"forge.lthn.ai/core/go/pkg/i18n"
 	"forge.lthn.ai/core/go-rag"
+	"forge.lthn.ai/core/go/pkg/i18n"
 	"github.com/spf13/cobra"
 )
 

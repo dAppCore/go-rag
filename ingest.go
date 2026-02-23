@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"forge.lthn.ai/core/go/pkg/log"
@@ -159,11 +160,9 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 
 	// Batch upsert to vector store
 	if len(points) > 0 {
-		for i := 0; i < len(points); i += cfg.BatchSize {
-			end := min(i+cfg.BatchSize, len(points))
-			batch := points[i:end]
+		for batch := range slices.Chunk(points, cfg.BatchSize) {
 			if err := store.UpsertPoints(ctx, cfg.Collection, batch); err != nil {
-				return stats, log.E("rag.Ingest", fmt.Sprintf("error upserting batch %d", i/cfg.BatchSize+1), err)
+				return stats, log.E("rag.Ingest", "error upserting batch", err)
 			}
 		}
 	}
