@@ -31,7 +31,7 @@ func BenchmarkEmbedSingle(b *testing.B) {
 	require.NoError(b, err)
 
 	b.ResetTimer()
-	for i := range b.N {
+	for range b.N {
 		_, err := client.Embed(ctx, "The quick brown fox jumps over the lazy dog.")
 		if err != nil {
 			b.Fatal(err)
@@ -66,7 +66,7 @@ func BenchmarkEmbedBatch(b *testing.B) {
 	require.NoError(b, err)
 
 	b.ResetTimer()
-	for i := range b.N {
+	for range b.N {
 		_, err := client.EmbedBatch(ctx, texts)
 		if err != nil {
 			b.Fatal(err)
@@ -89,7 +89,7 @@ func BenchmarkEmbedVaryingLength(b *testing.B) {
 	for _, size := range []int{50, 200, 500, 1000, 2000} {
 		text := strings.Repeat("word ", size/5)
 		b.Run(fmt.Sprintf("chars_%d", size), func(b *testing.B) {
-			for i := range b.N {
+			for range b.N {
 				_, err := client.Embed(ctx, text)
 				if err != nil {
 					b.Fatal(err)
@@ -115,7 +115,7 @@ func BenchmarkChunkMarkdown_GPU(b *testing.B) {
 	cfg := DefaultChunkConfig()
 
 	b.ResetTimer()
-	for i := range b.N {
+	for range b.N {
 		_ = ChunkMarkdown(content, cfg)
 	}
 }
@@ -134,7 +134,7 @@ func BenchmarkChunkMarkdown_VaryingSize(b *testing.B) {
 		cfg := DefaultChunkConfig()
 
 		b.Run(fmt.Sprintf("paragraphs_%d", paragraphs), func(b *testing.B) {
-			for i := range b.N {
+			for range b.N {
 				_ = ChunkMarkdown(content, cfg)
 			}
 		})
@@ -194,7 +194,7 @@ func BenchmarkQdrantSearch(b *testing.B) {
 	require.NoError(b, err)
 
 	b.ResetTimer()
-	for i := range b.N {
+	for range b.N {
 		_, err := qdrantClient.Search(ctx, collection, queryVec, 5, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -228,7 +228,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 	collection := "bench-pipeline"
 
 	b.ResetTimer()
-	for i := range b.N {
+	for range b.N {
 		// Ingest
 		cfg := DefaultIngestConfig()
 		cfg.Directory = dir
