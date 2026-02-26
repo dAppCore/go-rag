@@ -3,8 +3,8 @@ module forge.lthn.ai/core/go-rag
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/cli v0.0.4
-	forge.lthn.ai/core/go v0.0.9
+	forge.lthn.ai/core/cli v0.1.0
+	forge.lthn.ai/core/go v0.1.0
 	github.com/ollama/ollama v0.16.1
 	github.com/qdrant/go-client v1.16.2
 	github.com/spf13/cobra v1.10.2
@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	forge.lthn.ai/core/go-crypt v0.0.3 // indirect
+	forge.lthn.ai/core/go-crypt v0.1.0 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
