@@ -170,7 +170,7 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
-		Limit:          new(limit),
+		Limit:          &limit,
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 
