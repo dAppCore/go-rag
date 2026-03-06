@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	"forge.lthn.ai/core/go/pkg/i18n"
+	"forge.lthn.ai/core/go-i18n"
 	"github.com/spf13/cobra"
 )
 

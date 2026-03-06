@@ -4,7 +4,8 @@ go 1.26.0
 
 require (
 	forge.lthn.ai/core/cli v0.1.0
-	forge.lthn.ai/core/go v0.1.0
+	forge.lthn.ai/core/go-i18n v0.1.0
+	forge.lthn.ai/core/go-log v0.0.1
 	github.com/ollama/ollama v0.16.1
 	github.com/qdrant/go-client v1.16.2
 	github.com/spf13/cobra v1.10.2
@@ -12,7 +13,9 @@ require (
 )
 
 require (
+	forge.lthn.ai/core/go v0.1.0 // indirect
 	forge.lthn.ai/core/go-crypt v0.1.0 // indirect
+	forge.lthn.ai/core/go-inference v0.0.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -30,7 +33,6 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
