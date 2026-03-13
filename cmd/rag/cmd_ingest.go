@@ -7,7 +7,6 @@ import (
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-rag"
 	"forge.lthn.ai/core/go-i18n"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -17,15 +16,15 @@ var (
 	chunkOverlap int
 )
 
-var ingestCmd = &cobra.Command{
+var ingestCmd = &cli.Command{
 	Use:   "ingest [directory]",
 	Short: i18n.T("cmd.rag.ingest.short"),
 	Long:  i18n.T("cmd.rag.ingest.long"),
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cli.MaximumNArgs(1),
 	RunE:  runIngest,
 }
 
-func runIngest(cmd *cobra.Command, args []string) error {
+func runIngest(cmd *cli.Command, args []string) error {
 	directory := "."
 	if len(args) > 0 {
 		directory = args[0]

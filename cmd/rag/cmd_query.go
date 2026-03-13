@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-rag"
 	"forge.lthn.ai/core/go-i18n"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -17,15 +17,15 @@ var (
 	format          string
 )
 
-var queryCmd = &cobra.Command{
+var queryCmd = &cli.Command{
 	Use:   "query [question]",
 	Short: i18n.T("cmd.rag.query.short"),
 	Long:  i18n.T("cmd.rag.query.long"),
-	Args:  cobra.ExactArgs(1),
+	Args:  cli.ExactArgs(1),
 	RunE:  runQuery,
 }
 
-func runQuery(cmd *cobra.Command, args []string) error {
+func runQuery(cmd *cli.Command, args []string) error {
 	question := args[0]
 	ctx := context.Background()
 

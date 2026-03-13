@@ -7,12 +7,12 @@
 package rag
 
 import (
-	"github.com/spf13/cobra"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 // AddRAGSubcommands registers the 'rag' command as a subcommand of parent.
 // Called from the ai command package to mount under "core ai rag".
-func AddRAGSubcommands(parent *cobra.Command) {
+func AddRAGSubcommands(parent *cli.Command) {
 	initFlags()
 	ragCmd.AddCommand(ingestCmd)
 	ragCmd.AddCommand(queryCmd)

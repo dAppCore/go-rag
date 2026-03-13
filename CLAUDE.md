@@ -1,54 +1,40 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 Module: `forge.lthn.ai/core/go-rag`
 
-Retrieval-Augmented Generation — document chunking, Ollama embeddings, Qdrant vector storage and search.
+Retrieval-Augmented Generation library for Go — document chunking, Ollama embeddings, Qdrant vector storage and cosine-similarity search.
 
 ## Commands
 
 ```bash
+go build ./...                       # Build library + CLI
 go test ./...                        # Unit + mock tests (no services needed)
 go test -tags rag ./...              # Full suite including live Qdrant + Ollama
 go test -v -run TestName ./...       # Single test
+go test -race ./...                  # Race detector
 go test -bench=. -benchmem ./...     # Benchmarks (mock-only)
 go test -tags rag -bench=. ./...     # Benchmarks with live services
+gofmt -w .                           # Format
+go vet ./...                         # Vet
+golangci-lint run ./...              # Lint
 ```
 
 ## Architecture
 
-| File | Purpose |
-|------|---------|
-| `embedder.go` | `Embedder` interface |
-| `vectorstore.go` | `VectorStore` interface + `CollectionInfo` |
-| `chunk.go` | Markdown chunking — sections, paragraphs, sentences, overlap |
-| `ollama.go` | `OllamaClient` — implements `Embedder` |
-| `qdrant.go` | `QdrantClient` — implements `VectorStore` |
-| `ingest.go` | Ingestion pipeline |
-| `query.go` | Query pipeline + result formatting |
-| `keyword.go` | Keyword boosting post-filter |
-| `collections.go` | Collection management helpers |
-| `helpers.go` | Convenience wrappers (`*With` and default-client variants) |
+The library is built around two core interfaces (`Embedder` in `embedder.go`, `VectorStore` in `vectorstore.go`) that decouple business logic from service implementations. All pipeline code operates against these interfaces; concrete clients (`OllamaClient`, `QdrantClient`) and test mocks (`mockEmbedder`, `mockVectorStore` in `mock_test.go`) satisfy them.
 
-See `docs/architecture.md` for full design detail.
+**Two pipeline flows** drive everything — see `docs/architecture.md` for the full data-flow diagrams:
 
-## Key API
+1. **Ingestion** (`ingest.go`): directory walk -> `ChunkMarkdown` (three-level split in `chunk.go`) -> embed per chunk -> batch upsert to vector store
+2. **Query** (`query.go`): embed question -> vector search -> threshold filter -> optional keyword boosting (`keyword.go`) -> format results (text/XML/JSON)
 
-```go
-// Ingest a directory (interface-accepting variant)
-IngestDirWith(ctx, store, embedder, directory, collectionName string, recreate bool) error
+**Two-tier helper pattern** in `helpers.go`:
+- `*With` variants (e.g. `QueryWith`, `IngestDirWith`) accept pre-constructed `VectorStore`+`Embedder` — use for long-lived processes
+- Default-client wrappers (e.g. `QueryDocs`, `IngestDirectory`) create fresh connections per call with health checks — use for CLI/one-shot operations
 
-// Ingest a single file
-IngestFileWith(ctx, store, embedder, filePath, collectionName string) (int, error)
-
-// Query for relevant context
-results, err := QueryWith(ctx, store, embedder, question, collectionName string, topK int)
-context, err := QueryContextWith(ctx, store, embedder, question, collectionName string, topK int)
-
-// Format results
-FormatResultsText(results)    // plain text
-FormatResultsContext(results) // XML for LLM injection
-FormatResultsJSON(results)    // JSON array
-```
+**CLI** (`cmd/rag/`): cobra subcommands registered via `AddRAGSubcommands()`, mounted under `core ai rag`. Uses `forge.lthn.ai/core/cli` and `forge.lthn.ai/core/go-i18n` for i18n'd flag descriptions.
 
 ## Coding Standards
 
@@ -57,13 +43,22 @@ FormatResultsJSON(results)    // JSON array
 - Co-Author: `Co-Authored-By: Virgil <virgil@lethean.io>`
 - Licence: EUPL-1.2
 - Tests: testify assert/require
-- Integration tests: `//go:build rag` build tag
-- Mocks: `mockEmbedder` and `mockVectorStore` in `mock_test.go`
+- Integration tests: `//go:build rag` build tag — requires live Qdrant + Ollama
+- Mocks: `mockEmbedder` and `mockVectorStore` in `mock_test.go` — error injection via fields, call tracking for verification
+
+## Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `QDRANT_HOST` | `localhost` | Qdrant server host |
+| `QDRANT_PORT` | `6334` | Qdrant gRPC port |
+| `OLLAMA_HOST` | `localhost` | Ollama server host |
+| `OLLAMA_PORT` | `11434` | Ollama HTTP port |
+| `EMBEDDING_MODEL` | `nomic-embed-text` | Embedding model name (768 dims) |
 
 ## Service Defaults
 
-| Service | Host | Port | Notes |
-|---------|------|------|-------|
+| Service | Host | Port | Protocol |
+|---------|------|------|----------|
 | Qdrant | localhost | 6334 | gRPC |
 | Ollama | localhost | 11434 | HTTP |
-| Model | — | — | `nomic-embed-text` (768 dims) |

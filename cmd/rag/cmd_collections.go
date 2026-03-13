@@ -7,7 +7,6 @@ import (
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-rag"
 	"forge.lthn.ai/core/go-i18n"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -16,14 +15,14 @@ var (
 	deleteCollection string
 )
 
-var collectionsCmd = &cobra.Command{
+var collectionsCmd = &cli.Command{
 	Use:   "collections",
 	Short: i18n.T("cmd.rag.collections.short"),
 	Long:  i18n.T("cmd.rag.collections.long"),
 	RunE:  runCollections,
 }
 
-func runCollections(cmd *cobra.Command, args []string) error {
+func runCollections(cmd *cli.Command, args []string) error {
 	ctx := context.Background()
 
 	// Connect to Qdrant

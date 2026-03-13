@@ -4,8 +4,8 @@ import (
 	"os"
 	"strconv"
 
+	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
-	"github.com/spf13/cobra"
 )
 
 // Shared flags
@@ -18,7 +18,7 @@ var (
 	verbose    bool
 )
 
-var ragCmd = &cobra.Command{
+var ragCmd = &cli.Command{
 	Use:   "rag",
 	Short: i18n.T("cmd.rag.short"),
 	Long:  i18n.T("cmd.rag.long"),
