@@ -3,19 +3,20 @@ module forge.lthn.ai/core/go-rag
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/cli v0.1.0
+	forge.lthn.ai/core/cli v0.3.0
 	forge.lthn.ai/core/go-i18n v0.1.0
 	forge.lthn.ai/core/go-log v0.0.1
 	github.com/ollama/ollama v0.16.1
 	github.com/qdrant/go-client v1.16.2
-	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	forge.lthn.ai/core/go v0.1.0 // indirect
+	forge.lthn.ai/core/go v0.3.0 // indirect
 	forge.lthn.ai/core/go-crypt v0.1.0 // indirect
 	forge.lthn.ai/core/go-inference v0.0.2 // indirect
+	forge.lthn.ai/core/go-io v0.1.0 // indirect
+	forge.lthn.ai/core/go-process v0.1.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -43,14 +44,12 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	go.opentelemetry.io/otel/metric v1.40.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
-	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
