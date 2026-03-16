@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	forge.lthn.ai/core/cli v0.3.1
 	forge.lthn.ai/core/go-i18n v0.1.4
+	forge.lthn.ai/core/go-io v0.1.2
 	forge.lthn.ai/core/go-log v0.0.4
 	github.com/ollama/ollama v0.18.0
 	github.com/qdrant/go-client v1.17.1
@@ -15,7 +16,6 @@ require (
 	forge.lthn.ai/core/go v0.3.1 // indirect
 	forge.lthn.ai/core/go-crypt v0.1.7 // indirect
 	forge.lthn.ai/core/go-inference v0.1.4 // indirect
-	forge.lthn.ai/core/go-io v0.1.2 // indirect
 	forge.lthn.ai/core/go-process v0.2.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

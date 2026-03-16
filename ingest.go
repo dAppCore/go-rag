@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	coreio "forge.lthn.ai/core/go-io"
 	"forge.lthn.ai/core/go-log"
 )
 
@@ -112,19 +113,19 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 			continue
 		}
 
-		content, err := os.ReadFile(filePath)
+		content, err := coreio.Local.Read(filePath)
 		if err != nil {
 			stats.Errors++
 			continue
 		}
 
-		if len(strings.TrimSpace(string(content))) == 0 {
+		if len(strings.TrimSpace(content)) == 0 {
 			continue
 		}
 
 		// Chunk the content
 		category := Category(relPath)
-		chunks := ChunkMarkdown(string(content), cfg.Chunk)
+		chunks := ChunkMarkdown(content, cfg.Chunk)
 
 		for _, chunk := range chunks {
 			// Generate embedding
@@ -172,17 +173,17 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 
 // IngestFile processes a single file and stores it in the vector store.
 func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
-	content, err := os.ReadFile(filePath)
+	content, err := coreio.Local.Read(filePath)
 	if err != nil {
 		return 0, log.E("rag.IngestFile", "error reading file", err)
 	}
 
-	if len(strings.TrimSpace(string(content))) == 0 {
+	if len(strings.TrimSpace(content)) == 0 {
 		return 0, nil
 	}
 
 	category := Category(filePath)
-	chunks := ChunkMarkdown(string(content), chunkCfg)
+	chunks := ChunkMarkdown(content, chunkCfg)
 
 	var points []Point
 	for _, chunk := range chunks {
