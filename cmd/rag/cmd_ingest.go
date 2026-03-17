@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-rag"
 	"forge.lthn.ai/core/go-i18n"
+	"forge.lthn.ai/core/go-log"
+	"forge.lthn.ai/core/go-rag"
 )
 
 var (
@@ -40,12 +41,12 @@ func runIngest(cmd *cli.Command, args []string) error {
 		UseTLS: false,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to Qdrant: %w", err)
+		return log.E("rag.cmd.ingest", "failed to connect to Qdrant", err)
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
 	if err := qdrantClient.HealthCheck(ctx); err != nil {
-		return fmt.Errorf("qdrant health check failed: %w", err)
+		return log.E("rag.cmd.ingest", "qdrant health check failed", err)
 	}
 
 	// Connect to Ollama
@@ -56,7 +57,7 @@ func runIngest(cmd *cli.Command, args []string) error {
 		Model: model,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to Ollama: %w", err)
+		return log.E("rag.cmd.ingest", "failed to connect to Ollama", err)
 	}
 
 	if err := ollamaClient.VerifyModel(ctx); err != nil {
@@ -65,10 +66,10 @@ func runIngest(cmd *cli.Command, args []string) error {
 
 	// Configure ingestion
 	if chunkSize <= 0 {
-		return fmt.Errorf("chunk-size must be > 0")
+		return log.E("rag.cmd.ingest", "chunk-size must be > 0", nil)
 	}
 	if chunkOverlap < 0 || chunkOverlap >= chunkSize {
-		return fmt.Errorf("chunk-overlap must be >= 0 and < chunk-size")
+		return log.E("rag.cmd.ingest", "chunk-overlap must be >= 0 and < chunk-size", nil)
 	}
 
 	cfg := rag.IngestConfig{

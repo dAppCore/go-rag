@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- DefaultOllamaConfig tests ---
@@ -15,6 +16,33 @@ func TestDefaultOllamaConfig(t *testing.T) {
 		assert.Equal(t, "localhost", cfg.Host, "default host should be localhost")
 		assert.Equal(t, 11434, cfg.Port, "default port should be 11434")
 		assert.Equal(t, "nomic-embed-text", cfg.Model, "default model should be nomic-embed-text")
+	})
+}
+
+// --- NewOllamaClient tests ---
+
+func TestNewOllamaClient(t *testing.T) {
+	t.Run("constructs client with default config", func(t *testing.T) {
+		client, err := NewOllamaClient(DefaultOllamaConfig())
+
+		require.NoError(t, err)
+		require.NotNil(t, client)
+		assert.Equal(t, "nomic-embed-text", client.Model())
+		assert.Equal(t, uint64(768), client.EmbedDimension())
+	})
+
+	t.Run("constructs client with custom config", func(t *testing.T) {
+		cfg := OllamaConfig{
+			Host:  "10.0.0.1",
+			Port:  8080,
+			Model: "mxbai-embed-large",
+		}
+		client, err := NewOllamaClient(cfg)
+
+		require.NoError(t, err)
+		require.NotNil(t, client)
+		assert.Equal(t, "mxbai-embed-large", client.Model())
+		assert.Equal(t, uint64(1024), client.EmbedDimension())
 	})
 }
 
