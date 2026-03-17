@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-rag"
 	"forge.lthn.ai/core/go-i18n"
+	"forge.lthn.ai/core/go-log"
+	"forge.lthn.ai/core/go-rag"
 )
 
 var (
@@ -32,7 +33,7 @@ func runCollections(cmd *cli.Command, args []string) error {
 		UseTLS: false,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to Qdrant: %w", err)
+		return log.E("rag.cmd.collections", "failed to connect to Qdrant", err)
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
@@ -43,7 +44,7 @@ func runCollections(cmd *cli.Command, args []string) error {
 			return err
 		}
 		if !exists {
-			return fmt.Errorf("collection not found: %s", deleteCollection)
+			return log.E("rag.cmd.collections", fmt.Sprintf("collection not found: %s", deleteCollection), nil)
 		}
 		if err := qdrantClient.DeleteCollection(ctx, deleteCollection); err != nil {
 			return err
