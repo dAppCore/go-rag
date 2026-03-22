@@ -2,7 +2,8 @@ package rag
 
 import (
 	"context"
-	"fmt"
+
+	"forge.lthn.ai/core/go-log"
 )
 
 // QueryWith queries the vector store using the provided embedder and store.
@@ -75,7 +76,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 	defer func() { _ = qdrantClient.Close() }()
 
 	if err := qdrantClient.HealthCheck(ctx); err != nil {
-		return fmt.Errorf("qdrant health check failed: %w", err)
+		return log.E("rag.IngestDirectory", "qdrant health check failed", err)
 	}
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
@@ -99,7 +100,7 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 	defer func() { _ = qdrantClient.Close() }()
 
 	if err := qdrantClient.HealthCheck(ctx); err != nil {
-		return 0, fmt.Errorf("qdrant health check failed: %w", err)
+		return 0, log.E("rag.IngestSingleFile", "qdrant health check failed", err)
 	}
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())

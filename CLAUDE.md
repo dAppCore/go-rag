@@ -34,7 +34,7 @@ The library is built around two core interfaces (`Embedder` in `embedder.go`, `V
 - `*With` variants (e.g. `QueryWith`, `IngestDirWith`) accept pre-constructed `VectorStore`+`Embedder` — use for long-lived processes
 - Default-client wrappers (e.g. `QueryDocs`, `IngestDirectory`) create fresh connections per call with health checks — use for CLI/one-shot operations
 
-**CLI** (`cmd/rag/`): cobra subcommands registered via `AddRAGSubcommands()`, mounted under `core ai rag`. Uses `forge.lthn.ai/core/cli` and `forge.lthn.ai/core/go-i18n` for i18n'd flag descriptions.
+**CLI** (`cmd/rag/`): CLI subcommands registered via `AddRAGSubcommands()`, mounted under `core ai rag`. Uses `forge.lthn.ai/core/cli` and `forge.lthn.ai/core/go-i18n` for i18n'd flag descriptions.
 
 ## Coding Standards
 

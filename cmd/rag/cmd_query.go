@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-rag"
 	"forge.lthn.ai/core/go-i18n"
+	"forge.lthn.ai/core/go-log"
+	"forge.lthn.ai/core/go-rag"
 )
 
 var (
@@ -36,7 +37,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		UseTLS: false,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to Qdrant: %w", err)
+		return log.E("rag.cmd.query", "failed to connect to Qdrant", err)
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
@@ -47,7 +48,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		Model: model,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to Ollama: %w", err)
+		return log.E("rag.cmd.query", "failed to connect to Ollama", err)
 	}
 
 	// Configure query
