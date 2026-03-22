@@ -45,6 +45,53 @@ func TestListCollections(t *testing.T) {
 	})
 }
 
+// --- ListCollectionsSeq tests ---
+
+func TestListCollectionsSeq(t *testing.T) {
+	t.Run("yields collection names from store", func(t *testing.T) {
+		store := newMockVectorStore()
+		store.collections["alpha"] = 768
+		store.collections["bravo"] = 384
+
+		it, err := ListCollectionsSeq(context.Background(), store)
+
+		require.NoError(t, err)
+		require.NotNil(t, it)
+
+		var names []string
+		for name := range it {
+			names = append(names, name)
+		}
+		assert.Len(t, names, 2)
+		assert.Contains(t, names, "alpha")
+		assert.Contains(t, names, "bravo")
+	})
+
+	t.Run("empty store yields nothing", func(t *testing.T) {
+		store := newMockVectorStore()
+
+		it, err := ListCollectionsSeq(context.Background(), store)
+
+		require.NoError(t, err)
+
+		count := 0
+		for range it {
+			count++
+		}
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("error from store returns nil iterator", func(t *testing.T) {
+		store := newMockVectorStore()
+		store.listErr = fmt.Errorf("connection lost")
+
+		it, err := ListCollectionsSeq(context.Background(), store)
+
+		assert.Error(t, err)
+		assert.Nil(t, it)
+	})
+}
+
 // --- DeleteCollection tests ---
 
 func TestDeleteCollectionHelper(t *testing.T) {

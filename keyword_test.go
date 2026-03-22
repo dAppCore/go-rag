@@ -124,6 +124,50 @@ func TestKeywordFilter(t *testing.T) {
 	})
 }
 
+// --- KeywordFilterSeq tests ---
+
+func TestKeywordFilterSeq(t *testing.T) {
+	t.Run("yields boosted results via iterator", func(t *testing.T) {
+		results := []QueryResult{
+			{Text: "General information about various topics.", Score: 0.85},
+			{Text: "Detailed guide to Kubernetes deployment.", Score: 0.80},
+		}
+
+		var collected []QueryResult
+		for r := range KeywordFilterSeq(results, []string{"kubernetes"}) {
+			collected = append(collected, r)
+		}
+
+		require.Len(t, collected, 2)
+		// Kubernetes result boosted: 0.80 * 1.1 = 0.88 > 0.85
+		assert.Equal(t, "Detailed guide to Kubernetes deployment.", collected[0].Text)
+		assert.InDelta(t, 0.88, collected[0].Score, 0.001)
+	})
+
+	t.Run("empty results yields nothing", func(t *testing.T) {
+		count := 0
+		for range KeywordFilterSeq(nil, []string{"test"}) {
+			count++
+		}
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("early break stops iteration", func(t *testing.T) {
+		results := []QueryResult{
+			{Text: "First result.", Score: 0.9},
+			{Text: "Second result.", Score: 0.8},
+			{Text: "Third result.", Score: 0.7},
+		}
+
+		var first QueryResult
+		for r := range KeywordFilterSeq(results, nil) {
+			first = r
+			break
+		}
+		assert.Equal(t, "First result.", first.Text)
+	})
+}
+
 // --- extractKeywords tests ---
 
 func TestExtractKeywords(t *testing.T) {
