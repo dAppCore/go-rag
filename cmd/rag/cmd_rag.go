@@ -1,9 +1,9 @@
 package rag
 
 import (
-	"os"
 	"strconv"
 
+	"dappco.re/go/core"
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
 )
@@ -27,13 +27,13 @@ var ragCmd = &cli.Command{
 func initFlags() {
 	// Qdrant connection flags (persistent) - defaults to localhost for local development
 	qHost := "localhost"
-	if v := os.Getenv("QDRANT_HOST"); v != "" {
+	if v := core.Env("QDRANT_HOST"); v != "" {
 		qHost = v
 	}
 	ragCmd.PersistentFlags().StringVar(&qdrantHost, "qdrant-host", qHost, i18n.T("cmd.rag.flag.qdrant_host"))
 
 	qPort := 6334
-	if v := os.Getenv("QDRANT_PORT"); v != "" {
+	if v := core.Env("QDRANT_PORT"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil {
 			qPort = p
 		}
@@ -42,13 +42,13 @@ func initFlags() {
 
 	// Ollama connection flags (persistent) - defaults to localhost for local development
 	oHost := "localhost"
-	if v := os.Getenv("OLLAMA_HOST"); v != "" {
+	if v := core.Env("OLLAMA_HOST"); v != "" {
 		oHost = v
 	}
 	ragCmd.PersistentFlags().StringVar(&ollamaHost, "ollama-host", oHost, i18n.T("cmd.rag.flag.ollama_host"))
 
 	oPort := 11434
-	if v := os.Getenv("OLLAMA_PORT"); v != "" {
+	if v := core.Env("OLLAMA_PORT"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil {
 			oPort = p
 		}
@@ -56,7 +56,7 @@ func initFlags() {
 	ragCmd.PersistentFlags().IntVar(&ollamaPort, "ollama-port", oPort, i18n.T("cmd.rag.flag.ollama_port"))
 
 	m := "nomic-embed-text"
-	if v := os.Getenv("EMBEDDING_MODEL"); v != "" {
+	if v := core.Env("EMBEDDING_MODEL"); v != "" {
 		m = v
 	}
 	ragCmd.PersistentFlags().StringVar(&model, "model", m, i18n.T("cmd.rag.flag.model"))

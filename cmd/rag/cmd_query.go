@@ -2,11 +2,10 @@ package rag
 
 import (
 	"context"
-	"fmt"
 
+	"dappco.re/go/core"
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/go-i18n"
-	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-rag"
 )
 
@@ -37,7 +36,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		UseTLS: false,
 	})
 	if err != nil {
-		return log.E("rag.cmd.query", "failed to connect to Qdrant", err)
+		return core.E("rag.cmd.query", "failed to connect to Qdrant", err)
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
@@ -48,7 +47,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		Model: model,
 	})
 	if err != nil {
-		return log.E("rag.cmd.query", "failed to connect to Ollama", err)
+		return core.E("rag.cmd.query", "failed to connect to Ollama", err)
 	}
 
 	// Configure query
@@ -71,11 +70,11 @@ func runQuery(cmd *cli.Command, args []string) error {
 	// Format output
 	switch format {
 	case "json":
-		fmt.Println(rag.FormatResultsJSON(results))
+		core.Println(rag.FormatResultsJSON(results))
 	case "context":
-		fmt.Println(rag.FormatResultsContext(results))
+		core.Println(rag.FormatResultsContext(results))
 	default:
-		fmt.Println(rag.FormatResultsText(results))
+		core.Println(rag.FormatResultsText(results))
 	}
 
 	return nil

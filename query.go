@@ -2,13 +2,12 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"html"
 	"iter"
+	"math"
 	"slices"
-	"strings"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core"
 )
 
 // QueryConfig holds query configuration.
@@ -53,7 +52,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 	// Generate embedding for query
 	embedding, err := embedder.Embed(ctx, query)
 	if err != nil {
-		return nil, log.E("rag.Query", "error generating query embedding", err)
+		return nil, core.E("rag.Query", "error generating query embedding", err)
 	}
 
 	// Build filter
@@ -65,7 +64,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 	// Search vector store
 	results, err := store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
 	if err != nil {
-		return nil, log.E("rag.Query", "error searching", err)
+		return nil, core.E("rag.Query", "error searching", err)
 	}
 
 	// Filter by threshold and convert to iterator
@@ -131,14 +130,14 @@ func FormatResultsText(results []QueryResult) string {
 		return "No results found."
 	}
 
-	var sb strings.Builder
+	sb := core.NewBuilder()
 	for i, r := range results {
-		sb.WriteString(fmt.Sprintf("\n--- Result %d (score: %.2f) ---\n", i+1, r.Score))
-		sb.WriteString(fmt.Sprintf("Source: %s\n", r.Source))
+		sb.WriteString(core.Sprintf("\n--- Result %d (score: %.2f) ---\n", i+1, r.Score))
+		sb.WriteString(core.Sprintf("Source: %s\n", r.Source))
 		if r.Section != "" {
-			sb.WriteString(fmt.Sprintf("Section: %s\n", r.Section))
+			sb.WriteString(core.Sprintf("Section: %s\n", r.Section))
 		}
-		sb.WriteString(fmt.Sprintf("Category: %s\n\n", r.Category))
+		sb.WriteString(core.Sprintf("Category: %s\n\n", r.Category))
 		sb.WriteString(r.Text)
 		sb.WriteString("\n")
 	}
@@ -151,14 +150,14 @@ func FormatResultsContext(results []QueryResult) string {
 		return ""
 	}
 
-	var sb strings.Builder
+	sb := core.NewBuilder()
 	sb.WriteString("<retrieved_context>\n")
 	for _, r := range results {
 		// Escape XML special characters to prevent malformed output
-		fmt.Fprintf(&sb, "<document source=\"%s\" section=\"%s\" category=\"%s\">\n",
+		sb.WriteString(core.Sprintf("<document source=\"%s\" section=\"%s\" category=\"%s\">\n",
 			html.EscapeString(r.Source),
 			html.EscapeString(r.Section),
-			html.EscapeString(r.Category))
+			html.EscapeString(r.Category)))
 		sb.WriteString(html.EscapeString(r.Text))
 		sb.WriteString("\n</document>\n\n")
 	}
@@ -172,21 +171,29 @@ func FormatResultsJSON(results []QueryResult) string {
 		return "[]"
 	}
 
-	var sb strings.Builder
-	sb.WriteString("[\n")
+	formatted := make([]struct {
+		Source   string  `json:"source"`
+		Section  string  `json:"section"`
+		Category string  `json:"category"`
+		Score    float64 `json:"score"`
+		Text     string  `json:"text"`
+	}, len(results))
+
 	for i, r := range results {
-		sb.WriteString("  {\n")
-		sb.WriteString(fmt.Sprintf("    \"source\": %q,\n", r.Source))
-		sb.WriteString(fmt.Sprintf("    \"section\": %q,\n", r.Section))
-		sb.WriteString(fmt.Sprintf("    \"category\": %q,\n", r.Category))
-		sb.WriteString(fmt.Sprintf("    \"score\": %.4f,\n", r.Score))
-		sb.WriteString(fmt.Sprintf("    \"text\": %q\n", r.Text))
-		if i < len(results)-1 {
-			sb.WriteString("  },\n")
-		} else {
-			sb.WriteString("  }\n")
+		formatted[i] = struct {
+			Source   string  `json:"source"`
+			Section  string  `json:"section"`
+			Category string  `json:"category"`
+			Score    float64 `json:"score"`
+			Text     string  `json:"text"`
+		}{
+			Source:   r.Source,
+			Section:  r.Section,
+			Category: r.Category,
+			Score:    math.Round(float64(r.Score)*10000) / 10000,
+			Text:     r.Text,
 		}
 	}
-	sb.WriteString("]")
-	return sb.String()
+
+	return core.JSONMarshalString(formatted)
 }

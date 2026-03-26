@@ -2,11 +2,10 @@ package rag
 
 import (
 	"crypto/md5"
-	"fmt"
 	"iter"
-	"path/filepath"
 	"slices"
-	"strings"
+
+	"dappco.re/go/core"
 )
 
 // ChunkConfig holds chunking configuration.
@@ -52,17 +51,16 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 
 		// Split by ## headers
 		for section := range splitBySectionsSeq(text) {
-			section = strings.TrimSpace(section)
+			section = core.Trim(section)
 			if section == "" {
 				continue
 			}
 
 			// Extract section title
-			lines := strings.SplitN(section, "\n", 2)
+			lines := core.SplitN(section, "\n", 2)
 			title := ""
-			if strings.HasPrefix(lines[0], "#") {
-				title = strings.TrimLeft(lines[0], "#")
-				title = strings.TrimSpace(title)
+			if core.HasPrefix(lines[0], "#") {
+				title = trimHeadingPrefix(lines[0])
 			}
 
 			// If section is small enough, yield as-is
@@ -81,7 +79,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 			// Otherwise, chunk by paragraphs
 			currentChunk := ""
 			for para := range splitByParagraphsSeq(section) {
-				para = strings.TrimSpace(para)
+				para = core.Trim(para)
 				if para == "" {
 					continue
 				}
@@ -90,7 +88,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 				// boundaries and treat each sentence (or group of sentences)
 				// as a separate sub-paragraph.
 				for sp := range yieldSubParas(para, cfg.Size) {
-					sp = strings.TrimSpace(sp)
+					sp = core.Trim(sp)
 					if sp == "" {
 						continue
 					}
@@ -104,7 +102,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 					} else {
 						if currentChunk != "" {
 							if !yield(Chunk{
-								Text:    strings.TrimSpace(currentChunk),
+								Text:    core.Trim(currentChunk),
 								Section: title,
 								Index:   chunkIndex,
 							}) {
@@ -120,9 +118,9 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 			}
 
 			// Don't forget the last chunk of the section
-			if strings.TrimSpace(currentChunk) != "" {
+			if core.Trim(currentChunk) != "" {
 				if !yield(Chunk{
-					Text:    strings.TrimSpace(currentChunk),
+					Text:    core.Trim(currentChunk),
 					Section: title,
 					Index:   chunkIndex,
 				}) {
@@ -166,8 +164,11 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 	// Align to the nearest word boundary: find the first space within the
 	// overlap slice and start after it to avoid a partial leading word.
 	overlapText := string(overlapRunes)
-	if idx := strings.IndexByte(overlapText, ' '); idx >= 0 {
-		overlapText = overlapText[idx+1:]
+	for i, r := range overlapText {
+		if r == ' ' {
+			overlapText = overlapText[i+1:]
+			break
+		}
 	}
 
 	if overlapText == "" {
@@ -194,7 +195,7 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 			bestIdx := -1
 			var bestSep string
 			for _, sep := range []string{". ", "? ", "! "} {
-				idx := strings.Index(remaining, sep)
+				idx := indexOf(remaining, sep)
 				if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
 					bestIdx = idx
 					bestSep = sep
@@ -203,7 +204,7 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 
 			if bestIdx < 0 {
 				// No more boundaries — yield remainder if not empty
-				if s := strings.TrimSpace(remaining); s != "" {
+				if s := core.Trim(remaining); s != "" {
 					if !yield(s) {
 						return
 					}
@@ -213,7 +214,7 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 
 			// Include the punctuation mark in the sentence, but not the trailing space
 			sentence := remaining[:bestIdx+len(bestSep)-1]
-			if s := strings.TrimSpace(sentence); s != "" {
+			if s := core.Trim(sentence); s != "" {
 				if !yield(s) {
 					return
 				}
@@ -231,10 +232,10 @@ func splitBySections(text string) []string {
 // splitBySectionsSeq returns an iterator that yields text sections split by ## headers.
 func splitBySectionsSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		var currentSection strings.Builder
-		for line := range strings.SplitSeq(text, "\n") {
+		currentSection := core.NewBuilder()
+		for _, line := range core.Split(text, "\n") {
 			// Check if this line is a ## header
-			if strings.HasPrefix(line, "## ") {
+			if core.HasPrefix(line, "## ") {
 				// Yield previous section if exists
 				if currentSection.Len() > 0 {
 					if !yield(currentSection.String()) {
@@ -264,10 +265,10 @@ func splitByParagraphsSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		// Replace multiple newlines with a marker, then split
 		normalized := text
-		for strings.Contains(normalized, "\n\n\n") {
-			normalized = strings.ReplaceAll(normalized, "\n\n\n", "\n\n")
+		for core.Contains(normalized, "\n\n\n") {
+			normalized = core.Replace(normalized, "\n\n\n", "\n\n")
 		}
-		for s := range strings.SplitSeq(normalized, "\n\n") {
+		for _, s := range core.Split(normalized, "\n\n") {
 			if !yield(s) {
 				return
 			}
@@ -277,20 +278,20 @@ func splitByParagraphsSeq(text string) iter.Seq[string] {
 
 // Category determines the document category from file path.
 func Category(path string) string {
-	lower := strings.ToLower(path)
+	lower := core.Lower(path)
 
 	switch {
-	case strings.Contains(lower, "flux") || strings.Contains(lower, "ui/component"):
+	case core.Contains(lower, "flux") || core.Contains(lower, "ui/component"):
 		return "ui-component"
-	case strings.Contains(lower, "brand") || strings.Contains(lower, "mascot"):
+	case core.Contains(lower, "brand") || core.Contains(lower, "mascot"):
 		return "brand"
-	case strings.Contains(lower, "brief"):
+	case core.Contains(lower, "brief"):
 		return "product-brief"
-	case strings.Contains(lower, "help") || strings.Contains(lower, "draft"):
+	case core.Contains(lower, "help") || core.Contains(lower, "draft"):
 		return "help-doc"
-	case strings.Contains(lower, "task") || strings.Contains(lower, "plan"):
+	case core.Contains(lower, "task") || core.Contains(lower, "plan"):
 		return "task"
-	case strings.Contains(lower, "architecture") || strings.Contains(lower, "migration"):
+	case core.Contains(lower, "architecture") || core.Contains(lower, "migration"):
 		return "architecture"
 	default:
 		return "documentation"
@@ -305,9 +306,9 @@ func ChunkID(path string, index int, text string) string {
 		runes = runes[:100]
 	}
 	textPart := string(runes)
-	data := fmt.Sprintf("%s:%d:%s", path, index, textPart)
+	data := core.Sprintf("%s:%d:%s", path, index, textPart)
 	hash := md5.Sum([]byte(data))
-	return fmt.Sprintf("%x", hash)
+	return core.Sprintf("%x", hash)
 }
 
 // FileExtensions returns the file extensions to process.
@@ -317,6 +318,25 @@ func FileExtensions() []string {
 
 // ShouldProcess checks if a file should be processed based on extension.
 func ShouldProcess(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
+	ext := core.Lower(core.PathExt(path))
 	return slices.Contains(FileExtensions(), ext)
+}
+
+func trimHeadingPrefix(line string) string {
+	for core.HasPrefix(line, "#") {
+		line = core.TrimPrefix(line, "#")
+	}
+	return core.Trim(line)
+}
+
+func indexOf(s, substr string) int {
+	if substr == "" || len(substr) > len(s) {
+		return -1
+	}
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }

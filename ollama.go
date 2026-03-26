@@ -2,12 +2,11 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core"
 	"github.com/ollama/ollama/api"
 )
 
@@ -38,7 +37,7 @@ type OllamaClient struct {
 func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 	baseURL := &url.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Host:   core.Sprintf("%s:%d", cfg.Host, cfg.Port),
 	}
 
 	client := api.NewClient(baseURL, &http.Client{
@@ -75,11 +74,11 @@ func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 
 	resp, err := o.client.Embed(ctx, req)
 	if err != nil {
-		return nil, log.E("rag.Ollama.Embed", "failed to generate embedding", err)
+		return nil, core.E("rag.Ollama.Embed", "failed to generate embedding", err)
 	}
 
 	if len(resp.Embeddings) == 0 || len(resp.Embeddings[0]) == 0 {
-		return nil, log.E("rag.Ollama.Embed", "empty embedding response", nil)
+		return nil, core.E("rag.Ollama.Embed", "empty embedding response", nil)
 	}
 
 	// Convert float64 to float32 for Qdrant
@@ -98,7 +97,7 @@ func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 	for i, text := range texts {
 		embedding, err := o.Embed(ctx, text)
 		if err != nil {
-			return nil, log.E("rag.Ollama.EmbedBatch", fmt.Sprintf("failed to embed text %d", i), err)
+			return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("failed to embed text %d", i), err)
 		}
 		results[i] = embedding
 	}
@@ -109,7 +108,11 @@ func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 func (o *OllamaClient) VerifyModel(ctx context.Context) error {
 	_, err := o.Embed(ctx, "test")
 	if err != nil {
-		return log.E("rag.Ollama.VerifyModel", fmt.Sprintf("model %s not available (run: ollama pull %s)", o.config.Model, o.config.Model), err)
+		return core.E(
+			"rag.Ollama.VerifyModel",
+			core.Sprintf("model %s not available (run: ollama pull %s)", o.config.Model, o.config.Model),
+			err,
+		)
 	}
 	return nil
 }

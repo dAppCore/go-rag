@@ -3,12 +3,13 @@ package rag
 import (
 	"iter"
 	"slices"
-	"strings"
+
+	"dappco.re/go/core"
 )
 
 // KeywordFilter re-ranks query results by boosting scores for results whose
 // text contains one or more of the given keywords. Matching is
-// case-insensitive using strings.Contains. Each keyword match adds a 10%
+// case-insensitive using core.Contains. Each keyword match adds a 10%
 // boost to the original score: score *= 1.0 + 0.1 * matchCount.
 // Results are re-sorted by boosted score descending.
 func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
@@ -19,7 +20,7 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 	// Normalise keywords to lowercase once
 	lowerKeywords := slices.Collect(func(yield func(string) bool) {
 		for _, kw := range keywords {
-			if !yield(strings.ToLower(kw)) {
+			if !yield(core.Lower(kw)) {
 				return
 			}
 		}
@@ -30,10 +31,10 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 	copy(boosted, results)
 
 	for i := range boosted {
-		lowerText := strings.ToLower(boosted[i].Text)
+		lowerText := core.Lower(boosted[i].Text)
 		matchCount := 0
 		for _, kw := range lowerKeywords {
-			if kw != "" && strings.Contains(lowerText, kw) {
+			if kw != "" && core.Contains(lowerText, kw) {
 				matchCount++
 			}
 		}
@@ -76,7 +77,7 @@ func extractKeywords(query string) []string {
 // extractKeywordsSeq returns an iterator that yields keywords from a query.
 func extractKeywordsSeq(query string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		for w := range strings.FieldsSeq(strings.ToLower(query)) {
+		for _, w := range fields(core.Lower(query)) {
 			if len(w) >= 3 {
 				if !yield(w) {
 					return
@@ -84,4 +85,29 @@ func extractKeywordsSeq(query string) iter.Seq[string] {
 			}
 		}
 	}
+}
+
+func fields(text string) []string {
+	var words []string
+	current := core.NewBuilder()
+
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		words = append(words, current.String())
+		current.Reset()
+	}
+
+	for _, r := range text {
+		switch r {
+		case ' ', '\t', '\n', '\r':
+			flush()
+		default:
+			current.WriteRune(r)
+		}
+	}
+	flush()
+
+	return words
 }

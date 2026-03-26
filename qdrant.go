@@ -4,9 +4,8 @@ package rag
 
 import (
 	"context"
-	"fmt"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -36,7 +35,7 @@ type QdrantClient struct {
 
 // NewQdrantClient creates a new Qdrant client.
 func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
-	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	addr := core.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host:   cfg.Host,
@@ -45,7 +44,7 @@ func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 		UseTLS: cfg.UseTLS,
 	})
 	if err != nil {
-		return nil, log.E("rag.Qdrant", fmt.Sprintf("failed to connect to Qdrant at %s", addr), err)
+		return nil, core.E("rag.Qdrant", core.Sprintf("failed to connect to Qdrant at %s", addr), err)
 	}
 
 	return &QdrantClient{
@@ -212,7 +211,7 @@ func pointIDToString(id *qdrant.PointId) string {
 	}
 	switch v := id.PointIdOptions.(type) {
 	case *qdrant.PointId_Num:
-		return fmt.Sprintf("%d", v.Num)
+		return core.Sprintf("%d", v.Num)
 	case *qdrant.PointId_Uuid:
 		return v.Uuid
 	default:
