@@ -11,6 +11,7 @@ import (
 )
 
 // OllamaConfig holds Ollama connection configuration.
+// cfg := OllamaConfig{Host: "localhost", Port: 11434, Model: "nomic-embed-text"}
 type OllamaConfig struct {
 	Host  string
 	Port  int
@@ -19,6 +20,7 @@ type OllamaConfig struct {
 
 // DefaultOllamaConfig returns default Ollama configuration.
 // Host defaults to localhost for local development.
+// cfg := DefaultOllamaConfig()
 func DefaultOllamaConfig() OllamaConfig {
 	return OllamaConfig{
 		Host:  "localhost",
@@ -28,12 +30,14 @@ func DefaultOllamaConfig() OllamaConfig {
 }
 
 // OllamaClient wraps the Ollama API client for embeddings.
+// client, _ := NewOllamaClient(DefaultOllamaConfig())
 type OllamaClient struct {
 	client *api.Client
 	config OllamaConfig
 }
 
 // NewOllamaClient creates a new Ollama client.
+// client, err := NewOllamaClient(DefaultOllamaConfig())
 func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 	baseURL := &url.URL{
 		Scheme: "http",
@@ -52,6 +56,7 @@ func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 
 // EmbedDimension returns the embedding dimension for the configured model.
 // nomic-embed-text uses 768 dimensions.
+// dim := client.EmbedDimension()
 func (o *OllamaClient) EmbedDimension() uint64 {
 	switch o.config.Model {
 	case "nomic-embed-text":
@@ -66,6 +71,7 @@ func (o *OllamaClient) EmbedDimension() uint64 {
 }
 
 // Embed generates embeddings for the given text.
+// vector, _ := client.Embed(ctx, "How do goroutines work?")
 func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error) {
 	req := &api.EmbedRequest{
 		Model: o.config.Model,
@@ -92,6 +98,7 @@ func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 }
 
 // EmbedBatch generates embeddings for multiple texts.
+// vectors, _ := client.EmbedBatch(ctx, []string{"How do goroutines work?", "What is Qdrant?"})
 func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
 	results := make([][]float32, len(texts))
 	for i, text := range texts {
@@ -105,6 +112,7 @@ func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 }
 
 // VerifyModel checks if the embedding model is available.
+// client.VerifyModel(ctx)
 func (o *OllamaClient) VerifyModel(ctx context.Context) error {
 	_, err := o.Embed(ctx, "test")
 	if err != nil {
@@ -118,6 +126,7 @@ func (o *OllamaClient) VerifyModel(ctx context.Context) error {
 }
 
 // Model returns the configured embedding model name.
+// name := client.Model()
 func (o *OllamaClient) Model() string {
 	return o.config.Model
 }

@@ -2,18 +2,16 @@ package rag
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- QueryWith tests ---
 
-func TestQueryWith(t *testing.T) {
+func TestHelpers_QueryWith_Good(t *testing.T) {
 	t.Run("returns results from store", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.points["my-docs"] = []Point{
@@ -34,10 +32,10 @@ func TestQueryWith(t *testing.T) {
 		store := newMockVectorStore()
 		for i := range 10 {
 			store.points["col"] = append(store.points["col"], Point{
-				ID:     fmt.Sprintf("p%d", i),
+				ID:     core.Sprintf("p%d", i),
 				Vector: []float32{0.1},
 				Payload: map[string]any{
-					"text": fmt.Sprintf("Doc %d", i), "source": "d.md", "section": "", "category": "docs", "chunk_index": i,
+					"text": core.Sprintf("Doc %d", i), "source": "d.md", "section": "", "category": "docs", "chunk_index": i,
 				},
 			})
 		}
@@ -52,7 +50,7 @@ func TestQueryWith(t *testing.T) {
 	t.Run("embedder error propagates", func(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("embed failed")
+		embedder.embedErr = core.E("mock.embed", "embed failed", nil)
 
 		_, err := QueryWith(context.Background(), store, embedder, "test", "col", 5)
 
@@ -61,7 +59,7 @@ func TestQueryWith(t *testing.T) {
 
 	t.Run("search error propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.searchErr = fmt.Errorf("search failed")
+		store.searchErr = core.E("mock.search", "search failed", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := QueryWith(context.Background(), store, embedder, "test", "col", 5)
@@ -72,7 +70,7 @@ func TestQueryWith(t *testing.T) {
 
 // --- QueryContextWith tests ---
 
-func TestQueryContextWith(t *testing.T) {
+func TestHelpers_QueryContextWith_Good(t *testing.T) {
 	t.Run("returns formatted context string", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.points["ctx-col"] = []Point{
@@ -102,7 +100,7 @@ func TestQueryContextWith(t *testing.T) {
 
 	t.Run("error from query propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.searchErr = fmt.Errorf("broken")
+		store.searchErr = core.E("mock.search", "broken", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := QueryContextWith(context.Background(), store, embedder, "question", "col", 5)
@@ -113,11 +111,11 @@ func TestQueryContextWith(t *testing.T) {
 
 // --- IngestDirWith tests ---
 
-func TestIngestDirWith(t *testing.T) {
+func TestHelpers_IngestDirWith_Good(t *testing.T) {
 	t.Run("ingests directory into collection", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "readme.md"), "## README\n\nProject overview.\n")
-		writeFile(t, filepath.Join(dir, "guide.md"), "## Guide\n\nStep by step.\n")
+		writeFile(t, core.JoinPath(dir, "readme.md"), "## README\n\nProject overview.\n")
+		writeFile(t, core.JoinPath(dir, "guide.md"), "## Guide\n\nStep by step.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -131,7 +129,7 @@ func TestIngestDirWith(t *testing.T) {
 
 	t.Run("recreate flag deletes existing collection", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Doc\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Doc\n\nContent.\n")
 
 		store := newMockVectorStore()
 		store.collections["col"] = 768
@@ -146,7 +144,7 @@ func TestIngestDirWith(t *testing.T) {
 
 	t.Run("error from ingest propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.existsErr = fmt.Errorf("exists check failed")
+		store.existsErr = core.E("mock.collections.exists", "exists check failed", nil)
 		embedder := newMockEmbedder(768)
 
 		err := IngestDirWith(context.Background(), store, embedder, "/tmp", "col", false)
@@ -166,10 +164,10 @@ func TestIngestDirWith(t *testing.T) {
 
 // --- IngestFileWith tests ---
 
-func TestIngestFileWith(t *testing.T) {
+func TestHelpers_IngestFileWith_Good(t *testing.T) {
 	t.Run("ingests a single file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "single.md")
+		path := core.JoinPath(dir, "single.md")
 		writeFile(t, path, "## Title\n\nFile content for testing.\n")
 
 		store := newMockVectorStore()
@@ -196,8 +194,8 @@ func TestIngestFileWith(t *testing.T) {
 
 	t.Run("empty file returns zero count", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "empty.md")
-		require.NoError(t, os.WriteFile(path, []byte("  \n  "), 0644))
+		path := core.JoinPath(dir, "empty.md")
+		writeFile(t, path, "  \n  ")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -210,12 +208,12 @@ func TestIngestFileWith(t *testing.T) {
 
 	t.Run("embedder error propagates", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "doc.md")
+		path := core.JoinPath(dir, "doc.md")
 		writeFile(t, path, "## Title\n\nContent.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("embed broken")
+		embedder.embedErr = core.E("mock.embed", "embed broken", nil)
 
 		_, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
@@ -224,11 +222,11 @@ func TestIngestFileWith(t *testing.T) {
 
 	t.Run("store error propagates", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "doc.md")
+		path := core.JoinPath(dir, "doc.md")
 		writeFile(t, path, "## Title\n\nContent.\n")
 
 		store := newMockVectorStore()
-		store.upsertErr = fmt.Errorf("upsert broken")
+		store.upsertErr = core.E("mock.upsert", "upsert broken", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := IngestFileWith(context.Background(), store, embedder, path, "col")

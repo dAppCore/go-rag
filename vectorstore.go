@@ -3,7 +3,7 @@ package rag
 import "context"
 
 // VectorStore defines the interface for vector storage and search.
-// QdrantClient satisfies this interface.
+// var store VectorStore = qdrantClient
 type VectorStore interface {
 	// CreateCollection creates a new vector collection with the given
 	// name and vector dimensionality.
@@ -32,6 +32,7 @@ type VectorStore interface {
 }
 
 // CollectionInfo holds backend-agnostic metadata about a collection.
+// info := CollectionInfo{Name: "project-docs", PointCount: 42, VectorSize: 768}
 type CollectionInfo struct {
 	Name       string
 	PointCount uint64

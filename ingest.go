@@ -9,6 +9,7 @@ import (
 )
 
 // IngestConfig holds ingestion configuration.
+// cfg := IngestConfig{Directory: "./docs", Collection: "project-docs", BatchSize: 100}
 type IngestConfig struct {
 	Directory  string
 	Collection string
@@ -19,6 +20,7 @@ type IngestConfig struct {
 }
 
 // DefaultIngestConfig returns default ingestion configuration.
+// cfg := DefaultIngestConfig()
 func DefaultIngestConfig() IngestConfig {
 	return IngestConfig{
 		Collection: "hostuk-docs",
@@ -28,6 +30,7 @@ func DefaultIngestConfig() IngestConfig {
 }
 
 // IngestStats holds statistics from ingestion.
+// stats := IngestStats{Files: 12, Chunks: 84, Errors: 0}
 type IngestStats struct {
 	Files  int
 	Chunks int
@@ -35,9 +38,11 @@ type IngestStats struct {
 }
 
 // IngestProgress is called during ingestion to report progress.
+// progress := IngestProgress(func(file string, chunks int, total int) {})
 type IngestProgress func(file string, chunks int, total int)
 
 // Ingest processes a directory of documents and stores them in the vector store.
+// Ingest(ctx, store, embedder, cfg, progress)
 func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg IngestConfig, progress IngestProgress) (*IngestStats, error) {
 	stats := &IngestStats{}
 	localFS := (&core.Fs{}).NewUnrestricted()
@@ -159,6 +164,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 }
 
 // IngestFile processes a single file and stores it in the vector store.
+// IngestFile(ctx, store, embedder, "project-docs", "./docs/guide.md", DefaultChunkConfig())
 func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
 	localFS := (&core.Fs{}).NewUnrestricted()
 

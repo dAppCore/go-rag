@@ -9,7 +9,7 @@ import (
 
 // --- DefaultQdrantConfig tests ---
 
-func TestDefaultQdrantConfig(t *testing.T) {
+func TestQdrant_DefaultQdrantConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultQdrantConfig()
 
@@ -22,7 +22,7 @@ func TestDefaultQdrantConfig(t *testing.T) {
 
 // --- pointIDToString tests ---
 
-func TestPointIDToString(t *testing.T) {
+func TestQdrant_PointIDToString_Good(t *testing.T) {
 	t.Run("nil ID returns empty string", func(t *testing.T) {
 		result := pointIDToString(nil)
 		assert.Equal(t, "", result)
@@ -70,7 +70,7 @@ func TestPointIDToString(t *testing.T) {
 
 // --- valueToGo tests ---
 
-func TestValueToGo(t *testing.T) {
+func TestQdrant_ValueToGo_Good(t *testing.T) {
 	t.Run("nil value returns nil", func(t *testing.T) {
 		result := valueToGo(nil)
 		assert.Nil(t, result)
@@ -230,7 +230,7 @@ func TestValueToGo(t *testing.T) {
 
 // --- Point struct tests ---
 
-func TestPointStruct(t *testing.T) {
+func TestQdrant_Point_Good(t *testing.T) {
 	t.Run("Point holds ID vector and payload", func(t *testing.T) {
 		p := Point{
 			ID:     "test-id-123",
@@ -263,7 +263,7 @@ func TestPointStruct(t *testing.T) {
 
 // --- SearchResult struct tests ---
 
-func TestSearchResultStruct(t *testing.T) {
+func TestQdrant_SearchResult_Good(t *testing.T) {
 	t.Run("SearchResult holds all fields", func(t *testing.T) {
 		sr := SearchResult{
 			ID:    "result-1",

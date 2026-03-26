@@ -2,7 +2,7 @@ package rag
 
 import (
 	"context"
-	"fmt"
+	"io"
 
 	"dappco.re/go/core"
 	"forge.lthn.ai/core/cli/pkg/cli"
@@ -32,9 +32,10 @@ func runIngest(cmd *cli.Command, args []string) error {
 	}
 
 	ctx := context.Background()
+	out := cmd.OutOrStdout()
 
 	// Connect to Qdrant
-	fmt.Printf("Connecting to Qdrant at %s:%d...\n", qdrantHost, qdrantPort)
+	core.Print(out, "Connecting to Qdrant at %s:%d...", qdrantHost, qdrantPort)
 	qdrantClient, err := rag.NewQdrantClient(rag.QdrantConfig{
 		Host:   qdrantHost,
 		Port:   qdrantPort,
@@ -50,7 +51,7 @@ func runIngest(cmd *cli.Command, args []string) error {
 	}
 
 	// Connect to Ollama
-	fmt.Printf("Using embedding model: %s (via %s:%d)\n", model, ollamaHost, ollamaPort)
+	core.Print(out, "Using embedding model: %s (via %s:%d)", model, ollamaHost, ollamaPort)
 	ollamaClient, err := rag.NewOllamaClient(rag.OllamaConfig{
 		Host:  ollamaHost,
 		Port:  ollamaPort,
@@ -87,16 +88,16 @@ func runIngest(cmd *cli.Command, args []string) error {
 	// Progress callback
 	progress := func(file string, chunks int, total int) {
 		if verbose {
-			fmt.Printf("  Processed: %s (%d chunks total)\n", file, chunks)
+			core.Print(out, "  Processed: %s (%d chunks total)", file, chunks)
 		} else {
-			fmt.Printf("\r  %s (%d chunks)    ", cli.DimStyle.Render(file), chunks)
+			_, _ = io.WriteString(out, core.Sprintf("\r  %s (%d chunks)    ", cli.DimStyle.Render(file), chunks))
 		}
 	}
 
 	// Run ingestion
-	fmt.Printf("\nIngesting from: %s\n", directory)
+	_, _ = io.WriteString(out, core.Sprintf("\nIngesting from: %s\n", directory))
 	if recreate {
-		fmt.Printf("  (recreating collection: %s)\n", collection)
+		core.Print(out, "  (recreating collection: %s)", collection)
 	}
 
 	stats, err := rag.Ingest(ctx, qdrantClient, ollamaClient, cfg, progress)
@@ -105,13 +106,13 @@ func runIngest(cmd *cli.Command, args []string) error {
 	}
 
 	// Summary
-	fmt.Printf("\n\n%s\n", cli.TitleStyle.Render("Ingestion complete!"))
-	fmt.Printf("  Files processed: %d\n", stats.Files)
-	fmt.Printf("  Chunks created:  %d\n", stats.Chunks)
+	_, _ = io.WriteString(out, core.Sprintf("\n\n%s\n", cli.TitleStyle.Render("Ingestion complete!")))
+	core.Print(out, "  Files processed: %d", stats.Files)
+	core.Print(out, "  Chunks created:  %d", stats.Chunks)
 	if stats.Errors > 0 {
-		fmt.Printf("  Errors:          %s\n", cli.ErrorStyle.Render(core.Sprintf("%d", stats.Errors)))
+		core.Print(out, "  Errors:          %s", cli.ErrorStyle.Render(core.Sprintf("%d", stats.Errors)))
 	}
-	fmt.Printf("  Collection:      %s\n", collection)
+	core.Print(out, "  Collection:      %s", collection)
 
 	return nil
 }

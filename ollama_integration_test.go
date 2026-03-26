@@ -23,7 +23,7 @@ func skipIfOllamaUnavailable(t *testing.T) {
 	_ = conn.Close()
 }
 
-func TestOllamaIntegration(t *testing.T) {
+func TestOllama_Integration_Ugly(t *testing.T) {
 	skipIfOllamaUnavailable(t)
 
 	cfg := DefaultOllamaConfig()

@@ -2,18 +2,16 @@ package rag
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"strings"
 	"testing"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- DefaultQueryConfig tests ---
 
-func TestDefaultQueryConfig(t *testing.T) {
+func TestQuery_DefaultQueryConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultQueryConfig()
 
@@ -26,7 +24,7 @@ func TestDefaultQueryConfig(t *testing.T) {
 
 // --- FormatResultsText tests ---
 
-func TestFormatResultsText(t *testing.T) {
+func TestQuery_FormatResultsText_Good(t *testing.T) {
 	t.Run("empty results returns no-results message", func(t *testing.T) {
 		result := FormatResultsText(nil)
 		assert.Equal(t, "No results found.", result)
@@ -87,9 +85,9 @@ func TestFormatResultsText(t *testing.T) {
 		assert.Contains(t, output, "Result 2")
 		assert.Contains(t, output, "Result 3")
 		// Verify ordering: first result appears before second
-		idx1 := strings.Index(output, "Result 1")
-		idx2 := strings.Index(output, "Result 2")
-		idx3 := strings.Index(output, "Result 3")
+		idx1 := indexOf(output, "Result 1")
+		idx2 := indexOf(output, "Result 2")
+		idx3 := indexOf(output, "Result 3")
 		assert.Less(t, idx1, idx2)
 		assert.Less(t, idx2, idx3)
 	})
@@ -107,7 +105,7 @@ func TestFormatResultsText(t *testing.T) {
 
 // --- FormatResultsContext tests ---
 
-func TestFormatResultsContext(t *testing.T) {
+func TestQuery_FormatResultsContext_Good(t *testing.T) {
 	t.Run("empty results returns empty string", func(t *testing.T) {
 		result := FormatResultsContext(nil)
 		assert.Equal(t, "", result)
@@ -125,9 +123,9 @@ func TestFormatResultsContext(t *testing.T) {
 
 		output := FormatResultsContext(results)
 
-		assert.True(t, strings.HasPrefix(output, "<retrieved_context>\n"),
+		assert.True(t, core.HasPrefix(output, "<retrieved_context>\n"),
 			"output should start with <retrieved_context> tag")
-		assert.True(t, strings.HasSuffix(output, "</retrieved_context>"),
+		assert.True(t, core.HasSuffix(output, "</retrieved_context>"),
 			"output should end with </retrieved_context> tag")
 	})
 
@@ -181,14 +179,14 @@ func TestFormatResultsContext(t *testing.T) {
 		output := FormatResultsContext(results)
 
 		// Count document tags
-		assert.Equal(t, 2, strings.Count(output, "<document "))
-		assert.Equal(t, 2, strings.Count(output, "</document>"))
+		assert.Equal(t, 2, len(core.Split(output, "<document "))-1)
+		assert.Equal(t, 2, len(core.Split(output, "</document>"))-1)
 	})
 }
 
 // --- FormatResultsJSON tests ---
 
-func TestFormatResultsJSON(t *testing.T) {
+func TestQuery_FormatResultsJSON_Good(t *testing.T) {
 	t.Run("empty results returns empty JSON array", func(t *testing.T) {
 		result := FormatResultsJSON(nil)
 		assert.Equal(t, "[]", result)
@@ -214,8 +212,8 @@ func TestFormatResultsJSON(t *testing.T) {
 
 		// Verify it parses as valid JSON
 		var parsed []map[string]any
-		err := json.Unmarshal([]byte(output), &parsed)
-		require.NoError(t, err, "output should be valid JSON")
+		result := core.JSONUnmarshalString(output, &parsed)
+		require.True(t, result.OK, "output should be valid JSON")
 		require.Len(t, parsed, 1)
 
 		assert.Equal(t, "test.md", parsed[0]["source"])
@@ -236,8 +234,8 @@ func TestFormatResultsJSON(t *testing.T) {
 		output := FormatResultsJSON(results)
 
 		var parsed []map[string]any
-		err := json.Unmarshal([]byte(output), &parsed)
-		require.NoError(t, err, "output should be valid JSON")
+		result := core.JSONUnmarshalString(output, &parsed)
+		require.True(t, result.OK, "output should be valid JSON")
 		require.Len(t, parsed, 3)
 
 		assert.Equal(t, "First.", parsed[0]["text"])
@@ -259,8 +257,8 @@ func TestFormatResultsJSON(t *testing.T) {
 		output := FormatResultsJSON(results)
 
 		var parsed []map[string]any
-		err := json.Unmarshal([]byte(output), &parsed)
-		require.NoError(t, err, "output should be valid JSON even with special characters")
+		result := core.JSONUnmarshalString(output, &parsed)
+		require.True(t, result.OK, "output should be valid JSON even with special characters")
 		assert.Equal(t, "Line one\nLine two\twith tab and \"quotes\"", parsed[0]["text"])
 	})
 
@@ -277,7 +275,7 @@ func TestFormatResultsJSON(t *testing.T) {
 
 // --- Query function tests with mocks ---
 
-func TestQuery(t *testing.T) {
+func TestQuery_Query_Good(t *testing.T) {
 	t.Run("generates embedding for query text", func(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -386,7 +384,7 @@ func TestQuery(t *testing.T) {
 	t.Run("embedder failure returns error", func(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("ollama down")
+		embedder.embedErr = core.E("mock.embed", "ollama down", nil)
 
 		cfg := DefaultQueryConfig()
 
@@ -400,7 +398,7 @@ func TestQuery(t *testing.T) {
 
 	t.Run("search failure returns error", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.searchErr = fmt.Errorf("qdrant timeout")
+		store.searchErr = core.E("mock.search", "qdrant timeout", nil)
 		embedder := newMockEmbedder(768)
 
 		cfg := DefaultQueryConfig()
@@ -495,10 +493,10 @@ func TestQuery(t *testing.T) {
 		// Add many points
 		for i := range 10 {
 			store.points["test-col"] = append(store.points["test-col"], Point{
-				ID:     fmt.Sprintf("p%d", i),
+				ID:     core.Sprintf("p%d", i),
 				Vector: []float32{0.1},
 				Payload: map[string]any{
-					"text":        fmt.Sprintf("Result %d", i),
+					"text":        core.Sprintf("Result %d", i),
 					"source":      "doc.md",
 					"section":     "",
 					"category":    "docs",

@@ -1,13 +1,13 @@
 package rag
 
 import (
-	"strings"
 	"testing"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestChunkMarkdown_Good_SmallSection(t *testing.T) {
+func TestChunk_ChunkMarkdown_Good_SmallSection(t *testing.T) {
 	text := `# Title
 
 This is a small section that fits in one chunk.
@@ -18,7 +18,7 @@ This is a small section that fits in one chunk.
 	assert.Contains(t, chunks[0].Text, "small section")
 }
 
-func TestChunkMarkdown_Good_MultipleSections(t *testing.T) {
+func TestChunk_ChunkMarkdown_Good_MultipleSections(t *testing.T) {
 	text := `# Main Title
 
 Introduction paragraph.
@@ -36,7 +36,7 @@ Content for section two.
 	assert.GreaterOrEqual(t, len(chunks), 2)
 }
 
-func TestChunkMarkdown_Good_LargeSection(t *testing.T) {
+func TestChunk_ChunkMarkdown_Good_LargeSection(t *testing.T) {
 	// Create a section larger than chunk size
 	text := `## Large Section
 
@@ -52,7 +52,7 @@ func TestChunkMarkdown_Good_LargeSection(t *testing.T) {
 	}
 }
 
-func TestChunkMarkdown_Good_ExtractsTitle(t *testing.T) {
+func TestChunk_ChunkMarkdown_Good_ExtractsTitle(t *testing.T) {
 	text := `## My Section Title
 
 Some content here.
@@ -63,7 +63,7 @@ Some content here.
 	assert.Equal(t, "My Section Title", chunks[0].Section)
 }
 
-func TestCategory_Good_UIComponent(t *testing.T) {
+func TestChunk_Category_Good_UIComponent(t *testing.T) {
 	tests := []struct {
 		path     string
 		expected string
@@ -86,14 +86,14 @@ func TestCategory_Good_UIComponent(t *testing.T) {
 	}
 }
 
-func TestChunkID_Good_Deterministic(t *testing.T) {
+func TestChunk_ChunkID_Good_Deterministic(t *testing.T) {
 	id1 := ChunkID("test.md", 0, "hello world")
 	id2 := ChunkID("test.md", 0, "hello world")
 
 	assert.Equal(t, id1, id2)
 }
 
-func TestChunkID_Good_DifferentForDifferentInputs(t *testing.T) {
+func TestChunk_ChunkID_Good_DifferentForDifferentInputs(t *testing.T) {
 	id1 := ChunkID("test.md", 0, "hello world")
 	id2 := ChunkID("test.md", 1, "hello world")
 	id3 := ChunkID("other.md", 0, "hello world")
@@ -102,7 +102,7 @@ func TestChunkID_Good_DifferentForDifferentInputs(t *testing.T) {
 	assert.NotEqual(t, id1, id3)
 }
 
-func TestShouldProcess_Good_MarkdownFiles(t *testing.T) {
+func TestChunk_ShouldProcess_Good_MarkdownFiles(t *testing.T) {
 	assert.True(t, ShouldProcess("doc.md"))
 	assert.True(t, ShouldProcess("doc.markdown"))
 	assert.True(t, ShouldProcess("doc.txt"))
@@ -113,7 +113,7 @@ func TestShouldProcess_Good_MarkdownFiles(t *testing.T) {
 
 // --- Additional chunk edge cases ---
 
-func TestChunkMarkdown_Edge_EmptyInput(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_EmptyInput(t *testing.T) {
 	t.Run("empty string returns no chunks", func(t *testing.T) {
 		chunks := ChunkMarkdown("", DefaultChunkConfig())
 		assert.Empty(t, chunks)
@@ -130,7 +130,7 @@ func TestChunkMarkdown_Edge_EmptyInput(t *testing.T) {
 	})
 }
 
-func TestChunkMarkdown_Edge_OnlyHeadersNoContent(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_OnlyHeadersNoContent(t *testing.T) {
 	t.Run("single header with no body", func(t *testing.T) {
 		text := "## Just a Header\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
@@ -156,7 +156,7 @@ func TestChunkMarkdown_Edge_OnlyHeadersNoContent(t *testing.T) {
 	})
 }
 
-func TestChunkMarkdown_Edge_UnicodeAndEmoji(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_UnicodeAndEmoji(t *testing.T) {
 	t.Run("unicode text chunked correctly", func(t *testing.T) {
 		text := "## Unicode Section\n\nThis section has unicode: \u00e9\u00e0\u00fc\u00f1\u00f6\u00e4\u00df \u4e16\u754c \u041f\u0440\u0438\u0432\u0435\u0442 \u0645\u0631\u062d\u0628\u0627\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
@@ -197,7 +197,7 @@ func TestChunkMarkdown_Edge_UnicodeAndEmoji(t *testing.T) {
 	})
 }
 
-func TestChunkMarkdown_Edge_VeryLongSingleParagraph(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_VeryLongSingleParagraph(t *testing.T) {
 	t.Run("long paragraph without headers splits into multiple chunks", func(t *testing.T) {
 		// Create a very long single paragraph (no section headers)
 		longText := repeatString("This is a very long sentence that should be split across multiple chunks. ", 100)
@@ -233,7 +233,7 @@ func TestChunkMarkdown_Edge_VeryLongSingleParagraph(t *testing.T) {
 	})
 }
 
-func TestChunkMarkdown_Edge_ConfigBoundaries(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_ConfigBoundaries(t *testing.T) {
 	t.Run("zero chunk size uses default 500", func(t *testing.T) {
 		text := "## Section\n\nSome content.\n"
 		cfg := ChunkConfig{Size: 0, Overlap: 0}
@@ -268,7 +268,7 @@ func TestChunkMarkdown_Edge_ConfigBoundaries(t *testing.T) {
 	})
 }
 
-func TestChunkMarkdown_Edge_ChunkIndexing(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_ChunkIndexing(t *testing.T) {
 	t.Run("chunk indices are sequential starting from zero", func(t *testing.T) {
 		text := "## Section One\n\nContent one.\n\n## Section Two\n\nContent two.\n\n## Section Three\n\nContent three.\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
@@ -279,7 +279,7 @@ func TestChunkMarkdown_Edge_ChunkIndexing(t *testing.T) {
 	})
 }
 
-func TestChunkID_Edge_LongText(t *testing.T) {
+func TestChunk_ChunkID_Ugly_LongText(t *testing.T) {
 	t.Run("long text is truncated to first 100 runes for ID", func(t *testing.T) {
 		longText := repeatString("a", 500)
 		id1 := ChunkID("test.md", 0, longText)
@@ -304,7 +304,7 @@ func TestChunkID_Edge_LongText(t *testing.T) {
 	})
 }
 
-func TestDefaultChunkConfig(t *testing.T) {
+func TestChunk_DefaultChunkConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultChunkConfig()
 
@@ -313,7 +313,7 @@ func TestDefaultChunkConfig(t *testing.T) {
 	})
 }
 
-func TestDefaultIngestConfig(t *testing.T) {
+func TestChunk_DefaultIngestConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultIngestConfig()
 
@@ -331,7 +331,7 @@ func TestDefaultIngestConfig(t *testing.T) {
 
 // Helper: repeat a string n times
 func repeatString(s string, n int) string {
-	var result strings.Builder
+	result := core.NewBuilder()
 	for range n {
 		result.WriteString(s)
 	}
@@ -340,7 +340,7 @@ func repeatString(s string, n int) string {
 
 // Helper: join paragraphs with double newlines
 func joinParagraphs(parts []string) string {
-	var result strings.Builder
+	result := core.NewBuilder()
 	for i, p := range parts {
 		if i > 0 {
 			result.WriteString("\n\n")
@@ -352,7 +352,7 @@ func joinParagraphs(parts []string) string {
 
 // --- Phase 3.1: Sentence splitting and overlap alignment ---
 
-func TestChunkMarkdown_SentenceSplitting(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_SentenceSplitting(t *testing.T) {
 	t.Run("oversized paragraph split at sentence boundaries", func(t *testing.T) {
 		// Three sentences, each ~60 chars. Total ~180 chars exceeds Size=100.
 		s1 := "The quick brown fox jumps over the lazy dog on the green hill."
@@ -399,7 +399,7 @@ func TestChunkMarkdown_SentenceSplitting(t *testing.T) {
 		// The first chunk should end with a period (punctuation preserved)
 		foundPeriod := false
 		for _, c := range chunks {
-			if strings.HasSuffix(strings.TrimSpace(c.Text), ".") {
+			if core.HasSuffix(core.Trim(c.Text), ".") {
 				foundPeriod = true
 				break
 			}
@@ -408,7 +408,7 @@ func TestChunkMarkdown_SentenceSplitting(t *testing.T) {
 	})
 }
 
-func TestChunkMarkdown_OverlapWordBoundary(t *testing.T) {
+func TestChunk_ChunkMarkdown_Ugly_OverlapWordBoundary(t *testing.T) {
 	t.Run("overlap does not split mid-word", func(t *testing.T) {
 		// Build two paragraphs where the first is large enough to emit,
 		// and the overlap region lands mid-word in the naive rune slice.
@@ -425,14 +425,14 @@ func TestChunkMarkdown_OverlapWordBoundary(t *testing.T) {
 			}
 			// The overlap prefix should start at a word boundary:
 			// it should not begin with a partial word fragment.
-			words := strings.Fields(c.Text)
+			words := fields(c.Text)
 			if len(words) > 0 {
 				// The first word should be a recognisable whole word, not a suffix
 				// of a longer word. We can verify there is no leading lowercase
 				// fragment by checking the original text contains this word.
 				firstWord := words[0]
 				assert.True(t,
-					strings.Contains(para1, firstWord) || strings.Contains(para2, firstWord),
+					core.Contains(para1, firstWord) || core.Contains(para2, firstWord),
 					"overlap should start at a word boundary, got leading word: %q", firstWord)
 			}
 		}
@@ -451,7 +451,7 @@ func TestChunkMarkdown_OverlapWordBoundary(t *testing.T) {
 	})
 }
 
-func TestSplitBySentences(t *testing.T) {
+func TestChunk_SplitBySentences_Good(t *testing.T) {
 	t.Run("splits on period-space", func(t *testing.T) {
 		result := splitBySentences("First. Second. Third.")
 		assert.Len(t, result, 3)

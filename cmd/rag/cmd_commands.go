@@ -12,6 +12,7 @@ import (
 
 // AddRAGSubcommands registers the 'rag' command as a subcommand of parent.
 // Called from the ai command package to mount under "core ai rag".
+// AddRAGSubcommands(rootCmd)
 func AddRAGSubcommands(parent *cli.Command) {
 	initFlags()
 	ragCmd.AddCommand(ingestCmd)

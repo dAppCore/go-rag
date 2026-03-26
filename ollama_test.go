@@ -9,7 +9,7 @@ import (
 
 // --- DefaultOllamaConfig tests ---
 
-func TestDefaultOllamaConfig(t *testing.T) {
+func TestOllama_DefaultOllamaConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultOllamaConfig()
 
@@ -21,7 +21,7 @@ func TestDefaultOllamaConfig(t *testing.T) {
 
 // --- NewOllamaClient tests ---
 
-func TestNewOllamaClient(t *testing.T) {
+func TestOllama_NewOllamaClient_Good(t *testing.T) {
 	t.Run("constructs client with default config", func(t *testing.T) {
 		client, err := NewOllamaClient(DefaultOllamaConfig())
 
@@ -48,7 +48,7 @@ func TestNewOllamaClient(t *testing.T) {
 
 // --- EmbedDimension tests ---
 
-func TestEmbedDimension(t *testing.T) {
+func TestOllama_EmbedDimension_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		model    string
@@ -97,7 +97,7 @@ func TestEmbedDimension(t *testing.T) {
 
 // --- Model tests ---
 
-func TestModel(t *testing.T) {
+func TestOllama_Model_Good(t *testing.T) {
 	t.Run("returns the configured model name", func(t *testing.T) {
 		client := &OllamaClient{
 			config: OllamaConfig{Model: "nomic-embed-text"},

@@ -3,7 +3,7 @@ package rag
 import "context"
 
 // Embedder defines the interface for generating text embeddings.
-// OllamaClient satisfies this interface.
+// var embedder Embedder = ollamaClient
 type Embedder interface {
 	// Embed generates an embedding vector for the given text.
 	Embed(ctx context.Context, text string) ([]float32, error)

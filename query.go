@@ -11,6 +11,7 @@ import (
 )
 
 // QueryConfig holds query configuration.
+// cfg := QueryConfig{Collection: "project-docs", Limit: 5, Threshold: 0.6}
 type QueryConfig struct {
 	Collection string
 	Limit      uint64
@@ -20,6 +21,7 @@ type QueryConfig struct {
 }
 
 // DefaultQueryConfig returns default query configuration.
+// cfg := DefaultQueryConfig()
 func DefaultQueryConfig() QueryConfig {
 	return QueryConfig{
 		Collection: "hostuk-docs",
@@ -29,6 +31,7 @@ func DefaultQueryConfig() QueryConfig {
 }
 
 // QueryResult represents a query result with metadata.
+// result := QueryResult{Source: "docs/go.md", Section: "Concurrency", Score: 0.92}
 type QueryResult struct {
 	Text       string
 	Source     string
@@ -39,6 +42,7 @@ type QueryResult struct {
 }
 
 // Query searches for similar documents in the vector store.
+// Query(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
 func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
 	it, err := QuerySeq(ctx, store, embedder, query, cfg)
 	if err != nil {
@@ -48,6 +52,7 @@ func Query(ctx context.Context, store VectorStore, embedder Embedder, query stri
 }
 
 // QuerySeq returns an iterator that yields query results from the vector store.
+// it, _ := QuerySeq(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
 func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error) {
 	// Generate embedding for query
 	embedding, err := embedder.Embed(ctx, query)
@@ -125,6 +130,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 }
 
 // FormatResultsText formats query results as plain text.
+// text := FormatResultsText(results)
 func FormatResultsText(results []QueryResult) string {
 	if len(results) == 0 {
 		return "No results found."
@@ -145,6 +151,7 @@ func FormatResultsText(results []QueryResult) string {
 }
 
 // FormatResultsContext formats query results for LLM context injection.
+// promptContext := FormatResultsContext(results)
 func FormatResultsContext(results []QueryResult) string {
 	if len(results) == 0 {
 		return ""
@@ -166,6 +173,7 @@ func FormatResultsContext(results []QueryResult) string {
 }
 
 // FormatResultsJSON formats query results as JSON-like output.
+// payload := FormatResultsJSON(results)
 func FormatResultsJSON(results []QueryResult) string {
 	if len(results) == 0 {
 		return "[]"

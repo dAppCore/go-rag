@@ -7,6 +7,7 @@ import (
 )
 
 // QueryWith queries the vector store using the provided embedder and store.
+// QueryWith(ctx, store, embedder, "how do goroutines work?", "project-docs", 5)
 func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) ([]QueryResult, error) {
 	cfg := DefaultQueryConfig()
 	cfg.Collection = collectionName
@@ -17,6 +18,7 @@ func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, questi
 
 // QueryContextWith queries and returns context-formatted results using the
 // provided embedder and store.
+// QueryContextWith(ctx, store, embedder, "how do goroutines work?", "project-docs", 5)
 func QueryContextWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) (string, error) {
 	results, err := QueryWith(ctx, store, embedder, question, collectionName, topK)
 	if err != nil {
@@ -27,6 +29,7 @@ func QueryContextWith(ctx context.Context, store VectorStore, embedder Embedder,
 
 // IngestDirWith ingests all documents in a directory using the provided
 // embedder and store.
+// IngestDirWith(ctx, store, embedder, "./docs", "project-docs", true)
 func IngestDirWith(ctx context.Context, store VectorStore, embedder Embedder, directory, collectionName string, recreateCollection bool) error {
 	cfg := DefaultIngestConfig()
 	cfg.Directory = directory
@@ -38,11 +41,13 @@ func IngestDirWith(ctx context.Context, store VectorStore, embedder Embedder, di
 }
 
 // IngestFileWith ingests a single file using the provided embedder and store.
+// IngestFileWith(ctx, store, embedder, "./docs/guide.md", "project-docs")
 func IngestFileWith(ctx context.Context, store VectorStore, embedder Embedder, filePath, collectionName string) (int, error) {
 	return IngestFile(ctx, store, embedder, collectionName, filePath, DefaultChunkConfig())
 }
 
 // QueryDocs queries the RAG database with default clients.
+// QueryDocs(ctx, "how do goroutines work?", "project-docs", 5)
 func QueryDocs(ctx context.Context, question, collectionName string, topK int) ([]QueryResult, error) {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
 	if err != nil {
@@ -59,6 +64,7 @@ func QueryDocs(ctx context.Context, question, collectionName string, topK int) (
 }
 
 // QueryDocsContext queries the RAG database and returns context-formatted results.
+// QueryDocsContext(ctx, "how do goroutines work?", "project-docs", 5)
 func QueryDocsContext(ctx context.Context, question, collectionName string, topK int) (string, error) {
 	results, err := QueryDocs(ctx, question, collectionName, topK)
 	if err != nil {
@@ -68,6 +74,7 @@ func QueryDocsContext(ctx context.Context, question, collectionName string, topK
 }
 
 // IngestDirectory ingests all documents in a directory with default clients.
+// IngestDirectory(ctx, "./docs", "project-docs", true)
 func IngestDirectory(ctx context.Context, directory, collectionName string, recreateCollection bool) error {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
 	if err != nil {
@@ -92,6 +99,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 }
 
 // IngestSingleFile ingests a single file with default clients.
+// IngestSingleFile(ctx, "./docs/guide.md", "project-docs")
 func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int, error) {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 
 // --- KeywordFilter tests ---
 
-func TestKeywordFilter(t *testing.T) {
+func TestKeyword_KeywordFilter_Good(t *testing.T) {
 	t.Run("no keywords returns results unchanged", func(t *testing.T) {
 		results := []QueryResult{
 			{Text: "Hello world.", Score: 0.9},
@@ -126,7 +126,7 @@ func TestKeywordFilter(t *testing.T) {
 
 // --- KeywordFilterSeq tests ---
 
-func TestKeywordFilterSeq(t *testing.T) {
+func TestKeyword_KeywordFilterSeq_Good(t *testing.T) {
 	t.Run("yields boosted results via iterator", func(t *testing.T) {
 		results := []QueryResult{
 			{Text: "General information about various topics.", Score: 0.85},
@@ -170,7 +170,7 @@ func TestKeywordFilterSeq(t *testing.T) {
 
 // --- extractKeywords tests ---
 
-func TestExtractKeywords(t *testing.T) {
+func TestKeyword_ExtractKeywords_Good(t *testing.T) {
 	t.Run("extracts words 3+ characters", func(t *testing.T) {
 		keywords := extractKeywords("how do I use Go modules")
 		assert.Contains(t, keywords, "how")
@@ -200,7 +200,7 @@ func TestExtractKeywords(t *testing.T) {
 
 // --- Query with Keywords integration ---
 
-func TestQuery_Keywords(t *testing.T) {
+func TestKeyword_QueryKeywords_Good(t *testing.T) {
 	t.Run("keywords flag enables keyword boosting", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.points["test-col"] = []Point{

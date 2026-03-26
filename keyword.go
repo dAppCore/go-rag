@@ -12,6 +12,7 @@ import (
 // case-insensitive using core.Contains. Each keyword match adds a 10%
 // boost to the original score: score *= 1.0 + 0.1 * matchCount.
 // Results are re-sorted by boosted score descending.
+// KeywordFilter(results, []string{"kubernetes", "containers"})
 func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 	if len(keywords) == 0 || len(results) == 0 {
 		return results
@@ -57,6 +58,7 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 }
 
 // KeywordFilterSeq is an iterator version of KeywordFilter.
+// for result := range KeywordFilterSeq(results, []string{"kubernetes"}) { _ = result }
 func KeywordFilterSeq(results []QueryResult, keywords []string) iter.Seq[QueryResult] {
 	return func(yield func(QueryResult) bool) {
 		filtered := KeywordFilter(results, keywords)

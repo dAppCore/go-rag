@@ -2,16 +2,16 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- ListCollections tests ---
 
-func TestListCollections(t *testing.T) {
+func TestCollections_ListCollections_Good(t *testing.T) {
 	t.Run("returns collection names from store", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.collections["alpha"] = 768
@@ -36,7 +36,7 @@ func TestListCollections(t *testing.T) {
 
 	t.Run("error from store propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.listErr = fmt.Errorf("connection lost")
+		store.listErr = core.E("mock.collections.list", "connection lost", nil)
 
 		_, err := ListCollections(context.Background(), store)
 
@@ -47,7 +47,7 @@ func TestListCollections(t *testing.T) {
 
 // --- ListCollectionsSeq tests ---
 
-func TestListCollectionsSeq(t *testing.T) {
+func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 	t.Run("yields collection names from store", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.collections["alpha"] = 768
@@ -83,7 +83,7 @@ func TestListCollectionsSeq(t *testing.T) {
 
 	t.Run("error from store returns nil iterator", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.listErr = fmt.Errorf("connection lost")
+		store.listErr = core.E("mock.collections.list", "connection lost", nil)
 
 		it, err := ListCollectionsSeq(context.Background(), store)
 
@@ -94,7 +94,7 @@ func TestListCollectionsSeq(t *testing.T) {
 
 // --- DeleteCollection tests ---
 
-func TestDeleteCollectionHelper(t *testing.T) {
+func TestCollections_DeleteCollection_Good(t *testing.T) {
 	t.Run("deletes collection from store", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.collections["to-delete"] = 768
@@ -110,7 +110,7 @@ func TestDeleteCollectionHelper(t *testing.T) {
 
 	t.Run("error from store propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.deleteErr = fmt.Errorf("permission denied")
+		store.deleteErr = core.E("mock.collections.delete", "permission denied", nil)
 
 		err := DeleteCollection(context.Background(), store, "any")
 
@@ -121,7 +121,7 @@ func TestDeleteCollectionHelper(t *testing.T) {
 
 // --- CollectionStats tests ---
 
-func TestCollectionStats(t *testing.T) {
+func TestCollections_CollectionStats_Good(t *testing.T) {
 	t.Run("returns info for existing collection", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.collections["my-col"] = 768
@@ -153,7 +153,7 @@ func TestCollectionStats(t *testing.T) {
 	t.Run("error from store propagates", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.collections["err-col"] = 768
-		store.infoErr = fmt.Errorf("internal error")
+		store.infoErr = core.E("mock.collections.info", "internal error", nil)
 
 		_, err := CollectionStats(context.Background(), store, "err-col")
 

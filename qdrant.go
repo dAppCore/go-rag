@@ -10,6 +10,7 @@ import (
 )
 
 // QdrantConfig holds Qdrant connection configuration.
+// cfg := QdrantConfig{Host: "localhost", Port: 6334, UseTLS: false}
 type QdrantConfig struct {
 	Host   string
 	Port   int
@@ -19,6 +20,7 @@ type QdrantConfig struct {
 
 // DefaultQdrantConfig returns default Qdrant configuration.
 // Host defaults to localhost for local development.
+// cfg := DefaultQdrantConfig()
 func DefaultQdrantConfig() QdrantConfig {
 	return QdrantConfig{
 		Host:   "localhost",
@@ -28,12 +30,14 @@ func DefaultQdrantConfig() QdrantConfig {
 }
 
 // QdrantClient wraps the Qdrant Go client with convenience methods.
+// client, _ := NewQdrantClient(DefaultQdrantConfig())
 type QdrantClient struct {
 	client *qdrant.Client
 	config QdrantConfig
 }
 
 // NewQdrantClient creates a new Qdrant client.
+// client, err := NewQdrantClient(DefaultQdrantConfig())
 func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 	addr := core.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
@@ -54,17 +58,20 @@ func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 }
 
 // Close closes the Qdrant client connection.
+// defer client.Close()
 func (q *QdrantClient) Close() error {
 	return q.client.Close()
 }
 
 // HealthCheck verifies the connection to Qdrant.
+// client.HealthCheck(ctx)
 func (q *QdrantClient) HealthCheck(ctx context.Context) error {
 	_, err := q.client.HealthCheck(ctx)
 	return err
 }
 
 // ListCollections returns all collection names.
+// names, _ := client.ListCollections(ctx)
 func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
 	resp, err := q.client.ListCollections(ctx)
 	if err != nil {
@@ -76,11 +83,13 @@ func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
 }
 
 // CollectionExists checks if a collection exists.
+// exists, _ := client.CollectionExists(ctx, "project-docs")
 func (q *QdrantClient) CollectionExists(ctx context.Context, name string) (bool, error) {
 	return q.client.CollectionExists(ctx, name)
 }
 
 // CreateCollection creates a new collection with cosine distance.
+// client.CreateCollection(ctx, "project-docs", 768)
 func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vectorSize uint64) error {
 	return q.client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: name,
@@ -92,11 +101,13 @@ func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vector
 }
 
 // DeleteCollection deletes a collection.
+// client.DeleteCollection(ctx, "project-docs")
 func (q *QdrantClient) DeleteCollection(ctx context.Context, name string) error {
 	return q.client.DeleteCollection(ctx, name)
 }
 
 // CollectionInfo returns backend-agnostic metadata about a collection.
+// info, _ := client.CollectionInfo(ctx, "project-docs")
 func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
 	info, err := q.client.GetCollectionInfo(ctx, name)
 	if err != nil {
@@ -129,6 +140,7 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 }
 
 // Point represents a vector point with payload.
+// point := Point{ID: "chunk-1", Vector: []float32{0.1, 0.2}, Payload: map[string]any{"source": "docs/go.md"}}
 type Point struct {
 	ID      string
 	Vector  []float32
@@ -136,6 +148,7 @@ type Point struct {
 }
 
 // UpsertPoints inserts or updates points in a collection.
+// client.UpsertPoints(ctx, "project-docs", points)
 func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, points []Point) error {
 	if len(points) == 0 {
 		return nil
@@ -158,6 +171,7 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 }
 
 // SearchResult represents a search result with score.
+// result := SearchResult{ID: "chunk-1", Score: 0.92, Payload: map[string]any{"source": "docs/go.md"}}
 type SearchResult struct {
 	ID      string
 	Score   float32
@@ -165,6 +179,7 @@ type SearchResult struct {
 }
 
 // Search performs a vector similarity search.
+// results, _ := client.Search(ctx, "project-docs", vector, 5, nil)
 func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,

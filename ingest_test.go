@@ -2,21 +2,19 @@ package rag
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- Ingest (directory) tests with mocks ---
 
-func TestIngest(t *testing.T) {
+func TestIngest_Ingest_Good(t *testing.T) {
 	t.Run("ingests markdown files from directory", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nHello world.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nHello world.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -48,12 +46,12 @@ func TestIngest(t *testing.T) {
 		var content string
 		content = "## Big Section\n\n"
 		for i := range 30 {
-			content += fmt.Sprintf("Paragraph %d with some meaningful content for testing. ", i)
+			content += core.Sprintf("Paragraph %d with some meaningful content for testing. ", i)
 			if i%3 == 0 {
 				content += "\n\n"
 			}
 		}
-		writeFile(t, filepath.Join(dir, "large.md"), content)
+		writeFile(t, core.JoinPath(dir, "large.md"), content)
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -74,8 +72,8 @@ func TestIngest(t *testing.T) {
 
 	t.Run("embeddings are generated for each chunk", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "a.md"), "## A\n\nContent A.\n")
-		writeFile(t, filepath.Join(dir, "b.md"), "## B\n\nContent B.\n")
+		writeFile(t, core.JoinPath(dir, "a.md"), "## A\n\nContent A.\n")
+		writeFile(t, core.JoinPath(dir, "b.md"), "## B\n\nContent B.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(384)
@@ -99,7 +97,7 @@ func TestIngest(t *testing.T) {
 
 	t.Run("points are upserted to the store", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Test\n\nSome text.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Test\n\nSome text.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -125,11 +123,11 @@ func TestIngest(t *testing.T) {
 
 	t.Run("embedder failure increments error count", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("ollama unavailable")
+		embedder.embedErr = core.E("mock.embed", "ollama unavailable", nil)
 
 		cfg := DefaultIngestConfig()
 		cfg.Directory = dir
@@ -148,10 +146,10 @@ func TestIngest(t *testing.T) {
 
 	t.Run("store upsert failure returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
-		store.upsertErr = fmt.Errorf("qdrant connection lost")
+		store.upsertErr = core.E("mock.upsert", "qdrant connection lost", nil)
 		embedder := newMockEmbedder(768)
 
 		cfg := DefaultIngestConfig()
@@ -168,10 +166,10 @@ func TestIngest(t *testing.T) {
 
 	t.Run("collection exists check failure returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
-		store.existsErr = fmt.Errorf("connection refused")
+		store.existsErr = core.E("mock.collections.exists", "connection refused", nil)
 		embedder := newMockEmbedder(768)
 
 		cfg := DefaultIngestConfig()
@@ -188,8 +186,8 @@ func TestIngest(t *testing.T) {
 		dir := t.TempDir()
 		// Create enough content for multiple chunks
 		for i := range 5 {
-			writeFile(t, filepath.Join(dir, fmt.Sprintf("doc%d.md", i)),
-				fmt.Sprintf("## Section %d\n\nContent for document %d.\n", i, i))
+			writeFile(t, core.JoinPath(dir, core.Sprintf("doc%d.md", i)),
+				core.Sprintf("## Section %d\n\nContent for document %d.\n", i, i))
 		}
 
 		store := newMockVectorStore()
@@ -215,7 +213,7 @@ func TestIngest(t *testing.T) {
 
 	t.Run("batch size zero defaults to 100", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -234,7 +232,7 @@ func TestIngest(t *testing.T) {
 
 	t.Run("recreate deletes existing collection", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
 		// Pre-create a collection
@@ -257,7 +255,7 @@ func TestIngest(t *testing.T) {
 
 	t.Run("skips collection create when already exists and recreate is false", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
 		store.collections["existing-col"] = 768
@@ -290,7 +288,7 @@ func TestIngest(t *testing.T) {
 
 	t.Run("directory with no markdown files returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "readme.go"), "package main\n")
+		writeFile(t, core.JoinPath(dir, "readme.go"), "package main\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -306,8 +304,8 @@ func TestIngest(t *testing.T) {
 
 	t.Run("empty file is skipped", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "empty.md"), "   \n  \n  ")
-		writeFile(t, filepath.Join(dir, "real.md"), "## Real\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "empty.md"), "   \n  \n  ")
+		writeFile(t, core.JoinPath(dir, "real.md"), "## Real\n\nContent.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -325,8 +323,8 @@ func TestIngest(t *testing.T) {
 
 	t.Run("progress callback is invoked", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "a.md"), "## A\n\nContent A.\n")
-		writeFile(t, filepath.Join(dir, "b.md"), "## B\n\nContent B.\n")
+		writeFile(t, core.JoinPath(dir, "a.md"), "## A\n\nContent A.\n")
+		writeFile(t, core.JoinPath(dir, "b.md"), "## B\n\nContent B.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
@@ -347,11 +345,11 @@ func TestIngest(t *testing.T) {
 
 	t.Run("delete collection failure returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
 		store.collections["test-del-err"] = 768
-		store.deleteErr = fmt.Errorf("delete denied")
+		store.deleteErr = core.E("mock.collections.delete", "delete denied", nil)
 		embedder := newMockEmbedder(768)
 
 		cfg := DefaultIngestConfig()
@@ -367,10 +365,10 @@ func TestIngest(t *testing.T) {
 
 	t.Run("create collection failure returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Section\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Section\n\nContent.\n")
 
 		store := newMockVectorStore()
-		store.createErr = fmt.Errorf("create denied")
+		store.createErr = core.E("mock.collections.create", "create denied", nil)
 		embedder := newMockEmbedder(768)
 
 		cfg := DefaultIngestConfig()
@@ -386,10 +384,10 @@ func TestIngest(t *testing.T) {
 
 // --- IngestFile tests with mocks ---
 
-func TestIngestFile(t *testing.T) {
+func TestIngest_IngestFile_Good(t *testing.T) {
 	t.Run("ingests a single file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "single.md")
+		path := core.JoinPath(dir, "single.md")
 		writeFile(t, path, "## Title\n\nSome content here.\n")
 
 		store := newMockVectorStore()
@@ -408,7 +406,7 @@ func TestIngestFile(t *testing.T) {
 
 	t.Run("empty file returns zero count", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "empty.md")
+		path := core.JoinPath(dir, "empty.md")
 		writeFile(t, path, "   \n  ")
 
 		store := newMockVectorStore()
@@ -433,12 +431,12 @@ func TestIngestFile(t *testing.T) {
 
 	t.Run("embedder failure returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "doc.md")
+		path := core.JoinPath(dir, "doc.md")
 		writeFile(t, path, "## Title\n\nContent.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("embed failed")
+		embedder.embedErr = core.E("mock.embed", "embed failed", nil)
 
 		_, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
 
@@ -448,11 +446,11 @@ func TestIngestFile(t *testing.T) {
 
 	t.Run("store upsert failure returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "doc.md")
+		path := core.JoinPath(dir, "doc.md")
 		writeFile(t, path, "## Title\n\nContent.\n")
 
 		store := newMockVectorStore()
-		store.upsertErr = fmt.Errorf("upsert failed")
+		store.upsertErr = core.E("mock.upsert", "upsert failed", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
@@ -463,8 +461,7 @@ func TestIngestFile(t *testing.T) {
 
 	t.Run("payload includes correct metadata", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "docs", "architecture", "guide.md")
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		path := core.JoinPath(dir, "docs", "architecture", "guide.md")
 		writeFile(t, path, "## Architecture Guide\n\nDesign patterns and principles.\n")
 
 		store := newMockVectorStore()
@@ -484,9 +481,8 @@ func TestIngestFile(t *testing.T) {
 }
 
 // writeFile is a test helper that creates a file with the given content.
-func writeFile(t *testing.T, path string, content string) {
+func writeFile(t testing.TB, path string, content string) {
 	t.Helper()
-	dir := filepath.Dir(path)
-	require.NoError(t, os.MkdirAll(dir, 0755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+	result := (&core.Fs{}).NewUnrestricted().Write(path, content)
+	require.Truef(t, result.OK, "write %s: %v", path, result.Value)
 }

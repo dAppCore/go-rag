@@ -9,12 +9,14 @@ import (
 )
 
 // ChunkConfig holds chunking configuration.
+// cfg := ChunkConfig{Size: 500, Overlap: 50}
 type ChunkConfig struct {
 	Size    int // Characters per chunk
 	Overlap int // Overlap between chunks
 }
 
 // DefaultChunkConfig returns default chunking configuration.
+// cfg := DefaultChunkConfig()
 func DefaultChunkConfig() ChunkConfig {
 	return ChunkConfig{
 		Size:    500,
@@ -23,6 +25,7 @@ func DefaultChunkConfig() ChunkConfig {
 }
 
 // Chunk represents a text chunk with metadata.
+// chunk := Chunk{Text: "Go uses goroutines.", Section: "Concurrency", Index: 0}
 type Chunk struct {
 	Text    string
 	Section string
@@ -33,11 +36,13 @@ type Chunk struct {
 // Preserves context with configurable overlap. When a paragraph exceeds the
 // configured Size, it is split at sentence boundaries. Overlap is aligned to
 // word boundaries to avoid splitting mid-word.
+// chunks := ChunkMarkdown(markdown, DefaultChunkConfig())
 func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
 	return slices.Collect(ChunkMarkdownSeq(text, cfg))
 }
 
 // ChunkMarkdownSeq returns an iterator that yields document chunks from markdown text.
+// for chunk := range ChunkMarkdownSeq(markdown, DefaultChunkConfig()) { _ = chunk }
 func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	if cfg.Size <= 0 {
 		cfg.Size = 500
@@ -277,6 +282,7 @@ func splitByParagraphsSeq(text string) iter.Seq[string] {
 }
 
 // Category determines the document category from file path.
+// category := Category("docs/architecture/guide.md")
 func Category(path string) string {
 	lower := core.Lower(path)
 
@@ -299,6 +305,7 @@ func Category(path string) string {
 }
 
 // ChunkID generates a unique ID for a chunk.
+// id := ChunkID("docs/guide.md", 0, "Go uses goroutines.")
 func ChunkID(path string, index int, text string) string {
 	// Use first 100 runes of text for uniqueness (rune-safe for UTF-8)
 	runes := []rune(text)
@@ -312,11 +319,13 @@ func ChunkID(path string, index int, text string) string {
 }
 
 // FileExtensions returns the file extensions to process.
+// exts := FileExtensions()
 func FileExtensions() []string {
 	return []string{".md", ".markdown", ".txt"}
 }
 
 // ShouldProcess checks if a file should be processed based on extension.
+// ok := ShouldProcess("docs/guide.md")
 func ShouldProcess(path string) bool {
 	ext := core.Lower(core.PathExt(path))
 	return slices.Contains(FileExtensions(), ext)

@@ -4,13 +4,11 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +26,7 @@ func skipIfServicesUnavailable(t *testing.T) {
 	}
 }
 
-func TestPipelineIntegration(t *testing.T) {
+func TestIntegration_Pipeline_Ugly(t *testing.T) {
 	skipIfServicesUnavailable(t)
 
 	ctx := context.Background()
@@ -44,14 +42,14 @@ func TestPipelineIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("ingest and query end-to-end", func(t *testing.T) {
-		collection := fmt.Sprintf("test-pipeline-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-pipeline-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		// Create temp directory with markdown files
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "go-intro.md"), `# Go Programming
+		writeTestFile(t, core.JoinPath(dir, "go-intro.md"), `# Go Programming
 
 ## Overview
 
@@ -66,7 +64,7 @@ are lightweight threads managed by the Go runtime. Channels allow goroutines
 to communicate safely without shared memory.
 `)
 
-		writeTestFile(t, filepath.Join(dir, "qdrant-intro.md"), `# Qdrant Vector Database
+		writeTestFile(t, core.JoinPath(dir, "qdrant-intro.md"), `# Qdrant Vector Database
 
 ## What Is Qdrant
 
@@ -81,7 +79,7 @@ retrieval-augmented generation (RAG) pipelines. It supports cosine, dot product,
 and Euclidean distance metrics.
 `)
 
-		writeTestFile(t, filepath.Join(dir, "rust-intro.md"), `# Rust Programming
+		writeTestFile(t, core.JoinPath(dir, "rust-intro.md"), `# Rust Programming
 
 ## Memory Safety
 
@@ -135,13 +133,13 @@ dangling pointers, and buffer overflows.
 	})
 
 	t.Run("format results from real query", func(t *testing.T) {
-		collection := fmt.Sprintf("test-format-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-format-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "format-test.md"), `## Format Test
+		writeTestFile(t, core.JoinPath(dir, "format-test.md"), `## Format Test
 
 This document is used to verify that the format functions produce non-empty
 output when given real query results from live services.
@@ -187,7 +185,7 @@ output when given real query results from live services.
 	})
 
 	t.Run("IngestFile single file with live services", func(t *testing.T) {
-		collection := fmt.Sprintf("test-single-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-single-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
@@ -197,7 +195,7 @@ output when given real query results from live services.
 		require.NoError(t, err)
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "single.md")
+		path := core.JoinPath(dir, "single.md")
 		writeTestFile(t, path, `## Single File Ingest
 
 Testing the IngestFile function with a single markdown file. This content
@@ -210,13 +208,13 @@ should be chunked, embedded, and stored in Qdrant.
 	})
 
 	t.Run("QueryWith helper with live services", func(t *testing.T) {
-		collection := fmt.Sprintf("test-querywith-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-querywith-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "helper-test.md"), `## Helper Test
+		writeTestFile(t, core.JoinPath(dir, "helper-test.md"), `## Helper Test
 
 Content for testing the QueryWith and QueryContextWith helper functions
 with real Qdrant and Ollama connections.
@@ -244,17 +242,17 @@ with real Qdrant and Ollama connections.
 	})
 
 	t.Run("IngestDirWith helper with live services", func(t *testing.T) {
-		collection := fmt.Sprintf("test-ingestdirwith-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-ingestdirwith-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "dirwith-a.md"), `## Directory Ingest A
+		writeTestFile(t, core.JoinPath(dir, "dirwith-a.md"), `## Directory Ingest A
 
 First document for testing the IngestDirWith convenience wrapper.
 `)
-		writeTestFile(t, filepath.Join(dir, "dirwith-b.md"), `## Directory Ingest B
+		writeTestFile(t, core.JoinPath(dir, "dirwith-b.md"), `## Directory Ingest B
 
 Second document for the same test, ensuring multiple files are processed.
 `)
@@ -269,7 +267,7 @@ Second document for the same test, ensuring multiple files are processed.
 	})
 
 	t.Run("IngestFileWith helper with live services", func(t *testing.T) {
-		collection := fmt.Sprintf("test-ingestfilewith-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-ingestfilewith-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
@@ -279,7 +277,7 @@ Second document for the same test, ensuring multiple files are processed.
 		require.NoError(t, err)
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "filewith.md")
+		path := core.JoinPath(dir, "filewith.md")
 		writeTestFile(t, path, `## File With Helper
 
 Testing the IngestFileWith convenience wrapper with live services.
@@ -294,13 +292,13 @@ Testing the IngestFileWith convenience wrapper with live services.
 		// This test exercises the convenience wrappers that construct their own
 		// clients internally. We ingest data via the shared client, then query
 		// via QueryDocs which creates its own client pair.
-		collection := fmt.Sprintf("test-querydocs-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-querydocs-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "default-client.md"), `## Default Client Test
+		writeTestFile(t, core.JoinPath(dir, "default-client.md"), `## Default Client Test
 
 Content to verify that QueryDocs can query with internally constructed clients.
 `)
@@ -318,13 +316,13 @@ Content to verify that QueryDocs can query with internally constructed clients.
 	})
 
 	t.Run("IngestDirectory with default clients", func(t *testing.T) {
-		collection := fmt.Sprintf("test-ingestdir-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-ingestdir-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "ingestdir.md"), `## Ingest Directory
+		writeTestFile(t, core.JoinPath(dir, "ingestdir.md"), `## Ingest Directory
 
 Testing the IngestDirectory convenience wrapper that constructs its own
 Qdrant and Ollama clients internally.
@@ -339,13 +337,13 @@ Qdrant and Ollama clients internally.
 	})
 
 	t.Run("recreate flag drops and recreates collection", func(t *testing.T) {
-		collection := fmt.Sprintf("test-recreate-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-recreate-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "v1.md"), `## Version 1
+		writeTestFile(t, core.JoinPath(dir, "v1.md"), `## Version 1
 
 Original content that will be replaced.
 `)
@@ -358,7 +356,7 @@ Original content that will be replaced.
 		require.NoError(t, err)
 
 		// Replace the file content and re-ingest with recreate
-		writeTestFile(t, filepath.Join(dir, "v1.md"), `## Version 2
+		writeTestFile(t, core.JoinPath(dir, "v1.md"), `## Version 2
 
 Updated content after recreation.
 `)
@@ -370,18 +368,18 @@ Updated content after recreation.
 	})
 
 	t.Run("semantic similarity — related queries rank higher", func(t *testing.T) {
-		collection := fmt.Sprintf("test-semantic-%d", time.Now().UnixNano())
+		collection := core.Sprintf("test-semantic-%d", time.Now().UnixNano())
 		t.Cleanup(func() {
 			_ = qdrantClient.DeleteCollection(ctx, collection)
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, filepath.Join(dir, "cooking.md"), `## Cooking
+		writeTestFile(t, core.JoinPath(dir, "cooking.md"), `## Cooking
 
 Pasta with tomato sauce is a classic Italian dish. Boil the spaghetti for
 eight minutes, then drain and add the sauce. Season with basil and parmesan.
 `)
-		writeTestFile(t, filepath.Join(dir, "programming.md"), `## Programming
+		writeTestFile(t, core.JoinPath(dir, "programming.md"), `## Programming
 
 Functions in Go are first-class citizens. You can pass functions as arguments,
 return them from other functions, and assign them to variables. Closures capture
@@ -422,7 +420,5 @@ their surrounding scope.
 // writeTestFile creates a test file, ensuring parent directories exist.
 func writeTestFile(t *testing.T, path string, content string) {
 	t.Helper()
-	dir := filepath.Dir(path)
-	require.NoError(t, os.MkdirAll(dir, 0755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+	writeFile(t, path, content)
 }

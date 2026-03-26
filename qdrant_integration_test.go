@@ -5,11 +5,11 @@ package rag
 import (
 	"context"
 	"crypto/md5"
-	"fmt"
 	"net"
 	"testing"
 	"time"
 
+	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ import (
 // to avoid conflicts between parallel runs.
 func testCollectionName(t *testing.T) string {
 	t.Helper()
-	return fmt.Sprintf("test-rag-%d", time.Now().UnixNano())
+	return core.Sprintf("test-rag-%d", time.Now().UnixNano())
 }
 
 // testPointID generates a Qdrant-compatible point ID (32-char hex hash) from
@@ -27,7 +27,7 @@ func testCollectionName(t *testing.T) string {
 // are not.
 func testPointID(label string) string {
 	h := md5.Sum([]byte(label))
-	return fmt.Sprintf("%x", h)
+	return core.Sprintf("%x", h)
 }
 
 // skipIfQdrantUnavailable skips the test if Qdrant is not reachable on the
@@ -41,7 +41,7 @@ func skipIfQdrantUnavailable(t *testing.T) {
 	_ = conn.Close()
 }
 
-func TestQdrantIntegration(t *testing.T) {
+func TestQdrant_Integration_Ugly(t *testing.T) {
 	skipIfQdrantUnavailable(t)
 
 	cfg := DefaultQdrantConfig()
@@ -74,7 +74,7 @@ func TestQdrantIntegration(t *testing.T) {
 	})
 
 	t.Run("collection exists returns false for non-existent collection", func(t *testing.T) {
-		exists, err := client.CollectionExists(ctx, "non-existent-collection-xyz-"+fmt.Sprint(time.Now().UnixNano()))
+		exists, err := client.CollectionExists(ctx, core.Sprintf("non-existent-collection-xyz-%d", time.Now().UnixNano()))
 		require.NoError(t, err)
 		assert.False(t, exists, "non-existent collection should return false")
 	})
