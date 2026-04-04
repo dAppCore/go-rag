@@ -1,20 +1,29 @@
-module forge.lthn.ai/core/go-rag
+module dappco.re/go/core/rag
 
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/cli v0.3.7
-	forge.lthn.ai/core/go-i18n v0.1.7
-	forge.lthn.ai/core/go-io v0.1.7
-	forge.lthn.ai/core/go-log v0.0.4
+	dappco.re/go/core/cli v0.3.7
+	dappco.re/go/core/i18n v0.1.7
+	dappco.re/go/core/io v0.1.7
+	dappco.re/go/core/log v0.0.4
 	github.com/ollama/ollama v0.18.1
 	github.com/qdrant/go-client v1.17.1
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	forge.lthn.ai/core/go v0.3.3 // indirect
-	forge.lthn.ai/core/go-inference v0.1.6 // indirect
+	dappco.re/go/core v0.5.0
+	dappco.re/go/core/api v0.2.0
+	dappco.re/go/core/i18n v0.2.0
+	dappco.re/go/core/io v0.2.0
+	dappco.re/go/core/log v0.1.0
+	dappco.re/go/core/process v0.3.0
+	dappco.re/go/core/scm v0.4.0
+	dappco.re/go/core/store v0.2.0
+	dappco.re/go/core/ws v0.3.0
+	dappco.re/go/core v0.3.3 // indirect
+	dappco.re/go/core/inference v0.1.6 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
