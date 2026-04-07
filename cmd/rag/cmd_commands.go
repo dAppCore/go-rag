@@ -7,7 +7,7 @@
 package rag
 
 import (
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/core/cli/pkg/cli"
 )
 
 // AddRAGSubcommands registers the 'rag' command as a subcommand of parent.

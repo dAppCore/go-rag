@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	coreio "forge.lthn.ai/core/go-io"
-	"forge.lthn.ai/core/go-log"
+	coreio "dappco.re/go/core/io"
+	"dappco.re/go/core/log"
 )
 
 // IngestConfig holds ingestion configuration.

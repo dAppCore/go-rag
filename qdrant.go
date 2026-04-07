@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/log"
 	"github.com/qdrant/go-client/qdrant"
 )
 

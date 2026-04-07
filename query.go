@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/log"
 )
 
 // QueryConfig holds query configuration.

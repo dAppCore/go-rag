@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/log"
 	"github.com/ollama/ollama/api"
 )
 

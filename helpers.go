@@ -3,7 +3,7 @@ package rag
 import (
 	"context"
 
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/log"
 )
 
 // QueryWith queries the vector store using the provided embedder and store.
