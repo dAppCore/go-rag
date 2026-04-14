@@ -2,6 +2,7 @@ package rag
 
 import (
 	"context"
+	"strings"
 
 	"dappco.re/go/core/log"
 )
@@ -113,4 +114,22 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 	}
 
 	return IngestFileWith(ctx, qdrantClient, ollamaClient, filePath, collectionName)
+}
+
+// JoinResults concatenates result text into a single prompt-friendly string.
+func JoinResults(results []QueryResult) string {
+	if len(results) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(results))
+	for _, result := range results {
+		text := strings.TrimSpace(result.Text)
+		if text == "" {
+			continue
+		}
+		parts = append(parts, text)
+	}
+
+	return strings.Join(parts, "\n\n")
 }

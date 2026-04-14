@@ -5,6 +5,9 @@ package rag
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"dappco.re/go/core/log"
 	"github.com/qdrant/go-client/qdrant"
@@ -51,6 +54,47 @@ func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 	return &QdrantClient{
 		client: client,
 		config: cfg,
+	}, nil
+}
+
+// NewQdrantStore creates a Qdrant client from an endpoint string.
+//
+// The endpoint may be a bare host:port, http://host:port, or https://host:port.
+// The scheme only affects TLS selection; the underlying client remains gRPC.
+func NewQdrantStore(endpoint string) (*QdrantClient, error) {
+	cfg, err := qdrantConfigFromEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	return NewQdrantClient(cfg)
+}
+
+func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
+	if endpoint == "" {
+		return DefaultQdrantConfig(), nil
+	}
+
+	parsed, err := parseEndpointURL(endpoint)
+	if err != nil {
+		return QdrantConfig{}, err
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := 6334
+	if p := parsed.Port(); p != "" {
+		if parsedPort, err := strconv.Atoi(p); err == nil {
+			port = parsedPort
+		}
+	}
+
+	return QdrantConfig{
+		Host:   host,
+		Port:   port,
+		UseTLS: parsed.Scheme == "https",
 	}, nil
 }
 
@@ -160,9 +204,14 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 
 // SearchResult represents a search result with score.
 type SearchResult struct {
-	ID      string
-	Score   float32
-	Payload map[string]any
+	ID       string
+	Score    float32
+	Text     string
+	Source   string
+	Section  string
+	Category string
+	Index    int
+	Payload  map[string]any
 }
 
 // Search performs a vector similarity search.
@@ -196,13 +245,58 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		for k, v := range p.Payload {
 			payload[k] = valueToGo(v)
 		}
-		results[i] = SearchResult{
+
+		searchResult := SearchResult{
 			ID:      pointIDToString(p.Id),
 			Score:   p.Score,
 			Payload: payload,
 		}
+		if text, ok := payload["text"].(string); ok {
+			searchResult.Text = text
+		}
+		if source, ok := payload["source"].(string); ok {
+			searchResult.Source = source
+		}
+		if section, ok := payload["section"].(string); ok {
+			searchResult.Section = section
+		}
+		if category, ok := payload["category"].(string); ok {
+			searchResult.Category = category
+		}
+		switch idx := payload["chunk_index"].(type) {
+		case int:
+			searchResult.Index = idx
+		case int32:
+			searchResult.Index = int(idx)
+		case int64:
+			searchResult.Index = int(idx)
+		case float32:
+			searchResult.Index = int(idx)
+		case float64:
+			searchResult.Index = int(idx)
+		case uint64:
+			searchResult.Index = int(idx)
+		case string:
+			if parsed, err := strconv.Atoi(idx); err == nil {
+				searchResult.Index = parsed
+			}
+		}
+		results[i] = searchResult
 	}
 	return results, nil
+}
+
+func parseEndpointURL(endpoint string) (*url.URL, error) {
+	raw := endpoint
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
 }
 
 // pointIDToString converts a Qdrant point ID to string.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"dappco.re/go/core/log"
@@ -13,6 +14,7 @@ import (
 
 // OllamaConfig holds Ollama connection configuration.
 type OllamaConfig struct {
+	Scheme string
 	Host  string
 	Port  int
 	Model string
@@ -22,6 +24,7 @@ type OllamaConfig struct {
 // Host defaults to localhost for local development.
 func DefaultOllamaConfig() OllamaConfig {
 	return OllamaConfig{
+		Scheme: "http",
 		Host:  "localhost",
 		Port:  11434,
 		Model: "nomic-embed-text",
@@ -36,8 +39,12 @@ type OllamaClient struct {
 
 // NewOllamaClient creates a new Ollama client.
 func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
+	scheme := cfg.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
 	baseURL := &url.URL{
-		Scheme: "http",
+		Scheme: scheme,
 		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 	}
 
@@ -49,6 +56,50 @@ func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 		client: client,
 		config: cfg,
 	}, nil
+}
+
+// NewOllamaEmbedder creates an Ollama embedder from a base URL and model name.
+func NewOllamaEmbedder(baseURL, model string) (*OllamaClient, error) {
+	cfg, err := ollamaConfigFromEndpoint(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	if model != "" {
+		cfg.Model = model
+	}
+	return NewOllamaClient(cfg)
+}
+
+func ollamaConfigFromEndpoint(endpoint string) (OllamaConfig, error) {
+	cfg := DefaultOllamaConfig()
+	if endpoint == "" {
+		return cfg, nil
+	}
+
+	parsed, err := parseEndpointURL(endpoint)
+	if err != nil {
+		return OllamaConfig{}, err
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		host = cfg.Host
+	}
+
+	port := cfg.Port
+	if p := parsed.Port(); p != "" {
+		if parsedPort, err := strconv.Atoi(p); err == nil {
+			port = parsedPort
+		}
+	}
+
+	cfg.Scheme = parsed.Scheme
+	if cfg.Scheme == "" {
+		cfg.Scheme = "http"
+	}
+	cfg.Host = host
+	cfg.Port = port
+	return cfg, nil
 }
 
 // EmbedDimension returns the embedding dimension for the configured model.

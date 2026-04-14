@@ -126,31 +126,37 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 		// Chunk the content
 		category := Category(relPath)
 		chunks := ChunkMarkdown(content, cfg.Chunk)
+		chunkTexts := make([]string, len(chunks))
+		for i, chunk := range chunks {
+			chunkTexts[i] = chunk.Text
+		}
 
-		for _, chunk := range chunks {
-			// Generate embedding
-			embedding, err := embedder.Embed(ctx, chunk.Text)
-			if err != nil {
-				stats.Errors++
-				if cfg.Verbose {
-					fmt.Printf("  Error embedding %s chunk %d: %v\n", relPath, chunk.Index, err)
-				}
-				continue
+		embeddings, err := embedder.EmbedBatch(ctx, chunkTexts)
+		if err != nil {
+			stats.Errors++
+			if cfg.Verbose {
+				fmt.Printf("  Error embedding %s: %v\n", relPath, err)
 			}
-
-			// Create point
-			points = append(points, Point{
-				ID:     ChunkID(relPath, chunk.Index, chunk.Text),
-				Vector: embedding,
-				Payload: map[string]any{
-					"text":        chunk.Text,
-					"source":      relPath,
-					"section":     chunk.Section,
-					"category":    category,
-					"chunk_index": chunk.Index,
-				},
-			})
-			stats.Chunks++
+		} else if len(embeddings) != len(chunks) {
+			stats.Errors++
+			if cfg.Verbose {
+				fmt.Printf("  Error embedding %s: embedder returned %d vectors for %d chunks\n", relPath, len(embeddings), len(chunks))
+			}
+		} else {
+			for i, chunk := range chunks {
+				points = append(points, Point{
+					ID:     ChunkID(relPath, chunk.Index, chunk.Text),
+					Vector: embeddings[i],
+					Payload: map[string]any{
+						"text":        chunk.Text,
+						"source":      relPath,
+						"section":     chunk.Section,
+						"category":    category,
+						"chunk_index": chunk.Index,
+					},
+				})
+				stats.Chunks++
+			}
 		}
 
 		stats.Files++
@@ -184,17 +190,24 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 
 	category := Category(filePath)
 	chunks := ChunkMarkdown(content, chunkCfg)
+	chunkTexts := make([]string, len(chunks))
+	for i, chunk := range chunks {
+		chunkTexts[i] = chunk.Text
+	}
+
+	embeddings, err := embedder.EmbedBatch(ctx, chunkTexts)
+	if err != nil {
+		return 0, log.E("rag.IngestFile", "error embedding chunks", err)
+	}
+	if len(embeddings) != len(chunks) {
+		return 0, log.E("rag.IngestFile", fmt.Sprintf("embedder returned %d vectors for %d chunks", len(embeddings), len(chunks)), nil)
+	}
 
 	var points []Point
-	for _, chunk := range chunks {
-		embedding, err := embedder.Embed(ctx, chunk.Text)
-		if err != nil {
-			return 0, log.E("rag.IngestFile", fmt.Sprintf("error embedding chunk %d", chunk.Index), err)
-		}
-
+	for i, chunk := range chunks {
 		points = append(points, Point{
 			ID:     ChunkID(filePath, chunk.Index, chunk.Text),
-			Vector: embedding,
+			Vector: embeddings[i],
 			Payload: map[string]any{
 				"text":        chunk.Text,
 				"source":      filePath,

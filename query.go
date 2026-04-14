@@ -77,34 +77,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 				continue
 			}
 
-			qr := QueryResult{
-				Score: r.Score,
-			}
-
-			// Extract payload fields
-			if text, ok := r.Payload["text"].(string); ok {
-				qr.Text = text
-			}
-			if source, ok := r.Payload["source"].(string); ok {
-				qr.Source = source
-			}
-			if section, ok := r.Payload["section"].(string); ok {
-				qr.Section = section
-			}
-			if category, ok := r.Payload["category"].(string); ok {
-				qr.Category = category
-			}
-			// Handle chunk_index from various types (JSON unmarshaling produces float64)
-			switch idx := r.Payload["chunk_index"].(type) {
-			case int64:
-				qr.ChunkIndex = int(idx)
-			case float64:
-				qr.ChunkIndex = int(idx)
-			case int:
-				qr.ChunkIndex = idx
-			}
-
-			queryResults = append(queryResults, qr)
+			queryResults = append(queryResults, searchResultToQueryResult(r))
 		}
 
 		// Apply keyword boosting when enabled
@@ -115,6 +88,10 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 			}
 		}
 
+		if len(queryResults) > 0 && cfg.Limit > 0 {
+			queryResults = Rank(queryResults, int(cfg.Limit))
+		}
+
 		for _, qr := range queryResults {
 			if !yield(qr) {
 				return
@@ -123,6 +100,117 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 	}
 
 	return filteredIt, nil
+}
+
+// Rank sorts results by score descending, removes duplicate documents, and
+// truncates the slice to topK results.
+func Rank(results []QueryResult, topK int) []QueryResult {
+	if len(results) == 0 {
+		return nil
+	}
+	if topK <= 0 || topK > len(results) {
+		topK = len(results)
+	}
+
+	sorted := make([]QueryResult, len(results))
+	copy(sorted, results)
+	slices.SortFunc(sorted, func(a, b QueryResult) int {
+		if a.Score > b.Score {
+			return -1
+		}
+		if a.Score < b.Score {
+			return 1
+		}
+		if a.Source < b.Source {
+			return -1
+		}
+		if a.Source > b.Source {
+			return 1
+		}
+		if a.ChunkIndex < b.ChunkIndex {
+			return -1
+		}
+		if a.ChunkIndex > b.ChunkIndex {
+			return 1
+		}
+		return 0
+	})
+
+	seen := make(map[string]struct{}, len(sorted))
+	ranked := make([]QueryResult, 0, topK)
+	for _, result := range sorted {
+		key := rankKey(result)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		ranked = append(ranked, result)
+		if len(ranked) == topK {
+			break
+		}
+	}
+
+	return ranked
+}
+
+func searchResultToQueryResult(r SearchResult) QueryResult {
+	qr := QueryResult{
+		Text:       r.Text,
+		Source:     r.Source,
+		Section:    r.Section,
+		Category:   r.Category,
+		ChunkIndex: r.Index,
+		Score:      r.Score,
+	}
+
+	// Fall back to the raw payload for compatibility with older stores and
+	// test doubles that only populate payload fields.
+	if qr.Text == "" {
+		if text, ok := r.Payload["text"].(string); ok {
+			qr.Text = text
+		}
+	}
+	if qr.Source == "" {
+		if source, ok := r.Payload["source"].(string); ok {
+			qr.Source = source
+		}
+	}
+	if qr.Section == "" {
+		if section, ok := r.Payload["section"].(string); ok {
+			qr.Section = section
+		}
+	}
+	if qr.Category == "" {
+		if category, ok := r.Payload["category"].(string); ok {
+			qr.Category = category
+		}
+	}
+	if qr.ChunkIndex == 0 {
+		switch idx := r.Payload["chunk_index"].(type) {
+		case int64:
+			qr.ChunkIndex = int(idx)
+		case float64:
+			qr.ChunkIndex = int(idx)
+		case int:
+			qr.ChunkIndex = idx
+		case float32:
+			qr.ChunkIndex = int(idx)
+		case string:
+			fmt.Sscanf(idx, "%d", &qr.ChunkIndex)
+		}
+	}
+
+	return qr
+}
+
+func rankKey(result QueryResult) string {
+	if result.Source != "" {
+		return fmt.Sprintf("%s:%d", result.Source, result.ChunkIndex)
+	}
+	if result.Text != "" {
+		return result.Text
+	}
+	return fmt.Sprintf("score:%f", result.Score)
 }
 
 // FormatResultsText formats query results as plain text.
