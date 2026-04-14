@@ -5,6 +5,7 @@ import (
 
 	"dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChunk_ChunkMarkdown_Good_SmallSection(t *testing.T) {
@@ -483,5 +484,142 @@ func TestChunk_SplitBySentences_Good(t *testing.T) {
 	t.Run("empty string returns empty", func(t *testing.T) {
 		result := splitBySentences("")
 		assert.Empty(t, result)
+	})
+}
+
+// --- ChunkBySentences tests ---
+
+func TestChunk_ChunkBySentences_Good(t *testing.T) {
+	t.Run("multiple sentences fit in one chunk", func(t *testing.T) {
+		text := "First sentence. Second sentence. Third sentence."
+		chunks := ChunkBySentences(text, ChunkConfig{Size: 200, Overlap: 0})
+
+		assert.Len(t, chunks, 1)
+		assert.Contains(t, chunks[0].Text, "First sentence")
+		assert.Contains(t, chunks[0].Text, "Third sentence")
+		assert.Equal(t, 0, chunks[0].Index)
+	})
+
+	t.Run("long text splits at sentence boundaries", func(t *testing.T) {
+		// Each sentence ~40 chars, Size=60 forces per-sentence splits.
+		text := "Alpha sentence explains alpha concept clearly. " +
+			"Beta sentence explains beta concept clearly. " +
+			"Gamma sentence explains gamma concept clearly."
+		chunks := ChunkBySentences(text, ChunkConfig{Size: 60, Overlap: 0})
+
+		assert.GreaterOrEqual(t, len(chunks), 3)
+		// Chunk indices must be sequential.
+		for i, chunk := range chunks {
+			assert.Equal(t, i, chunk.Index)
+			assert.NotEmpty(t, chunk.Text)
+		}
+	})
+
+	t.Run("question and exclamation marks split correctly", func(t *testing.T) {
+		text := "What is Go? It is a language! I love it."
+		chunks := ChunkBySentences(text, ChunkConfig{Size: 25, Overlap: 0})
+
+		require.GreaterOrEqual(t, len(chunks), 2)
+		allText := ""
+		for _, c := range chunks {
+			allText += c.Text + " "
+		}
+		assert.Contains(t, allText, "What is Go?")
+		assert.Contains(t, allText, "It is a language!")
+	})
+}
+
+func TestChunk_ChunkBySentences_Bad(t *testing.T) {
+	t.Run("negative size falls back to default", func(t *testing.T) {
+		chunks := ChunkBySentences("A sentence here.", ChunkConfig{Size: -1, Overlap: 0})
+		assert.NotEmpty(t, chunks)
+	})
+
+	t.Run("overlap >= size falls back to zero", func(t *testing.T) {
+		text := "First. Second. Third."
+		chunks := ChunkBySentences(text, ChunkConfig{Size: 10, Overlap: 50})
+		// Must not panic or loop; overlap becomes 0.
+		assert.NotEmpty(t, chunks)
+	})
+}
+
+func TestChunk_ChunkBySentences_Ugly(t *testing.T) {
+	t.Run("empty input yields no chunks", func(t *testing.T) {
+		chunks := ChunkBySentences("", DefaultChunkConfig())
+		assert.Empty(t, chunks)
+	})
+
+	t.Run("whitespace-only input yields no chunks", func(t *testing.T) {
+		chunks := ChunkBySentences("   \n\t  ", DefaultChunkConfig())
+		assert.Empty(t, chunks)
+	})
+
+	t.Run("single unterminated sentence emits one chunk", func(t *testing.T) {
+		chunks := ChunkBySentences("no ending punctuation here", DefaultChunkConfig())
+		require.Len(t, chunks, 1)
+		assert.Contains(t, chunks[0].Text, "no ending punctuation")
+	})
+}
+
+// --- ChunkByParagraphs tests ---
+
+func TestChunk_ChunkByParagraphs_Good(t *testing.T) {
+	t.Run("short paragraphs merge into single chunk", func(t *testing.T) {
+		text := "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
+		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 500, Overlap: 0})
+
+		assert.Len(t, chunks, 1)
+		assert.Contains(t, chunks[0].Text, "First paragraph")
+		assert.Contains(t, chunks[0].Text, "Third paragraph")
+	})
+
+	t.Run("long paragraphs split into multiple chunks", func(t *testing.T) {
+		text := "Paragraph A here.\n\nParagraph B here.\n\nParagraph C here."
+		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 25, Overlap: 0})
+
+		assert.GreaterOrEqual(t, len(chunks), 2)
+		for i, c := range chunks {
+			assert.Equal(t, i, c.Index)
+			assert.NotEmpty(t, c.Text)
+		}
+	})
+
+	t.Run("oversized paragraph splits at sentence boundaries", func(t *testing.T) {
+		// Single paragraph larger than Size — must split internally.
+		text := "Sentence one is here. Sentence two is here. Sentence three is here."
+		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 30, Overlap: 0})
+
+		assert.GreaterOrEqual(t, len(chunks), 2)
+	})
+}
+
+func TestChunk_ChunkByParagraphs_Bad(t *testing.T) {
+	t.Run("zero size falls back to default", func(t *testing.T) {
+		chunks := ChunkByParagraphs("A paragraph.", ChunkConfig{Size: 0, Overlap: 0})
+		assert.NotEmpty(t, chunks)
+	})
+
+	t.Run("overlap >= size falls back to zero", func(t *testing.T) {
+		text := "First paragraph.\n\nSecond paragraph."
+		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 20, Overlap: 100})
+		assert.NotEmpty(t, chunks)
+	})
+}
+
+func TestChunk_ChunkByParagraphs_Ugly(t *testing.T) {
+	t.Run("empty input yields no chunks", func(t *testing.T) {
+		chunks := ChunkByParagraphs("", DefaultChunkConfig())
+		assert.Empty(t, chunks)
+	})
+
+	t.Run("whitespace-only input yields no chunks", func(t *testing.T) {
+		chunks := ChunkByParagraphs("\n\n\t\t  \n\n", DefaultChunkConfig())
+		assert.Empty(t, chunks)
+	})
+
+	t.Run("single paragraph without blank lines emits one chunk", func(t *testing.T) {
+		chunks := ChunkByParagraphs("one line of text", DefaultChunkConfig())
+		require.Len(t, chunks, 1)
+		assert.Equal(t, "one line of text", chunks[0].Text)
 	})
 }

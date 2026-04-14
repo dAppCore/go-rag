@@ -198,6 +198,165 @@ func TestKeyword_ExtractKeywords_Good(t *testing.T) {
 	})
 }
 
+// --- KeywordIndex tests ---
+
+func TestKeyword_KeywordIndex_Good(t *testing.T) {
+	t.Run("indexes chunks and reports length", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "authentication guide for setup", Section: "Auth", Index: 0},
+			{Text: "deployment guide for kubernetes", Section: "Deploy", Index: 1},
+			{Text: "general overview of the platform", Section: "Intro", Index: 2},
+		}
+		idx := NewKeywordIndex(chunks)
+		assert.Equal(t, 3, idx.Len())
+	})
+
+	t.Run("search returns matching chunks ranked by TF-IDF", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "authentication guide explains setup steps", Section: "Auth", Index: 0},
+			{Text: "deployment guide explains kubernetes install", Section: "Deploy", Index: 1},
+			{Text: "general overview of the platform features", Section: "Intro", Index: 2},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("authentication setup", 5)
+
+		require.NotEmpty(t, results)
+		// Top result must contain both query terms.
+		assert.Contains(t, results[0].Text, "authentication")
+		assert.Contains(t, results[0].Text, "setup")
+		assert.Equal(t, "Auth", results[0].Section)
+		assert.Equal(t, 0, results[0].ChunkIndex)
+		assert.Greater(t, results[0].Score, float32(0))
+	})
+
+	t.Run("rare terms outrank common terms", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "guide guide guide guide kubernetes", Index: 0},
+			{Text: "guide guide guide guide authentication", Index: 1},
+		}
+		idx := NewKeywordIndex(chunks)
+		// "guide" appears in every chunk (IDF=0), kubernetes is rarer.
+		results := idx.Search("kubernetes guide", 5)
+
+		require.NotEmpty(t, results)
+		assert.Equal(t, 0, results[0].ChunkIndex)
+	})
+
+	t.Run("topK limits result count", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "matching term foo here", Index: 0},
+			{Text: "matching term foo here", Index: 1},
+			{Text: "matching term foo here", Index: 2},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("foo", 2)
+		assert.LessOrEqual(t, len(results), 2)
+	})
+
+	t.Run("non-matching query returns empty", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "kubernetes deployment guide", Index: 0},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("elephants", 5)
+		assert.Empty(t, results)
+	})
+
+	t.Run("score is positive for matching chunks", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "alpha beta gamma", Index: 0},
+			{Text: "delta epsilon zeta", Index: 1},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("alpha", 5)
+		require.Len(t, results, 1)
+		assert.Greater(t, results[0].Score, float32(0))
+	})
+}
+
+func TestKeyword_KeywordIndex_Bad(t *testing.T) {
+	t.Run("nil receiver Search returns nil", func(t *testing.T) {
+		var idx *KeywordIndex
+		results := idx.Search("anything", 5)
+		assert.Nil(t, results)
+	})
+
+	t.Run("nil receiver Len returns zero", func(t *testing.T) {
+		var idx *KeywordIndex
+		assert.Equal(t, 0, idx.Len())
+	})
+
+	t.Run("empty chunks yields empty index", func(t *testing.T) {
+		idx := NewKeywordIndex(nil)
+		assert.Equal(t, 0, idx.Len())
+		assert.Empty(t, idx.Search("query", 5))
+	})
+
+	t.Run("negative topK still yields full set", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "match here", Index: 0},
+			{Text: "match here", Index: 1},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("match", -1)
+		assert.Len(t, results, 2)
+	})
+
+	t.Run("topK larger than result set returns all matches", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "kubernetes guide", Index: 0},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("kubernetes", 100)
+		assert.Len(t, results, 1)
+	})
+}
+
+func TestKeyword_KeywordIndex_Ugly(t *testing.T) {
+	t.Run("empty query returns nil", func(t *testing.T) {
+		chunks := []Chunk{{Text: "some chunk text", Index: 0}}
+		idx := NewKeywordIndex(chunks)
+		assert.Nil(t, idx.Search("", 5))
+	})
+
+	t.Run("query with only short tokens returns nil", func(t *testing.T) {
+		chunks := []Chunk{{Text: "some chunk text", Index: 0}}
+		idx := NewKeywordIndex(chunks)
+		// Every token is shorter than 3 chars — all dropped.
+		assert.Nil(t, idx.Search("a b c", 5))
+	})
+
+	t.Run("empty chunk text is indexed but unreachable", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "", Index: 0},
+			{Text: "reachable content", Index: 1},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("reachable", 5)
+		require.Len(t, results, 1)
+		assert.Equal(t, 1, results[0].ChunkIndex)
+	})
+
+	t.Run("punctuation and case are normalised", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "Kubernetes! Is; Fun.", Index: 0},
+		}
+		idx := NewKeywordIndex(chunks)
+		results := idx.Search("KUBERNETES", 5)
+		require.NotEmpty(t, results)
+	})
+
+	t.Run("repeated query terms do not inflate score", func(t *testing.T) {
+		chunks := []Chunk{{Text: "alpha beta gamma", Index: 0}}
+		idx := NewKeywordIndex(chunks)
+		single := idx.Search("alpha", 5)
+		repeated := idx.Search("alpha alpha alpha", 5)
+		require.Len(t, single, 1)
+		require.Len(t, repeated, 1)
+		assert.InDelta(t, single[0].Score, repeated[0].Score, 0.0001)
+	})
+}
+
 // --- Query with Keywords integration ---
 
 func TestKeyword_QueryKeywords_Good(t *testing.T) {

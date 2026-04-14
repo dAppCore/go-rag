@@ -183,6 +183,169 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 	return overlapText + "\n\n" + newPara
 }
 
+// ChunkBySentences splits text into chunks aligned to sentence boundaries.
+// Useful when strict size control matters more than section context: each
+// emitted chunk stays below cfg.Size, and overlap is aligned to word
+// boundaries to avoid splitting mid-word.
+//
+//	chunks := ChunkBySentences(text, DefaultChunkConfig())
+func ChunkBySentences(text string, cfg ChunkConfig) []Chunk {
+	return slices.Collect(ChunkBySentencesSeq(text, cfg))
+}
+
+// ChunkBySentencesSeq returns an iterator that yields sentence-aligned chunks.
+// for chunk := range ChunkBySentencesSeq(text, DefaultChunkConfig()) { _ = chunk }
+func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
+	if cfg.Size <= 0 {
+		cfg.Size = 500
+	}
+	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
+		cfg.Overlap = 0
+	}
+
+	return func(yield func(Chunk) bool) {
+		trimmed := core.Trim(text)
+		if trimmed == "" {
+			return
+		}
+
+		chunkIndex := 0
+		currentChunk := ""
+
+		for sentence := range splitBySentencesSeq(trimmed) {
+			sentence = core.Trim(sentence)
+			if sentence == "" {
+				continue
+			}
+
+			// Accumulate while within size budget.
+			sep := " "
+			if currentChunk == "" {
+				sep = ""
+			}
+			if len(currentChunk)+len(sep)+len(sentence) <= cfg.Size {
+				currentChunk = currentChunk + sep + sentence
+				continue
+			}
+
+			// Emit current chunk if non-empty.
+			if currentChunk != "" {
+				if !yield(Chunk{
+					Text:  core.Trim(currentChunk),
+					Index: chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
+			}
+
+			// Start a new chunk with overlap carried from the previous chunk.
+			currentChunk = overlapPrefixInline(currentChunk, cfg.Overlap, sentence)
+		}
+
+		if core.Trim(currentChunk) != "" {
+			yield(Chunk{
+				Text:  core.Trim(currentChunk),
+				Index: chunkIndex,
+			})
+		}
+	}
+}
+
+// ChunkByParagraphs splits text into chunks aligned to paragraph boundaries
+// (blank lines). Paragraphs that individually exceed cfg.Size are split at
+// sentence boundaries, then re-accumulated.
+//
+//	chunks := ChunkByParagraphs(text, DefaultChunkConfig())
+func ChunkByParagraphs(text string, cfg ChunkConfig) []Chunk {
+	return slices.Collect(ChunkByParagraphsSeq(text, cfg))
+}
+
+// ChunkByParagraphsSeq returns an iterator that yields paragraph-aligned chunks.
+// for chunk := range ChunkByParagraphsSeq(text, DefaultChunkConfig()) { _ = chunk }
+func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
+	if cfg.Size <= 0 {
+		cfg.Size = 500
+	}
+	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
+		cfg.Overlap = 0
+	}
+
+	return func(yield func(Chunk) bool) {
+		trimmed := core.Trim(text)
+		if trimmed == "" {
+			return
+		}
+
+		chunkIndex := 0
+		currentChunk := ""
+
+		for para := range splitByParagraphsSeq(trimmed) {
+			para = core.Trim(para)
+			if para == "" {
+				continue
+			}
+
+			for sp := range yieldSubParas(para, cfg.Size) {
+				sp = core.Trim(sp)
+				if sp == "" {
+					continue
+				}
+
+				if len(currentChunk)+len(sp)+2 <= cfg.Size {
+					if currentChunk != "" {
+						currentChunk += "\n\n" + sp
+					} else {
+						currentChunk = sp
+					}
+					continue
+				}
+
+				if currentChunk != "" {
+					if !yield(Chunk{
+						Text:  core.Trim(currentChunk),
+						Index: chunkIndex,
+					}) {
+						return
+					}
+					chunkIndex++
+				}
+				currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
+			}
+		}
+
+		if core.Trim(currentChunk) != "" {
+			yield(Chunk{
+				Text:  core.Trim(currentChunk),
+				Index: chunkIndex,
+			})
+		}
+	}
+}
+
+// overlapPrefixInline is the single-line variant of overlapPrefix used by
+// sentence chunking, where a space separator is more natural than "\n\n".
+func overlapPrefixInline(prevChunk string, overlap int, newSentence string) string {
+	if overlap <= 0 {
+		return newSentence
+	}
+	runes := []rune(prevChunk)
+	if len(runes) <= overlap {
+		return newSentence
+	}
+	overlapText := string(runes[len(runes)-overlap:])
+	for i, r := range overlapText {
+		if r == ' ' {
+			overlapText = overlapText[i+1:]
+			break
+		}
+	}
+	if overlapText == "" {
+		return newSentence
+	}
+	return overlapText + " " + newSentence
+}
+
 // splitBySentences splits text at sentence boundaries (". ", "? ", "! ").
 // Returns the original text in a single-element slice when no boundaries are found.
 func splitBySentences(text string) []string {
