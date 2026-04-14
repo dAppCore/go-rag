@@ -27,8 +27,16 @@ type VectorStore interface {
 	UpsertPoints(ctx context.Context, collection string, points []Point) error
 
 	// Search performs a vector similarity search, returning up to limit results.
-	// An optional filter map restricts results by payload field values.
-	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error)
+	// One or more optional filter maps restrict results by payload field values.
+	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error)
+}
+
+// Vector represents an RFC-compatible vector payload for storage.
+// It is equivalent to Point, but uses the Values field name from the spec.
+type Vector struct {
+	ID      string
+	Values  []float32
+	Payload map[string]any
 }
 
 // CollectionInfo holds backend-agnostic metadata about a collection.
@@ -37,4 +45,7 @@ type CollectionInfo struct {
 	PointCount uint64
 	VectorSize uint64
 	Status     string // e.g. "green", "yellow", "red", "unknown"
+	Count      uint64
+	Vectors    uint64
+	Index      string
 }

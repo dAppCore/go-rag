@@ -148,18 +148,35 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 		return nil, err
 	}
 
+	pointCount := info.GetPointsCount()
 	ci := &CollectionInfo{
 		Name:       name,
-		PointCount: info.GetPointsCount(),
+		PointCount: pointCount,
+		Count:      pointCount,
+		Vectors:    info.GetIndexedVectorsCount(),
+		Index:      "unknown",
 	}
 
 	// Extract vector size from the Qdrant config
-	if params := info.GetConfig().GetParams().GetVectorsConfig().GetParams(); params != nil {
-		ci.VectorSize = params.GetSize()
+	if cfg := info.GetConfig(); cfg != nil {
+		if params := cfg.GetParams(); params != nil {
+			if vectorsCfg := params.GetVectorsConfig(); vectorsCfg != nil {
+				if vecParams := vectorsCfg.GetParams(); vecParams != nil {
+					ci.VectorSize = vecParams.GetSize()
+				}
+			}
+		}
+		if cfg.GetHnswConfig() != nil {
+			ci.Index = "hnsw"
+		}
+	}
+
+	if ci.Vectors == 0 {
+		ci.Vectors = pointCount
 	}
 
 	// Map Qdrant status to a simple string
-	switch info.Status {
+	switch info.GetStatus() {
 	case qdrant.CollectionStatus_Green:
 		ci.Status = "green"
 	case qdrant.CollectionStatus_Yellow:
@@ -214,8 +231,43 @@ type SearchResult struct {
 	Payload  map[string]any
 }
 
+func (r SearchResult) GetText() string {
+	return r.Text
+}
+
+func (r SearchResult) GetScore() float32 {
+	return r.Score
+}
+
+func (r SearchResult) GetSource() string {
+	return r.Source
+}
+
+func (r SearchResult) GetChunkIndex() int {
+	return r.Index
+}
+
+// Add inserts or updates vectors in a collection using the RFC-compatible
+// Vector representation.
+func (q *QdrantClient) Add(ctx context.Context, collection string, vectors []Vector) error {
+	if len(vectors) == 0 {
+		return nil
+	}
+
+	points := make([]Point, len(vectors))
+	for i, v := range vectors {
+		points[i] = Point{
+			ID:      v.ID,
+			Vector:  v.Values,
+			Payload: v.Payload,
+		}
+	}
+
+	return q.UpsertPoints(ctx, collection, points)
+}
+
 // Search performs a vector similarity search.
-func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
+func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
@@ -224,9 +276,10 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 	}
 
 	// Add filter if provided
-	if len(filter) > 0 {
-		conditions := make([]*qdrant.Condition, 0, len(filter))
-		for k, v := range filter {
+	mergedFilter := mergeStringFilters(filter...)
+	if len(mergedFilter) > 0 {
+		conditions := make([]*qdrant.Condition, 0, len(mergedFilter))
+		for k, v := range mergedFilter {
 			conditions = append(conditions, qdrant.NewMatch(k, v))
 		}
 		query.Filter = &qdrant.Filter{
@@ -284,6 +337,24 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		results[i] = searchResult
 	}
 	return results, nil
+}
+
+func mergeStringFilters(filters ...map[string]string) map[string]string {
+	if len(filters) == 0 {
+		return nil
+	}
+
+	merged := make(map[string]string)
+	for _, filter := range filters {
+		for k, v := range filter {
+			merged[k] = v
+		}
+	}
+
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
 }
 
 func parseEndpointURL(endpoint string) (*url.URL, error) {

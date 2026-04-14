@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	coreio "dappco.re/go/core/io"
 	"dappco.re/go/core/log"
+	"github.com/ledongthuc/pdf"
 )
 
 // IngestConfig holds ingestion configuration.
@@ -113,7 +115,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 			continue
 		}
 
-		content, err := coreio.Local.Read(filePath)
+		content, err := readDocument(filePath)
 		if err != nil {
 			stats.Errors++
 			continue
@@ -179,7 +181,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 
 // IngestFile processes a single file and stores it in the vector store.
 func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
-	content, err := coreio.Local.Read(filePath)
+	content, err := readDocument(filePath)
 	if err != nil {
 		return 0, log.E("rag.IngestFile", "error reading file", err)
 	}
@@ -223,4 +225,51 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 	}
 
 	return len(points), nil
+}
+
+func readDocument(filePath string) (string, error) {
+	if strings.EqualFold(filepath.Ext(filePath), ".pdf") {
+		content, err := readPDFDocument(filePath)
+		if err == nil && strings.TrimSpace(content) != "" {
+			return content, nil
+		}
+		if err != nil && shouldFallbackToPlainText(err) {
+			return coreio.Local.Read(filePath)
+		}
+		if err == nil {
+			return content, nil
+		}
+		return "", err
+	}
+
+	return coreio.Local.Read(filePath)
+}
+
+func readPDFDocument(filePath string) (string, error) {
+	file, reader, err := pdf.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+
+	plainText, err := reader.GetPlainText()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := io.ReadAll(plainText)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}
+
+func shouldFallbackToPlainText(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "not a PDF file") || strings.Contains(msg, "missing %%EOF")
 }

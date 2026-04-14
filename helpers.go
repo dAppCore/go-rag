@@ -116,15 +116,19 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 	return IngestFileWith(ctx, qdrantClient, ollamaClient, filePath, collectionName)
 }
 
+type textResult interface {
+	GetText() string
+}
+
 // JoinResults concatenates result text into a single prompt-friendly string.
-func JoinResults(results []QueryResult) string {
+func JoinResults[T textResult](results []T) string {
 	if len(results) == 0 {
 		return ""
 	}
 
 	parts := make([]string, 0, len(results))
 	for _, result := range results {
-		text := strings.TrimSpace(result.Text)
+		text := strings.TrimSpace(result.GetText())
 		if text == "" {
 			continue
 		}

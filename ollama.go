@@ -15,9 +15,9 @@ import (
 // OllamaConfig holds Ollama connection configuration.
 type OllamaConfig struct {
 	Scheme string
-	Host  string
-	Port  int
-	Model string
+	Host   string
+	Port   int
+	Model  string
 }
 
 // DefaultOllamaConfig returns default Ollama configuration.
@@ -25,9 +25,9 @@ type OllamaConfig struct {
 func DefaultOllamaConfig() OllamaConfig {
 	return OllamaConfig{
 		Scheme: "http",
-		Host:  "localhost",
-		Port:  11434,
-		Model: "nomic-embed-text",
+		Host:   "localhost",
+		Port:   11434,
+		Model:  "nomic-embed-text",
 	}
 }
 
@@ -145,14 +145,34 @@ func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 
 // EmbedBatch generates embeddings for multiple texts.
 func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	results := make([][]float32, len(texts))
-	for i, text := range texts {
-		embedding, err := o.Embed(ctx, text)
-		if err != nil {
-			return nil, log.E("rag.Ollama.EmbedBatch", fmt.Sprintf("failed to embed text %d", i), err)
-		}
-		results[i] = embedding
+	if len(texts) == 0 {
+		return [][]float32{}, nil
 	}
+
+	req := &api.EmbedRequest{
+		Model: o.config.Model,
+		Input: texts,
+	}
+
+	resp, err := o.client.Embed(ctx, req)
+	if err != nil {
+		return nil, log.E("rag.Ollama.EmbedBatch", "failed to generate batch embeddings", err)
+	}
+
+	if len(resp.Embeddings) == 0 {
+		return nil, log.E("rag.Ollama.EmbedBatch", "empty embedding response", nil)
+	}
+	if len(resp.Embeddings) != len(texts) {
+		return nil, log.E("rag.Ollama.EmbedBatch", fmt.Sprintf("unexpected embedding count: got %d, want %d", len(resp.Embeddings), len(texts)), nil)
+	}
+
+	results := make([][]float32, len(resp.Embeddings))
+	for i, embedding := range resp.Embeddings {
+		vec := make([]float32, len(embedding))
+		copy(vec, embedding)
+		results[i] = vec
+	}
+
 	return results, nil
 }
 

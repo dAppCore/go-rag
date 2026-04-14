@@ -7,6 +7,7 @@ require (
 	dappco.re/go/core/i18n v0.2.3
 	dappco.re/go/core/io v0.4.1
 	dappco.re/go/core/log v0.1.2
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/ollama/ollama v0.18.1
 	github.com/qdrant/go-client v1.17.1
 	github.com/stretchr/testify v1.11.1

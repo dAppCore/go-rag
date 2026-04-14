@@ -39,6 +39,22 @@ type QueryResult struct {
 	Score      float32
 }
 
+func (r QueryResult) GetText() string {
+	return r.Text
+}
+
+func (r QueryResult) GetScore() float32 {
+	return r.Score
+}
+
+func (r QueryResult) GetSource() string {
+	return r.Source
+}
+
+func (r QueryResult) GetChunkIndex() int {
+	return r.ChunkIndex
+}
+
 // Query searches for similar documents in the vector store.
 func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
 	it, err := QuerySeq(ctx, store, embedder, query, cfg)
@@ -102,9 +118,16 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 	return filteredIt, nil
 }
 
+type rankedResult interface {
+	GetText() string
+	GetScore() float32
+	GetSource() string
+	GetChunkIndex() int
+}
+
 // Rank sorts results by score descending, removes duplicate documents, and
 // truncates the slice to topK results.
-func Rank(results []QueryResult, topK int) []QueryResult {
+func Rank[T rankedResult](results []T, topK int) []T {
 	if len(results) == 0 {
 		return nil
 	}
@@ -112,32 +135,32 @@ func Rank(results []QueryResult, topK int) []QueryResult {
 		topK = len(results)
 	}
 
-	sorted := make([]QueryResult, len(results))
+	sorted := make([]T, len(results))
 	copy(sorted, results)
-	slices.SortFunc(sorted, func(a, b QueryResult) int {
-		if a.Score > b.Score {
+	slices.SortFunc(sorted, func(a, b T) int {
+		if a.GetScore() > b.GetScore() {
 			return -1
 		}
-		if a.Score < b.Score {
+		if a.GetScore() < b.GetScore() {
 			return 1
 		}
-		if a.Source < b.Source {
+		if a.GetSource() < b.GetSource() {
 			return -1
 		}
-		if a.Source > b.Source {
+		if a.GetSource() > b.GetSource() {
 			return 1
 		}
-		if a.ChunkIndex < b.ChunkIndex {
+		if a.GetChunkIndex() < b.GetChunkIndex() {
 			return -1
 		}
-		if a.ChunkIndex > b.ChunkIndex {
+		if a.GetChunkIndex() > b.GetChunkIndex() {
 			return 1
 		}
 		return 0
 	})
 
 	seen := make(map[string]struct{}, len(sorted))
-	ranked := make([]QueryResult, 0, topK)
+	ranked := make([]T, 0, topK)
 	for _, result := range sorted {
 		key := rankKey(result)
 		if _, ok := seen[key]; ok {
@@ -151,6 +174,16 @@ func Rank(results []QueryResult, topK int) []QueryResult {
 	}
 
 	return ranked
+}
+
+func rankKey[T rankedResult](result T) string {
+	if result.GetSource() != "" {
+		return fmt.Sprintf("%s:%d", result.GetSource(), result.GetChunkIndex())
+	}
+	if text := result.GetText(); text != "" {
+		return text
+	}
+	return fmt.Sprintf("score:%f", result.GetScore())
 }
 
 func searchResultToQueryResult(r SearchResult) QueryResult {
@@ -201,16 +234,6 @@ func searchResultToQueryResult(r SearchResult) QueryResult {
 	}
 
 	return qr
-}
-
-func rankKey(result QueryResult) string {
-	if result.Source != "" {
-		return fmt.Sprintf("%s:%d", result.Source, result.ChunkIndex)
-	}
-	if result.Text != "" {
-		return result.Text
-	}
-	return fmt.Sprintf("score:%f", result.Score)
 }
 
 // FormatResultsText formats query results as plain text.
