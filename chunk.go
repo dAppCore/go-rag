@@ -321,7 +321,7 @@ func ChunkID(path string, index int, text string) string {
 // FileExtensions returns the file extensions to process.
 // exts := FileExtensions()
 func FileExtensions() []string {
-	return []string{".md", ".markdown", ".txt"}
+	return []string{".md", ".markdown", ".pdf", ".txt"}
 }
 
 // ShouldProcess checks if a file should be processed based on extension.

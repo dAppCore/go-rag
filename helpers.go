@@ -122,3 +122,30 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 
 	return IngestFileWith(ctx, qdrantClient, ollamaClient, filePath, collectionName)
 }
+
+// textResult is implemented by any result type that can expose its text for
+// prompt assembly. QueryResult and SearchResult both satisfy this interface.
+//
+//	var _ textResult = QueryResult{}
+type textResult interface {
+	GetText() string
+}
+
+// JoinResults concatenates result text into a single prompt-friendly string,
+// skipping empty entries. Generic over anything that exposes GetText().
+//
+//	prompt := JoinResults(results)
+func JoinResults[T textResult](results []T) string {
+	if len(results) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(results))
+	for _, result := range results {
+		text := core.Trim(result.GetText())
+		if text == "" {
+			continue
+		}
+		parts = append(parts, text)
+	}
+	return core.Join("\n\n", parts...)
+}

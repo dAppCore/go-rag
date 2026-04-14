@@ -114,14 +114,27 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 		return nil, err
 	}
 
+	pointCount := info.GetPointsCount()
 	ci := &CollectionInfo{
 		Name:       name,
-		PointCount: info.GetPointsCount(),
+		PointCount: pointCount,
+		Count:      pointCount,
+		Vectors:    info.GetIndexedVectorsCount(),
+		Index:      "unknown",
 	}
 
-	// Extract vector size from the Qdrant config
-	if params := info.GetConfig().GetParams().GetVectorsConfig().GetParams(); params != nil {
-		ci.VectorSize = params.GetSize()
+	// Extract vector size + index type from the Qdrant config
+	if cfg := info.GetConfig(); cfg != nil {
+		if params := cfg.GetParams(); params != nil {
+			if vectorsCfg := params.GetVectorsConfig(); vectorsCfg != nil {
+				if vecParams := vectorsCfg.GetParams(); vecParams != nil {
+					ci.VectorSize = vecParams.GetSize()
+				}
+			}
+		}
+		if cfg.GetHnswConfig() != nil {
+			ci.Index = "hnsw"
+		}
 	}
 
 	// Map Qdrant status to a simple string
@@ -178,9 +191,51 @@ type SearchResult struct {
 	Payload map[string]any
 }
 
+// GetText returns the text field from Payload (satisfies textResult / rankedResult).
+func (r SearchResult) GetText() string {
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["text"].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetScore returns the similarity score.
+func (r SearchResult) GetScore() float32 { return r.Score }
+
+// GetSource returns the source field from Payload, if present.
+func (r SearchResult) GetSource() string {
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["source"].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetChunkIndex returns the chunk_index field from Payload, if present.
+func (r SearchResult) GetChunkIndex() int {
+	if r.Payload == nil {
+		return 0
+	}
+	switch v := r.Payload["chunk_index"].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	}
+	return 0
+}
+
 // Search performs a vector similarity search.
-// results, _ := client.Search(ctx, "project-docs", vector, 5, nil)
-func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
+// results, _ := client.Search(ctx, "project-docs", vector, 5)
+// results, _ := client.Search(ctx, "project-docs", vector, 5, map[string]string{"source": "docs"})
+func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
@@ -188,10 +243,16 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 
-	// Add filter if provided
-	if len(filter) > 0 {
-		conditions := make([]*qdrant.Condition, 0, len(filter))
-		for k, v := range filter {
+	// Merge any supplied filter maps; later maps override earlier on duplicate keys
+	merged := map[string]string{}
+	for _, f := range filter {
+		for k, v := range f {
+			merged[k] = v
+		}
+	}
+	if len(merged) > 0 {
+		conditions := make([]*qdrant.Condition, 0, len(merged))
+		for k, v := range merged {
 			conditions = append(conditions, qdrant.NewMatch(k, v))
 		}
 		query.Filter = &qdrant.Filter{
@@ -232,6 +293,25 @@ func pointIDToString(id *qdrant.PointId) string {
 	default:
 		return ""
 	}
+}
+
+// Add inserts RFC-shaped Vector payloads into the collection.
+// It wraps UpsertPoints so callers can pass []Vector directly from ingestion pipelines.
+//
+//	err := client.Add(ctx, "docs", []Vector{{ID: "1", Values: embedding, Payload: meta}})
+func (q *QdrantClient) Add(ctx context.Context, collection string, vectors []Vector) error {
+	if len(vectors) == 0 {
+		return nil
+	}
+	points := make([]Point, len(vectors))
+	for i, v := range vectors {
+		points[i] = Point{
+			ID:      v.ID,
+			Vector:  v.Values,
+			Payload: v.Payload,
+		}
+	}
+	return q.UpsertPoints(ctx, collection, points)
 }
 
 // valueToGo converts a Qdrant value to a Go value.

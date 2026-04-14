@@ -2,10 +2,12 @@ package rag
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"slices"
 
 	"dappco.re/go/core"
+	"github.com/ledongthuc/pdf"
 )
 
 // IngestConfig holds ingestion configuration.
@@ -104,12 +106,11 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 			filePath = core.JoinPath(scanRoot, relPath)
 		}
 
-		contentResult := localFS.Read(filePath)
-		if !contentResult.OK {
+		content, readErr := readDocument(localFS, filePath)
+		if readErr != nil {
 			stats.Errors++
 			continue
 		}
-		content := contentResult.Value.(string)
 
 		if core.Trim(content) == "" {
 			continue
@@ -168,11 +169,10 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
 	localFS := (&core.Fs{}).NewUnrestricted()
 
-	contentResult := localFS.Read(filePath)
-	if !contentResult.OK {
-		return 0, core.Wrap(resultError(contentResult), "rag.IngestFile", "error reading file")
+	content, readErr := readDocument(localFS, filePath)
+	if readErr != nil {
+		return 0, core.Wrap(readErr, "rag.IngestFile", "error reading file")
 	}
-	content := contentResult.Value.(string)
 
 	if core.Trim(content) == "" {
 		return 0, nil
@@ -246,4 +246,70 @@ func resultError(result core.Result) error {
 		return err
 	}
 	return core.E("rag.result", "core operation failed", nil)
+}
+
+// readDocument reads a file as text, with PDF extraction for .pdf extensions.
+// Non-PDF files are read via the supplied Fs.
+// PDFs that fail extraction fall back to reading as plain text when the error
+// indicates a malformed/non-PDF file.
+//
+//	text, err := readDocument(fs, "./docs/guide.pdf")
+func readDocument(fs *core.Fs, filePath string) (string, error) {
+	if core.Lower(core.PathExt(filePath)) == ".pdf" {
+		content, err := readPDFDocument(filePath)
+		if err == nil && core.Trim(content) != "" {
+			return content, nil
+		}
+		if err != nil && shouldFallbackToPlainText(err) {
+			return readAsText(fs, filePath)
+		}
+		if err == nil {
+			return content, nil
+		}
+		return "", err
+	}
+	return readAsText(fs, filePath)
+}
+
+func readAsText(fs *core.Fs, filePath string) (string, error) {
+	result := fs.Read(filePath)
+	if !result.OK {
+		return "", resultError(result)
+	}
+	text, ok := result.Value.(string)
+	if !ok {
+		return "", core.E("rag.readDocument", "unexpected read result type", nil)
+	}
+	return text, nil
+}
+
+// readPDFDocument extracts plaintext from a PDF file.
+func readPDFDocument(filePath string) (string, error) {
+	file, reader, err := pdf.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+
+	plainText, err := reader.GetPlainText()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := io.ReadAll(plainText)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}
+
+// shouldFallbackToPlainText returns true when a PDF parse error indicates
+// the file is actually plain text with a .pdf extension.
+func shouldFallbackToPlainText(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return core.Contains(msg, "not a PDF file") || core.Contains(msg, "missing %%EOF")
 }

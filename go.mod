@@ -6,6 +6,7 @@ require (
 	dappco.re/go/core v0.8.0-alpha.1
 	forge.lthn.ai/core/cli v0.3.7
 	forge.lthn.ai/core/go-i18n v0.1.7
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/ollama/ollama v0.18.1
 	github.com/qdrant/go-client v1.17.1
 	github.com/stretchr/testify v1.11.1

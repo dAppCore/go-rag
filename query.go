@@ -41,6 +41,89 @@ type QueryResult struct {
 	Score      float32
 }
 
+// GetText returns the result text (satisfies the rankedResult interface).
+func (r QueryResult) GetText() string { return r.Text }
+
+// GetScore returns the result similarity score (satisfies the rankedResult interface).
+func (r QueryResult) GetScore() float32 { return r.Score }
+
+// GetSource returns the result source path (satisfies the rankedResult interface).
+func (r QueryResult) GetSource() string { return r.Source }
+
+// GetChunkIndex returns the source chunk index (satisfies the rankedResult interface).
+func (r QueryResult) GetChunkIndex() int { return r.ChunkIndex }
+
+// rankedResult is implemented by any result type that carries enough
+// identity and score data to participate in Rank / deduplication.
+//
+//	var _ rankedResult = QueryResult{}
+type rankedResult interface {
+	GetText() string
+	GetScore() float32
+	GetSource() string
+	GetChunkIndex() int
+}
+
+// Rank sorts results by score (descending), removes duplicate documents by
+// (source, chunk-index) or text identity, and returns the first topK.
+//
+//	top := Rank(results, 5)
+func Rank[T rankedResult](results []T, topK int) []T {
+	if len(results) == 0 {
+		return nil
+	}
+	if topK <= 0 || topK > len(results) {
+		topK = len(results)
+	}
+
+	sorted := make([]T, len(results))
+	copy(sorted, results)
+	slices.SortFunc(sorted, func(a, b T) int {
+		switch {
+		case a.GetScore() > b.GetScore():
+			return -1
+		case a.GetScore() < b.GetScore():
+			return 1
+		case a.GetSource() < b.GetSource():
+			return -1
+		case a.GetSource() > b.GetSource():
+			return 1
+		case a.GetChunkIndex() < b.GetChunkIndex():
+			return -1
+		case a.GetChunkIndex() > b.GetChunkIndex():
+			return 1
+		}
+		return 0
+	})
+
+	seen := make(map[string]struct{}, len(sorted))
+	ranked := make([]T, 0, topK)
+	for _, result := range sorted {
+		key := rankKey(result)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		ranked = append(ranked, result)
+		if len(ranked) >= topK {
+			break
+		}
+	}
+	return ranked
+}
+
+// rankKey produces a deduplication key for a ranked result: prefer
+// (source, chunkIndex) when source is known, fall back to text, then score.
+func rankKey[T rankedResult](result T) string {
+	if result.GetSource() != "" {
+		return core.Sprintf("%s:%d", result.GetSource(), result.GetChunkIndex())
+	}
+	if text := result.GetText(); text != "" {
+		return text
+	}
+	return core.Sprintf("score:%f", result.GetScore())
+}
+
 // Query searches for similar documents in the vector store.
 // Query(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
 func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {

@@ -97,16 +97,37 @@ func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 	return result, nil
 }
 
-// EmbedBatch generates embeddings for multiple texts.
+// EmbedBatch generates embeddings for multiple texts in a single Ollama
+// request instead of looping per text — avoids N round-trips for large batches.
+//
 // vectors, _ := client.EmbedBatch(ctx, []string{"How do goroutines work?", "What is Qdrant?"})
 func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	results := make([][]float32, len(texts))
-	for i, text := range texts {
-		embedding, err := o.Embed(ctx, text)
-		if err != nil {
-			return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("failed to embed text %d", i), err)
-		}
-		results[i] = embedding
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+
+	req := &api.EmbedRequest{
+		Model: o.config.Model,
+		Input: texts,
+	}
+
+	resp, err := o.client.Embed(ctx, req)
+	if err != nil {
+		return nil, core.E("rag.Ollama.EmbedBatch", "failed to generate batch embeddings", err)
+	}
+
+	if len(resp.Embeddings) == 0 {
+		return nil, core.E("rag.Ollama.EmbedBatch", "empty embedding response", nil)
+	}
+	if len(resp.Embeddings) != len(texts) {
+		return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("unexpected embedding count: got %d, want %d", len(resp.Embeddings), len(texts)), nil)
+	}
+
+	results := make([][]float32, len(resp.Embeddings))
+	for i, embedding := range resp.Embeddings {
+		vec := make([]float32, len(embedding))
+		copy(vec, embedding)
+		results[i] = vec
 	}
 	return results, nil
 }
