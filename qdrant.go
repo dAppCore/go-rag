@@ -167,6 +167,8 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 	pointCount := info.GetPointsCount()
 	ci := &CollectionInfo{
 		Name:       name,
+		Count:      pointCount,
+		Vectors:    pointCount,
 		PointCount: pointCount,
 		VectorSize: 0,
 		Status:     "unknown",

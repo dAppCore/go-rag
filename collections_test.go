@@ -136,6 +136,8 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "my-col", info.Name)
+		assert.Equal(t, uint64(3), info.Count)
+		assert.Equal(t, uint64(3), info.Vectors)
 		assert.Equal(t, uint64(3), info.PointCount)
 		assert.Equal(t, uint64(768), info.VectorSize)
 		assert.Equal(t, "green", info.Status)
@@ -168,6 +170,8 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 		info, err := CollectionStats(context.Background(), store, "empty-col")
 
 		require.NoError(t, err)
+		assert.Equal(t, uint64(0), info.Count)
+		assert.Equal(t, uint64(0), info.Vectors)
 		assert.Equal(t, uint64(0), info.PointCount)
 		assert.Equal(t, uint64(384), info.VectorSize)
 	})

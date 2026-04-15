@@ -40,7 +40,7 @@ type Vector struct {
 }
 
 // CollectionInfo holds backend-agnostic metadata about a collection.
-// info := CollectionInfo{Name: "project-docs", PointCount: 42, VectorSize: 768, Status: "green"}
+// info := CollectionInfo{Name: "project-docs", Count: 42, Vectors: 42, PointCount: 42, VectorSize: 768, Status: "green"}
 type CollectionInfo struct {
 	Name       string
 	Count      uint64
