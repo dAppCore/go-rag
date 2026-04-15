@@ -138,7 +138,7 @@ Each `Chunk` carries:
 
 ### Accepted File Types
 
-`ShouldProcess(path string) bool` accepts `.md`, `.markdown`, and `.txt` extensions.
+`ShouldProcess(path string) bool` accepts `.md`, `.markdown`, `.txt`, and `.pdf` extensions.
 
 ## Ingestion Pipeline
 
@@ -150,7 +150,7 @@ Each `Chunk` carries:
 2. Check whether the target collection exists. If `Recreate` is set and it exists, delete it first.
 3. Create the collection if it does not exist, using `embedder.EmbedDimension()` to set the vector size.
 4. Walk the directory recursively, collecting files that pass `ShouldProcess`.
-5. For each file: read content, call `ChunkMarkdown`, embed each chunk individually, and build `Point` structs.
+5. For each file: read content, extracting text from PDFs when needed, call `ChunkMarkdown`, embed each chunk individually, and build `Point` structs.
 6. Batch-upsert all accumulated points in slices of `BatchSize` (default 100).
 
 The optional `IngestProgress` callback is invoked after each file is processed.

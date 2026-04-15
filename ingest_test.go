@@ -40,6 +40,28 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		assert.Contains(t, points[0].Payload["text"], "Hello world.")
 	})
 
+	t.Run("ingests pdf files from directory", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, core.JoinPath(dir, "doc.pdf"), "## PDF Section\n\nPDF content.\n")
+
+		store := newMockVectorStore()
+		embedder := newMockEmbedder(768)
+		cfg := DefaultIngestConfig()
+		cfg.Directory = dir
+		cfg.Collection = "test-pdf"
+
+		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats.Files)
+		assert.Equal(t, 1, stats.Chunks)
+		assert.Equal(t, 0, stats.Errors)
+
+		points := store.allPoints("test-pdf")
+		require.Len(t, points, 1)
+		assert.Contains(t, points[0].Payload["text"], "PDF content.")
+	})
+
 	t.Run("chunks are created from input text", func(t *testing.T) {
 		dir := t.TempDir()
 		// Create content large enough to produce multiple chunks
