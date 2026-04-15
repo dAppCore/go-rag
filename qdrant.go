@@ -137,16 +137,9 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 	}
 
 	pointCount := info.GetPointsCount()
-	vectorCount := info.GetIndexedVectorsCount()
-	if vectorCount == 0 {
-		vectorCount = pointCount
-	}
 	ci := &CollectionInfo{
 		Name:       name,
 		PointCount: pointCount,
-		Count:      pointCount,
-		Vectors:    vectorCount,
-		Index:      "unknown",
 	}
 
 	// Extract vector size + index type from the Qdrant config
@@ -157,9 +150,6 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 					ci.VectorSize = vecParams.GetSize()
 				}
 			}
-		}
-		if cfg.GetHnswConfig() != nil {
-			ci.Index = "hnsw"
 		}
 	}
 

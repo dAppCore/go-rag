@@ -37,7 +37,6 @@ type QueryResult struct {
 	Source     string
 	Section    string
 	Category   string
-	Index      int
 	ChunkIndex int
 	Score      float32
 }
@@ -53,13 +52,7 @@ func (r QueryResult) GetSource() string { return r.Source }
 
 // GetChunkIndex returns the source chunk index (satisfies the rankedResult interface).
 func (r QueryResult) GetChunkIndex() int {
-	if r.ChunkIndex != 0 {
-		return r.ChunkIndex
-	}
-	if r.Index != 0 {
-		return r.Index
-	}
-	return 0
+	return r.ChunkIndex
 }
 
 // rankedResult is implemented by any result type that carries enough
@@ -181,7 +174,6 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 				Source:     r.GetSource(),
 				Section:    r.GetSection(),
 				Category:   r.GetCategory(),
-				Index:      r.GetChunkIndex(),
 				ChunkIndex: r.GetChunkIndex(),
 				Score:      r.Score,
 			}

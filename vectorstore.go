@@ -40,13 +40,10 @@ type Vector struct {
 }
 
 // CollectionInfo holds backend-agnostic metadata about a collection.
-// info := CollectionInfo{Name: "project-docs", PointCount: 42, VectorSize: 768, Count: 42, Vectors: 42, Index: "hnsw"}
+// info := CollectionInfo{Name: "project-docs", PointCount: 42, VectorSize: 768, Status: "green"}
 type CollectionInfo struct {
 	Name       string
 	PointCount uint64
 	VectorSize uint64
 	Status     string // e.g. "green", "yellow", "red", "unknown"
-	Count      uint64 // RFC alias for PointCount
-	Vectors    uint64 // RFC: vector count in collection
-	Index      string // RFC: index type (e.g. "hnsw")
 }
