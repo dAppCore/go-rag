@@ -40,15 +40,15 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		assert.Contains(t, points[0].Payload["text"], "Hello world.")
 	})
 
-	t.Run("ingests pdf files from directory", func(t *testing.T) {
+	t.Run("ingests txt files from directory", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, core.JoinPath(dir, "doc.pdf"), "## PDF Section\n\nPDF content.\n")
+		writeFile(t, core.JoinPath(dir, "doc.txt"), "## Text Section\n\nText content.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 		cfg := DefaultIngestConfig()
 		cfg.Directory = dir
-		cfg.Collection = "test-pdf"
+		cfg.Collection = "test-txt"
 
 		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
 
@@ -57,9 +57,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		assert.Equal(t, 1, stats.Chunks)
 		assert.Equal(t, 0, stats.Errors)
 
-		points := store.allPoints("test-pdf")
+		points := store.allPoints("test-txt")
 		require.Len(t, points, 1)
-		assert.Contains(t, points[0].Payload["text"], "PDF content.")
+		assert.Contains(t, points[0].Payload["text"], "Text content.")
 	})
 
 	t.Run("chunks are created from input text", func(t *testing.T) {

@@ -135,20 +135,18 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		var req struct {
-			Input any `json:"input"`
+			Input string `json:"input"`
 		}
 		require.NoError(t, json.Unmarshal(body, &req))
-
-		rawInputs, ok := req.Input.([]any)
-		require.True(t, ok, "input should be a JSON array")
-		capturedInput = make([]string, len(rawInputs))
-		for i, item := range rawInputs {
-			capturedInput[i], ok = item.(string)
-			require.True(t, ok, "batch inputs should be strings")
-		}
+		capturedInput = append(capturedInput, req.Input)
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"model":"nomic-embed-text","embeddings":[[0.1,0.2],[0.3,0.4]]}`))
+		switch requestCount {
+		case 1:
+			_, _ = w.Write([]byte(`{"model":"nomic-embed-text","embeddings":[[0.1,0.2]]}`))
+		default:
+			_, _ = w.Write([]byte(`{"model":"nomic-embed-text","embeddings":[[0.3,0.4]]}`))
+		}
 	}))
 	defer server.Close()
 
@@ -165,6 +163,6 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 	require.Len(t, vectors, 2)
 	assert.Equal(t, []float32{0.1, 0.2}, vectors[0])
 	assert.Equal(t, []float32{0.3, 0.4}, vectors[1])
-	assert.Equal(t, 1, requestCount, "batch embedding should use one Ollama request")
+	assert.Equal(t, 2, requestCount, "batch embedding should call Ollama once per input")
 	assert.Equal(t, []string{"first", "second"}, capturedInput)
 }
