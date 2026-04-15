@@ -109,7 +109,7 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		assert.Equal(t, 2, stats.Files)
 		assert.Equal(t, 2, stats.Chunks)
 		assert.Equal(t, 2, embedder.embedCallCount())
-		assert.Empty(t, embedder.batchCalls)
+		assert.Len(t, embedder.batchCalls, 2)
 
 		// Verify vectors are the correct dimension
 		points := store.allPoints("test-embed")

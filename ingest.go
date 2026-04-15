@@ -202,9 +202,18 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 	return len(points), nil
 }
 
-// embedChunkBatch embeds each text concurrently and returns the per-item
-// errors alongside the collected vectors.
+// embedChunkBatch prefers the batch embedding API and falls back to
+// per-item embedding so partial failures can still be reported.
 func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([][]float32, []error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+
+	embeddings, err := embedder.EmbedBatch(ctx, texts)
+	if err == nil && len(embeddings) == len(texts) {
+		return embeddings, make([]error, len(texts))
+	}
+
 	embeddings, errs := embedBatchConcurrent(ctx, texts, embedder.Embed)
 	for i, err := range errs {
 		if err != nil {
