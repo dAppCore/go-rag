@@ -263,7 +263,6 @@ func FormatResultsJSON(results []QueryResult) string {
 		Source   string  `json:"source"`
 		Section  string  `json:"section"`
 		Category string  `json:"category"`
-		Index    int     `json:"index"`
 		Score    float64 `json:"score"`
 		Text     string  `json:"text"`
 	}, len(results))
@@ -273,14 +272,12 @@ func FormatResultsJSON(results []QueryResult) string {
 			Source   string  `json:"source"`
 			Section  string  `json:"section"`
 			Category string  `json:"category"`
-			Index    int     `json:"index"`
 			Score    float64 `json:"score"`
 			Text     string  `json:"text"`
 		}{
 			Source:   r.Source,
 			Section:  r.Section,
 			Category: r.Category,
-			Index:    r.GetChunkIndex(),
 			Score:    math.Round(float64(r.Score)*10000) / 10000,
 			Text:     r.Text,
 		}
