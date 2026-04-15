@@ -52,6 +52,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
 		cfg.Overlap = 0
 	}
+	text = normalizeLineEndings(text)
 
 	return func(yield func(Chunk) bool) {
 		chunkIndex := 0
@@ -209,6 +210,7 @@ func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
 		cfg.Overlap = 0
 	}
+	text = normalizeLineEndings(text)
 
 	return func(yield func(Chunk) bool) {
 		trimmed := core.Trim(text)
@@ -279,6 +281,7 @@ func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
 		cfg.Overlap = 0
 	}
+	text = normalizeLineEndings(text)
 
 	return func(yield func(Chunk) bool) {
 		trimmed := core.Trim(text)
@@ -369,22 +372,23 @@ func splitBySentences(text string) []string {
 // boundaries (". ", "? ", "! ").
 func splitBySentencesSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
+		text = normalizeLineEndings(text)
 		remaining := text
 
 		for len(remaining) > 0 {
-			// Find the earliest sentence boundary
-			bestIdx := -1
-			var bestSep string
-			for _, sep := range []string{". ", "? ", "! ", "\n"} {
-				idx := indexOf(remaining, sep)
-				if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
-					bestIdx = idx
-					bestSep = sep
+			boundary := -1
+			for i, r := range remaining {
+				switch r {
+				case '.', '!', '?', '\n':
+					boundary = i + len(string(r))
+					break
+				}
+				if boundary >= 0 {
+					break
 				}
 			}
 
-			if bestIdx < 0 {
-				// No more boundaries — yield remainder if not empty
+			if boundary < 0 {
 				if s := core.Trim(remaining); s != "" {
 					if !yield(s) {
 						return
@@ -393,19 +397,13 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 				break
 			}
 
-			// Include the punctuation mark in the sentence, but not the trailing
-			// whitespace. Newline boundaries end the sentence at the newline.
-			sentenceEnd := bestIdx + len(bestSep)
-			if bestSep != "\n" {
-				sentenceEnd--
-			}
-			sentence := remaining[:sentenceEnd]
-			if s := core.Trim(sentence); s != "" {
-				if !yield(s) {
+			sentence := core.Trim(remaining[:boundary])
+			if sentence != "" {
+				if !yield(sentence) {
 					return
 				}
 			}
-			remaining = remaining[bestIdx+len(bestSep):]
+			remaining = strings.TrimLeftFunc(remaining[boundary:], unicode.IsSpace)
 		}
 	}
 }
@@ -449,6 +447,7 @@ func splitByParagraphs(text string) []string {
 // splitByParagraphsSeq returns an iterator that yields paragraphs split by double newlines.
 func splitByParagraphsSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
+		text = normalizeLineEndings(text)
 		// Replace multiple newlines with a marker, then split
 		normalized := text
 		for core.Contains(normalized, "\n\n\n") {
@@ -510,6 +509,10 @@ func FileExtensions() []string {
 func ShouldProcess(path string) bool {
 	ext := core.Lower(core.PathExt(path))
 	return slices.Contains(FileExtensions(), ext)
+}
+
+func normalizeLineEndings(text string) string {
+	return strings.ReplaceAll(text, "\r\n", "\n")
 }
 
 func trimHeadingPrefix(line string) string {
