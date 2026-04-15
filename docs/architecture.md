@@ -138,7 +138,9 @@ Each `Chunk` carries:
 
 ### Accepted File Types
 
-`ShouldProcess(path string) bool` accepts `.md`, `.markdown`, `.pdf`, and `.txt` extensions.
+`FileExtensions() []string` returns the ingestible extension set: `.md`, `.markdown`, `.pdf`, and `.txt`.
+
+`ShouldProcess(path string) bool` checks a path against that list using its lowercased extension.
 
 ## Ingestion Pipeline
 
