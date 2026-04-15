@@ -215,6 +215,7 @@ func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*Col
 		Vectors:    pointCount,
 		PointCount: pointCount,
 		VectorSize: vectorSize,
+		Index:      "hnsw",
 		Status:     "green",
 	}, nil
 }

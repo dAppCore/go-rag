@@ -171,6 +171,7 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 		Vectors:    pointCount,
 		PointCount: pointCount,
 		VectorSize: 0,
+		Index:      "unknown",
 		Status:     "unknown",
 	}
 
@@ -181,7 +182,11 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 				if vecParams := vectorsCfg.GetParams(); vecParams != nil {
 					ci.VectorSize = vecParams.GetSize()
 				}
+				ci.Index = "hnsw"
 			}
+		}
+		if ci.Index == "unknown" && cfg.GetHnswConfig() != nil {
+			ci.Index = "hnsw"
 		}
 	}
 

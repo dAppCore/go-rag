@@ -140,6 +140,7 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 		assert.Equal(t, uint64(3), info.Vectors)
 		assert.Equal(t, uint64(3), info.PointCount)
 		assert.Equal(t, uint64(768), info.VectorSize)
+		assert.Equal(t, "hnsw", info.Index)
 		assert.Equal(t, "green", info.Status)
 	})
 
@@ -174,5 +175,6 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 		assert.Equal(t, uint64(0), info.Vectors)
 		assert.Equal(t, uint64(0), info.PointCount)
 		assert.Equal(t, uint64(384), info.VectorSize)
+		assert.Equal(t, "hnsw", info.Index)
 	})
 }
