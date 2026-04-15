@@ -30,7 +30,9 @@ func DefaultQdrantConfig() QdrantConfig {
 }
 
 // NewQdrantStore creates a Qdrant client from a base endpoint URL string.
-// endpoint := "http://localhost:6333"
+// The convenience form accepts the common Qdrant REST endpoint example
+// (http://localhost:6333) and normalizes it to the gRPC port used by the
+// Go client.
 func NewQdrantStore(endpoint string) (*QdrantClient, error) {
 	host, port, err := parseHostPort(endpoint, 6334)
 	if err != nil {
@@ -38,8 +40,15 @@ func NewQdrantStore(endpoint string) (*QdrantClient, error) {
 	}
 	return NewQdrantClient(QdrantConfig{
 		Host: host,
-		Port: port,
+		Port: normalizeQdrantGRPCPort(port),
 	})
+}
+
+func normalizeQdrantGRPCPort(port int) int {
+	if port == 6333 {
+		return 6334
+	}
+	return port
 }
 
 // QdrantClient wraps the Qdrant Go client with convenience methods.

@@ -20,6 +20,19 @@ func TestQdrant_DefaultQdrantConfig_Good(t *testing.T) {
 	})
 }
 
+// --- normalizeQdrantGRPCPort tests ---
+
+func TestQdrant_NormalizeQdrantGRPCPort_Good(t *testing.T) {
+	t.Run("maps REST port 6333 to gRPC port 6334", func(t *testing.T) {
+		assert.Equal(t, 6334, normalizeQdrantGRPCPort(6333))
+	})
+
+	t.Run("leaves other ports unchanged", func(t *testing.T) {
+		assert.Equal(t, 6334, normalizeQdrantGRPCPort(6334))
+		assert.Equal(t, 7000, normalizeQdrantGRPCPort(7000))
+	})
+}
+
 // --- pointIDToString tests ---
 
 func TestQdrant_PointIDToString_Good(t *testing.T) {
