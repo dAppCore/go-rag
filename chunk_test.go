@@ -107,7 +107,7 @@ func TestChunk_ShouldProcess_Good_MarkdownFiles(t *testing.T) {
 	assert.True(t, ShouldProcess("doc.md"))
 	assert.True(t, ShouldProcess("doc.markdown"))
 	assert.True(t, ShouldProcess("doc.txt"))
-	assert.False(t, ShouldProcess("doc.pdf"))
+	assert.True(t, ShouldProcess("doc.pdf"))
 	assert.False(t, ShouldProcess("doc.go"))
 	assert.False(t, ShouldProcess("doc.py"))
 	assert.False(t, ShouldProcess("doc"))

@@ -165,30 +165,12 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 			}
 
 			qr := QueryResult{
-				Score: r.Score,
-			}
-
-			// Extract payload fields
-			if text, ok := r.Payload["text"].(string); ok {
-				qr.Text = text
-			}
-			if source, ok := r.Payload["source"].(string); ok {
-				qr.Source = source
-			}
-			if section, ok := r.Payload["section"].(string); ok {
-				qr.Section = section
-			}
-			if category, ok := r.Payload["category"].(string); ok {
-				qr.Category = category
-			}
-			// Handle chunk_index from various types (JSON unmarshaling produces float64)
-			switch idx := r.Payload["chunk_index"].(type) {
-			case int64:
-				qr.ChunkIndex = int(idx)
-			case float64:
-				qr.ChunkIndex = int(idx)
-			case int:
-				qr.ChunkIndex = idx
+				Text:       r.GetText(),
+				Source:     r.GetSource(),
+				Section:    r.GetSection(),
+				Category:   r.GetCategory(),
+				ChunkIndex: r.GetChunkIndex(),
+				Score:      r.Score,
 			}
 
 			queryResults = append(queryResults, qr)
@@ -201,6 +183,8 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 				queryResults = KeywordFilter(queryResults, keywords)
 			}
 		}
+
+		queryResults = Rank(queryResults, int(cfg.Limit))
 
 		for _, qr := range queryResults {
 			if !yield(qr) {

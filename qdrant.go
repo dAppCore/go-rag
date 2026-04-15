@@ -197,15 +197,23 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 }
 
 // SearchResult represents a search result with score.
-// result := SearchResult{ID: "chunk-1", Score: 0.92, Payload: map[string]any{"source": "docs/go.md"}}
+// result := SearchResult{ID: "chunk-1", Score: 0.92, Text: "...", Source: "docs/go.md"}
 type SearchResult struct {
-	ID      string
-	Score   float32
-	Payload map[string]any
+	ID         string
+	Score      float32
+	Text       string
+	Source     string
+	Section    string
+	Category   string
+	ChunkIndex int
+	Payload    map[string]any
 }
 
 // GetText returns the text field from Payload (satisfies textResult / rankedResult).
 func (r SearchResult) GetText() string {
+	if r.Text != "" {
+		return r.Text
+	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -220,6 +228,9 @@ func (r SearchResult) GetScore() float32 { return r.Score }
 
 // GetSource returns the source field from Payload, if present.
 func (r SearchResult) GetSource() string {
+	if r.Source != "" {
+		return r.Source
+	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -231,6 +242,9 @@ func (r SearchResult) GetSource() string {
 
 // GetChunkIndex returns the chunk_index field from Payload, if present.
 func (r SearchResult) GetChunkIndex() int {
+	if r.ChunkIndex != 0 {
+		return r.ChunkIndex
+	}
 	if r.Payload == nil {
 		return 0
 	}
@@ -243,6 +257,34 @@ func (r SearchResult) GetChunkIndex() int {
 		return int(v)
 	}
 	return 0
+}
+
+// GetSection returns the section field from Payload, if present.
+func (r SearchResult) GetSection() string {
+	if r.Section != "" {
+		return r.Section
+	}
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["section"].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetCategory returns the category field from Payload, if present.
+func (r SearchResult) GetCategory() string {
+	if r.Category != "" {
+		return r.Category
+	}
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["category"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // Search performs a vector similarity search.
@@ -284,11 +326,32 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		for k, v := range p.Payload {
 			payload[k] = valueToGo(v)
 		}
-		results[i] = SearchResult{
+		result := SearchResult{
 			ID:      pointIDToString(p.Id),
 			Score:   p.Score,
 			Payload: payload,
 		}
+		if text, ok := payload["text"].(string); ok {
+			result.Text = text
+		}
+		if source, ok := payload["source"].(string); ok {
+			result.Source = source
+		}
+		if section, ok := payload["section"].(string); ok {
+			result.Section = section
+		}
+		if category, ok := payload["category"].(string); ok {
+			result.Category = category
+		}
+		switch idx := payload["chunk_index"].(type) {
+		case int:
+			result.ChunkIndex = idx
+		case int64:
+			result.ChunkIndex = int(idx)
+		case float64:
+			result.ChunkIndex = int(idx)
+		}
+		results[i] = result
 	}
 	return results, nil
 }

@@ -153,11 +153,33 @@ func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 		return [][]float32{}, nil
 	}
 
-	results := make([][]float32, len(texts))
-	for i, text := range texts {
-		vec, err := o.Embed(ctx, text)
-		if err != nil {
-			return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("failed to embed item %d", i), err)
+	req := &api.EmbedRequest{
+		Model: o.config.Model,
+		Input: texts,
+	}
+
+	resp, err := o.client.Embed(ctx, req)
+	if err != nil {
+		return nil, core.E("rag.Ollama.EmbedBatch", "failed to generate embeddings", err)
+	}
+
+	if len(resp.Embeddings) != len(texts) {
+		return nil, core.E(
+			"rag.Ollama.EmbedBatch",
+			core.Sprintf("unexpected embedding count: got %d, want %d", len(resp.Embeddings), len(texts)),
+			nil,
+		)
+	}
+
+	results := make([][]float32, len(resp.Embeddings))
+	for i, embedding := range resp.Embeddings {
+		if len(embedding) == 0 {
+			return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("empty embedding response at index %d", i), nil)
+		}
+
+		vec := make([]float32, len(embedding))
+		for j, v := range embedding {
+			vec[j] = v
 		}
 		results[i] = vec
 	}

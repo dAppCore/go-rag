@@ -244,10 +244,12 @@ func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 		}
 
 		if core.Trim(currentChunk) != "" {
-			yield(Chunk{
+			if !yield(Chunk{
 				Text:  core.Trim(currentChunk),
 				Index: chunkIndex,
-			})
+			}) {
+				return
+			}
 		}
 	}
 }
@@ -315,10 +317,12 @@ func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 		}
 
 		if core.Trim(currentChunk) != "" {
-			yield(Chunk{
+			if !yield(Chunk{
 				Text:  core.Trim(currentChunk),
 				Index: chunkIndex,
-			})
+			}) {
+				return
+			}
 		}
 	}
 }
@@ -489,7 +493,7 @@ func ChunkID(path string, index int, text string) string {
 // FileExtensions returns the file extensions to process.
 // exts := FileExtensions()
 func FileExtensions() []string {
-	return []string{".md", ".markdown", ".txt"}
+	return []string{".md", ".markdown", ".txt", ".pdf"}
 }
 
 // ShouldProcess checks if a file should be processed based on extension.

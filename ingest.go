@@ -120,30 +120,33 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 		category := Category(relPath)
 		chunks := ChunkMarkdown(content, cfg.Chunk)
 
-		for _, chunk := range chunks {
-			// Generate embedding
-			embedding, err := embedder.Embed(ctx, chunk.Text)
+		for batch := range slices.Chunk(chunks, cfg.BatchSize) {
+			texts := make([]string, len(batch))
+			for i, chunk := range batch {
+				texts[i] = chunk.Text
+			}
+
+			embeddings, err := embedChunkBatch(ctx, embedder, texts)
 			if err != nil {
-				stats.Errors++
-				if cfg.Verbose {
-					core.Print(nil, "  Error embedding %s chunk %d: %v", relPath, chunk.Index, err)
+				for _, chunk := range batch {
+					embedding, embedErr := embedder.Embed(ctx, chunk.Text)
+					if embedErr != nil {
+						stats.Errors++
+						if cfg.Verbose {
+							core.Print(nil, "  Error embedding %s chunk %d: %v", relPath, chunk.Index, embedErr)
+						}
+						continue
+					}
+					points = append(points, buildPoint(relPath, category, chunk, embedding))
+					stats.Chunks++
 				}
 				continue
 			}
 
-			// Create point
-			points = append(points, Point{
-				ID:     ChunkID(relPath, chunk.Index, chunk.Text),
-				Vector: embedding,
-				Payload: map[string]any{
-					"text":        chunk.Text,
-					"source":      relPath,
-					"section":     chunk.Section,
-					"category":    category,
-					"chunk_index": chunk.Index,
-				},
-			})
-			stats.Chunks++
+			for i, chunk := range batch {
+				points = append(points, buildPoint(relPath, category, chunk, embeddings[i]))
+				stats.Chunks++
+			}
 		}
 
 		stats.Files++
@@ -182,23 +185,20 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 	chunks := ChunkMarkdown(content, chunkCfg)
 
 	var points []Point
-	for _, chunk := range chunks {
-		embedding, err := embedder.Embed(ctx, chunk.Text)
-		if err != nil {
-			return 0, core.E("rag.IngestFile", core.Sprintf("error embedding chunk %d", chunk.Index), err)
+	for batch := range slices.Chunk(chunks, 100) {
+		texts := make([]string, len(batch))
+		for i, chunk := range batch {
+			texts[i] = chunk.Text
 		}
 
-		points = append(points, Point{
-			ID:     ChunkID(filePath, chunk.Index, chunk.Text),
-			Vector: embedding,
-			Payload: map[string]any{
-				"text":        chunk.Text,
-				"source":      filePath,
-				"section":     chunk.Section,
-				"category":    category,
-				"chunk_index": chunk.Index,
-			},
-		})
+		embeddings, err := embedChunkBatch(ctx, embedder, texts)
+		if err != nil {
+			return 0, core.E("rag.IngestFile", "error embedding chunks", err)
+		}
+
+		for i, chunk := range batch {
+			points = append(points, buildPoint(filePath, category, chunk, embeddings[i]))
+		}
 	}
 
 	if err := store.UpsertPoints(ctx, collection, points); err != nil {
@@ -206,6 +206,46 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 	}
 
 	return len(points), nil
+}
+
+func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+
+	embeddings, err := embedder.EmbedBatch(ctx, texts)
+	if err == nil && len(embeddings) == len(texts) {
+		return embeddings, nil
+	}
+	if err == nil {
+		err = core.E("rag.embedChunkBatch", core.Sprintf("unexpected embedding count: got %d, want %d", len(embeddings), len(texts)), nil)
+	}
+
+	// Fall back to sequential embedding so a batch-level failure does not
+	// drop the entire file on the floor.
+	embeddings = make([][]float32, len(texts))
+	for i, text := range texts {
+		vec, embedErr := embedder.Embed(ctx, text)
+		if embedErr != nil {
+			return nil, core.E("rag.embedChunkBatch", core.Sprintf("error embedding chunk %d", i), embedErr)
+		}
+		embeddings[i] = vec
+	}
+	return embeddings, nil
+}
+
+func buildPoint(source, category string, chunk Chunk, embedding []float32) Point {
+	return Point{
+		ID:     ChunkID(source, chunk.Index, chunk.Text),
+		Vector: embedding,
+		Payload: map[string]any{
+			"text":        chunk.Text,
+			"source":      source,
+			"section":     chunk.Section,
+			"category":    category,
+			"chunk_index": chunk.Index,
+		},
+	}
 }
 
 func collectMarkdownFiles(localFS *core.Fs, currentPath string, currentRel string, files *[]string) error {
