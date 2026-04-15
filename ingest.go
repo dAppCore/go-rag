@@ -127,24 +127,15 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 				texts[i] = chunk.Text
 			}
 
-			embeddings, err := embedChunkBatch(ctx, embedder, texts)
-			if err != nil {
-				for _, chunk := range batch {
-					embedding, embedErr := embedder.Embed(ctx, chunk.Text)
-					if embedErr != nil {
-						stats.Errors++
-						if cfg.Verbose {
-							core.Print(nil, "  Error embedding %s chunk %d: %v", relPath, chunk.Index, embedErr)
-						}
-						continue
-					}
-					points = append(points, buildPoint(relPath, category, chunk, embedding))
-					stats.Chunks++
-				}
-				continue
-			}
-
+			embeddings, errs := embedChunkBatch(ctx, embedder, texts)
 			for i, chunk := range batch {
+				if errs[i] != nil {
+					stats.Errors++
+					if cfg.Verbose {
+						core.Print(nil, "  Error embedding %s chunk %d: %v", relPath, chunk.Index, errs[i])
+					}
+					continue
+				}
 				points = append(points, buildPoint(relPath, category, chunk, embeddings[i]))
 				stats.Chunks++
 			}
@@ -192,9 +183,11 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 			texts[i] = chunk.Text
 		}
 
-		embeddings, err := embedChunkBatch(ctx, embedder, texts)
-		if err != nil {
-			return 0, core.E("rag.IngestFile", "error embedding chunks", err)
+		embeddings, errs := embedChunkBatch(ctx, embedder, texts)
+		for i, err := range errs {
+			if err != nil {
+				return 0, core.E("rag.IngestFile", core.Sprintf("error embedding chunk %d", i), err)
+			}
 		}
 
 		for i, chunk := range batch {
@@ -209,30 +202,24 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 	return len(points), nil
 }
 
-func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([][]float32, error) {
+// embedChunkBatch embeds each text sequentially and returns the per-item
+// errors alongside the collected vectors.
+func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([][]float32, []error) {
 	if len(texts) == 0 {
 		return [][]float32{}, nil
 	}
 
-	embeddings, err := embedder.EmbedBatch(ctx, texts)
-	if err == nil && len(embeddings) == len(texts) {
-		return embeddings, nil
-	}
-	if err == nil {
-		err = core.E("rag.embedChunkBatch", core.Sprintf("unexpected embedding count: got %d, want %d", len(embeddings), len(texts)), nil)
-	}
-
-	// Fall back to sequential embedding so a batch-level failure does not
-	// drop the entire file on the floor.
-	embeddings = make([][]float32, len(texts))
+	embeddings := make([][]float32, len(texts))
+	errs := make([]error, len(texts))
 	for i, text := range texts {
 		vec, embedErr := embedder.Embed(ctx, text)
 		if embedErr != nil {
-			return nil, core.E("rag.embedChunkBatch", core.Sprintf("error embedding chunk %d", i), embedErr)
+			errs[i] = core.E("rag.embedChunkBatch", core.Sprintf("error embedding chunk %d", i), embedErr)
+			continue
 		}
 		embeddings[i] = vec
 	}
-	return embeddings, nil
+	return embeddings, errs
 }
 
 func buildPoint(source, category string, chunk Chunk, embedding []float32) Point {

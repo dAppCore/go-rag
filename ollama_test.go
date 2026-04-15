@@ -135,13 +135,18 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 		require.NoError(t, err)
 
 		var req struct {
-			Input []string `json:"input"`
+			Input string `json:"input"`
 		}
 		require.NoError(t, json.Unmarshal(body, &req))
-		capturedInput = append(capturedInput, req.Input...)
+		capturedInput = append(capturedInput, req.Input)
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"model":"nomic-embed-text","embeddings":[[0.1,0.2],[0.3,0.4]]}`))
+		switch requestCount {
+		case 1:
+			_, _ = w.Write([]byte(`{"embeddings":[[0.1,0.2]]}`))
+		default:
+			_, _ = w.Write([]byte(`{"embeddings":[[0.3,0.4]]}`))
+		}
 	}))
 	defer server.Close()
 
@@ -158,6 +163,34 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 	require.Len(t, vectors, 2)
 	assert.Equal(t, []float32{0.1, 0.2}, vectors[0])
 	assert.Equal(t, []float32{0.3, 0.4}, vectors[1])
-	assert.Equal(t, 1, requestCount, "batch embedding should use a single Ollama request")
+	assert.Equal(t, 2, requestCount, "batch embedding should call Ollama once per input")
 	assert.Equal(t, []string{"first", "second"}, capturedInput)
+}
+
+func TestOllama_EmbedBatch_Bad(t *testing.T) {
+	var requestCount int
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		if requestCount == 1 {
+			_, _ = w.Write([]byte(`{"embeddings":[[0.1,0.2]]}`))
+			return
+		}
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	baseURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	client := &OllamaClient{
+		client: api.NewClient(baseURL, server.Client()),
+		config: OllamaConfig{Model: "nomic-embed-text"},
+	}
+
+	_, err = client.EmbedBatch(context.Background(), []string{"first", "second"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "input 1")
+	assert.Equal(t, 2, requestCount)
 }
