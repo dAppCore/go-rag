@@ -12,6 +12,9 @@ import (
 func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) ([]QueryResult, error) {
 	cfg := DefaultQueryConfig()
 	cfg.Collection = collectionName
+	if topK < 0 {
+		topK = 0
+	}
 	cfg.Limit = uint64(topK)
 
 	return Query(ctx, store, embedder, question, cfg)
