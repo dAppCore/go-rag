@@ -1,8 +1,15 @@
 package rag
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
+	"github.com/ollama/ollama/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,4 +120,51 @@ func TestOllama_Model_Good(t *testing.T) {
 
 		assert.Equal(t, "custom-model", client.Model())
 	})
+}
+
+// --- EmbedBatch tests ---
+
+func TestOllama_EmbedBatch_Good(t *testing.T) {
+	var requestCount int
+	var capturedInput []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		var req struct {
+			Input any `json:"input"`
+		}
+		require.NoError(t, json.Unmarshal(body, &req))
+
+		rawInputs, ok := req.Input.([]any)
+		require.True(t, ok, "input should be a JSON array")
+		capturedInput = make([]string, len(rawInputs))
+		for i, item := range rawInputs {
+			capturedInput[i], ok = item.(string)
+			require.True(t, ok, "batch inputs should be strings")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"model":"nomic-embed-text","embeddings":[[0.1,0.2],[0.3,0.4]]}`))
+	}))
+	defer server.Close()
+
+	baseURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	client := &OllamaClient{
+		client: api.NewClient(baseURL, server.Client()),
+		config: OllamaConfig{Model: "nomic-embed-text"},
+	}
+
+	vectors, err := client.EmbedBatch(context.Background(), []string{"first", "second"})
+	require.NoError(t, err)
+	require.Len(t, vectors, 2)
+	assert.Equal(t, []float32{0.1, 0.2}, vectors[0])
+	assert.Equal(t, []float32{0.3, 0.4}, vectors[1])
+	assert.Equal(t, 1, requestCount, "batch embedding should use one Ollama request")
+	assert.Equal(t, []string{"first", "second"}, capturedInput)
 }

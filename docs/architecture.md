@@ -251,7 +251,7 @@ Rate limiting is configured per-route using the throttle middleware...
 
 - **Connection**: HTTP on port 11434, 30-second timeout.
 - **Embedding**: Calls `/api/embed`. The Ollama API returns `float64` values; these are converted to `float32` for Qdrant compatibility.
-- **Batch embedding**: `EmbedBatch` is sequential -- it calls `Embed` in a loop. Ollama has no native batch endpoint.
+- **Batch embedding**: `EmbedBatch` sends a single batch request to Ollama and preserves input order in the response.
 - **Model verification**: `VerifyModel` sends a test embedding request to confirm the model is loaded.
 
 Supported models and their dimensions:
