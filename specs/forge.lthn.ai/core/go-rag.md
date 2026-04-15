@@ -104,7 +104,7 @@ Classifies a lowercased path using fixed substring rules: `ui-component` for `fl
 Builds a deterministic MD5 hex digest from `path`, `index`, and the first 100 runes of `text`. The rune truncation keeps the prefix UTF-8 safe before hashing.
 
 ### `func FileExtensions() []string`
-Returns the list of file extensions considered ingestible: `.md`, `.markdown`, and `.txt`.
+Returns the list of file extensions considered ingestible: `.md`, `.markdown`, `.pdf`, and `.txt`.
 
 ### `func ShouldProcess(path string) bool`
 Returns `true` when the lowercased extension of `path` is present in `FileExtensions()`.

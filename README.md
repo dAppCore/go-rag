@@ -4,7 +4,7 @@
 
 # go-rag
 
-Retrieval-Augmented Generation library for Go. Provides document chunking with three-level Markdown splitting and configurable overlap, embedding generation via Ollama, vector storage and cosine-similarity search via Qdrant (gRPC), keyword boosting post-filter, and result formatting in plain text, XML (for LLM prompt injection), or JSON. Designed around `Embedder` and `VectorStore` interfaces that decouple business logic from service implementations and enable mock-based testing.
+Retrieval-Augmented Generation library for Go. Provides document chunking with three-level Markdown splitting and configurable overlap, embedding generation via Ollama, vector storage and cosine-similarity search via Qdrant (gRPC), keyword boosting post-filter, and result formatting in plain text, XML (for LLM prompt injection), or JSON. Ingestion accepts Markdown, text, and PDF documents. Designed around `Embedder` and `VectorStore` interfaces that decouple business logic from service implementations and enable mock-based testing.
 
 **Module**: `forge.lthn.ai/core/go-rag`
 **Licence**: EUPL-1.2
