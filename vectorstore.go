@@ -28,7 +28,8 @@ type VectorStore interface {
 
 	// Search performs a vector similarity search, returning up to limit results.
 	// The optional filter map restricts results by payload field values.
-	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error)
+	// Callers may omit the filter entirely for the RFC-style 4-argument form.
+	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error)
 }
 
 // Vector represents an RFC-compatible vector payload for storage.

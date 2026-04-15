@@ -1,10 +1,12 @@
 package rag
 
 import (
+	"context"
 	"testing"
 
 	"github.com/qdrant/go-client/qdrant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- DefaultQdrantConfig tests ---
@@ -271,6 +273,44 @@ func TestQdrant_Point_Good(t *testing.T) {
 		assert.Equal(t, "empty", p.ID)
 		assert.Empty(t, p.Vector)
 		assert.Empty(t, p.Payload)
+	})
+}
+
+func TestQdrant_Search_OptionalFilter_Good(t *testing.T) {
+	store := newMockVectorStore()
+	store.collections["docs"] = 768
+	store.points["docs"] = []Point{
+		{
+			ID:     "p1",
+			Vector: []float32{0.1},
+			Payload: map[string]any{
+				"text":        "alpha",
+				"source":      "a.md",
+				"chunk_index": 0,
+			},
+		},
+		{
+			ID:     "p2",
+			Vector: []float32{0.2},
+			Payload: map[string]any{
+				"text":        "beta",
+				"source":      "b.md",
+				"chunk_index": 1,
+			},
+		},
+	}
+
+	t.Run("allows RFC-style call without filter", func(t *testing.T) {
+		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+	})
+
+	t.Run("still accepts an optional filter map", func(t *testing.T) {
+		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5, map[string]string{"source": "a.md"})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "a.md", results[0].Source)
 	})
 }
 
