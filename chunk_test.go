@@ -107,7 +107,7 @@ func TestChunk_ShouldProcess_Good_MarkdownFiles(t *testing.T) {
 	assert.True(t, ShouldProcess("doc.md"))
 	assert.True(t, ShouldProcess("doc.markdown"))
 	assert.True(t, ShouldProcess("doc.txt"))
-	assert.True(t, ShouldProcess("doc.pdf"))
+	assert.False(t, ShouldProcess("doc.pdf"))
 	assert.False(t, ShouldProcess("doc.go"))
 	assert.False(t, ShouldProcess("doc.py"))
 	assert.False(t, ShouldProcess("doc"))
@@ -313,6 +313,10 @@ func TestChunk_DefaultChunkConfig_Good(t *testing.T) {
 		assert.Equal(t, 500, cfg.Size, "default chunk size should be 500")
 		assert.Equal(t, 50, cfg.Overlap, "default chunk overlap should be 50")
 	})
+}
+
+func TestChunk_FileExtensions_Good(t *testing.T) {
+	assert.Equal(t, []string{".md", ".markdown", ".txt"}, FileExtensions())
 }
 
 func TestChunk_DefaultIngestConfig_Good(t *testing.T) {
