@@ -4,6 +4,7 @@ package rag
 
 import (
 	"context"
+	"strconv"
 
 	"dappco.re/go/core"
 	"github.com/qdrant/go-client/qdrant"
@@ -34,14 +35,12 @@ func DefaultQdrantConfig() QdrantConfig {
 // (http://localhost:6333) and normalizes it to the gRPC port used by the
 // Go client.
 func NewQdrantStore(endpoint string) (*QdrantClient, error) {
-	host, port, err := parseHostPort(endpoint, 6334)
+	cfg, err := qdrantConfigFromEndpoint(endpoint)
 	if err != nil {
 		return nil, core.E("rag.NewQdrantStore", "invalid Qdrant endpoint", err)
 	}
-	return NewQdrantClient(QdrantConfig{
-		Host: host,
-		Port: normalizeQdrantGRPCPort(port),
-	})
+	cfg.Port = normalizeQdrantGRPCPort(cfg.Port)
+	return NewQdrantClient(cfg)
 }
 
 func normalizeQdrantGRPCPort(port int) int {
@@ -49,6 +48,35 @@ func normalizeQdrantGRPCPort(port int) int {
 		return 6334
 	}
 	return port
+}
+
+func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
+	cfg := DefaultQdrantConfig()
+	parsed, err := parseEndpointURL(endpoint)
+	if err != nil {
+		return QdrantConfig{}, err
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		host = cfg.Host
+	}
+	cfg.Host = host
+
+	if portText := parsed.Port(); portText != "" {
+		if port, err := strconv.Atoi(portText); err == nil {
+			cfg.Port = port
+		}
+	}
+
+	switch parsed.Scheme {
+	case "https":
+		cfg.UseTLS = true
+	case "http":
+		cfg.UseTLS = false
+	}
+
+	return cfg, nil
 }
 
 // QdrantClient wraps the Qdrant Go client with convenience methods.

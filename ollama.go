@@ -15,9 +15,10 @@ import (
 // OllamaConfig holds Ollama connection configuration.
 // cfg := OllamaConfig{Host: "localhost", Port: 11434, Model: "nomic-embed-text"}
 type OllamaConfig struct {
-	Host  string
-	Port  int
-	Model string
+	Scheme string
+	Host   string
+	Port   int
+	Model  string
 }
 
 // DefaultOllamaConfig returns default Ollama configuration.
@@ -25,24 +26,24 @@ type OllamaConfig struct {
 // cfg := DefaultOllamaConfig()
 func DefaultOllamaConfig() OllamaConfig {
 	return OllamaConfig{
-		Host:  "localhost",
-		Port:  11434,
-		Model: "nomic-embed-text",
+		Scheme: "http",
+		Host:   "localhost",
+		Port:   11434,
+		Model:  "nomic-embed-text",
 	}
 }
 
 // NewOllamaEmbedder creates an Ollama client from a base endpoint URL string.
 // endpoint := "http://localhost:11434"
 func NewOllamaEmbedder(endpoint string, model string) (*OllamaClient, error) {
-	host, port, err := parseHostPort(endpoint, 11434)
+	cfg, err := ollamaConfigFromEndpoint(endpoint)
 	if err != nil {
 		return nil, core.E("rag.NewOllamaEmbedder", "invalid Ollama endpoint", err)
 	}
-	return NewOllamaClient(OllamaConfig{
-		Host:  host,
-		Port:  port,
-		Model: model,
-	})
+	if model != "" {
+		cfg.Model = model
+	}
+	return NewOllamaClient(cfg)
 }
 
 // OllamaClient wraps the Ollama API client for embeddings.
@@ -55,8 +56,12 @@ type OllamaClient struct {
 // NewOllamaClient creates a new Ollama client.
 // client, err := NewOllamaClient(DefaultOllamaConfig())
 func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
+	scheme := cfg.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
 	baseURL := &url.URL{
-		Scheme: "http",
+		Scheme: scheme,
 		Host:   core.Sprintf("%s:%d", cfg.Host, cfg.Port),
 	}
 
@@ -99,6 +104,32 @@ func parseHostPort(endpoint string, defaultPort int) (string, int, error) {
 	}
 
 	return host, port, nil
+}
+
+func ollamaConfigFromEndpoint(endpoint string) (OllamaConfig, error) {
+	cfg := DefaultOllamaConfig()
+	parsed, err := parseEndpointURL(endpoint)
+	if err != nil {
+		return OllamaConfig{}, err
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		host = cfg.Host
+	}
+	cfg.Host = host
+
+	if portText := parsed.Port(); portText != "" {
+		if port, err := strconv.Atoi(portText); err == nil {
+			cfg.Port = port
+		}
+	}
+
+	if parsed.Scheme != "" {
+		cfg.Scheme = parsed.Scheme
+	}
+
+	return cfg, nil
 }
 
 // EmbedDimension returns the embedding dimension for the configured model.
