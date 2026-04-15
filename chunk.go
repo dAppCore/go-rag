@@ -4,6 +4,8 @@ import (
 	"crypto/md5"
 	"iter"
 	"slices"
+	"strings"
+	"unicode"
 
 	"dappco.re/go/core"
 )
@@ -69,7 +71,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 			}
 
 			// If section is small enough, yield as-is
-			if len(section) <= cfg.Size {
+			if runeLen(section) <= cfg.Size {
 				if !yield(Chunk{
 					Text:    section,
 					Section: title,
@@ -98,7 +100,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 						continue
 					}
 
-					if len(currentChunk)+len(sp)+2 <= cfg.Size {
+					if runeLen(currentChunk)+runeLen(sp)+2 <= cfg.Size {
 						if currentChunk != "" {
 							currentChunk += "\n\n" + sp
 						} else {
@@ -139,7 +141,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 
 func yieldSubParas(para string, size int) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		if len(para) <= size {
+		if runeLen(para) <= size {
 			yield(para)
 			return
 		}
@@ -163,18 +165,16 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 		return newPara
 	}
 
-	// Slice from the end of the previous chunk
-	overlapRunes := runes[len(runes)-overlap:]
-
-	// Align to the nearest word boundary: find the first space within the
-	// overlap slice and start after it to avoid a partial leading word.
-	overlapText := string(overlapRunes)
-	for i, r := range overlapText {
-		if r == ' ' {
-			overlapText = overlapText[i+1:]
-			break
-		}
+	start := len(runes) - overlap
+	if start < 0 {
+		start = 0
 	}
+	for start > 0 && !unicode.IsSpace(runes[start-1]) {
+		start--
+	}
+
+	overlapText := strings.TrimLeftFunc(string(runes[start:]), unicode.IsSpace)
+	overlapText = trimLeadingNonWordRunes(overlapText)
 
 	if overlapText == "" {
 		return newPara
@@ -223,7 +223,7 @@ func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 			if currentChunk == "" {
 				sep = ""
 			}
-			if len(currentChunk)+len(sep)+len(sentence) <= cfg.Size {
+			if runeLen(currentChunk)+runeLen(sep)+runeLen(sentence) <= cfg.Size {
 				currentChunk = currentChunk + sep + sentence
 				continue
 			}
@@ -294,7 +294,7 @@ func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 					continue
 				}
 
-				if len(currentChunk)+len(sp)+2 <= cfg.Size {
+				if runeLen(currentChunk)+runeLen(sp)+2 <= cfg.Size {
 					if currentChunk != "" {
 						currentChunk += "\n\n" + sp
 					} else {
@@ -337,13 +337,15 @@ func overlapPrefixInline(prevChunk string, overlap int, newSentence string) stri
 	if len(runes) <= overlap {
 		return newSentence
 	}
-	overlapText := string(runes[len(runes)-overlap:])
-	for i, r := range overlapText {
-		if r == ' ' {
-			overlapText = overlapText[i+1:]
-			break
-		}
+	start := len(runes) - overlap
+	if start < 0 {
+		start = 0
 	}
+	for start > 0 && !unicode.IsSpace(runes[start-1]) {
+		start--
+	}
+	overlapText := strings.TrimLeftFunc(string(runes[start:]), unicode.IsSpace)
+	overlapText = trimLeadingNonWordRunes(overlapText)
 	if overlapText == "" {
 		return newSentence
 	}
@@ -520,4 +522,17 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func runeLen(text string) int {
+	return len([]rune(text))
+}
+
+func trimLeadingNonWordRunes(text string) string {
+	for i, r := range text {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return text[i:]
+		}
+	}
+	return ""
 }
