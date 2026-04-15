@@ -16,6 +16,7 @@ type KeywordResult struct {
 	Text       string
 	Source     string
 	Section    string
+	Index      int
 	ChunkIndex int
 	Score      float32
 }
@@ -30,7 +31,15 @@ func (r KeywordResult) GetScore() float32 { return r.Score }
 func (r KeywordResult) GetSource() string { return r.Source }
 
 // GetChunkIndex returns the source chunk index.
-func (r KeywordResult) GetChunkIndex() int { return r.ChunkIndex }
+func (r KeywordResult) GetChunkIndex() int {
+	if r.ChunkIndex != 0 {
+		return r.ChunkIndex
+	}
+	if r.Index != 0 {
+		return r.Index
+	}
+	return 0
+}
 
 // KeywordIndex is a lightweight TF-IDF keyword search index over a fixed set
 // of chunks. It is the fallback search path when Qdrant or Ollama are
@@ -148,6 +157,7 @@ func (idx *KeywordIndex) Search(query string, topK int) []KeywordResult {
 		results = append(results, KeywordResult{
 			Text:       chunk.Text,
 			Section:    chunk.Section,
+			Index:      chunk.Index,
 			ChunkIndex: chunk.Index,
 			Score:      score,
 		})

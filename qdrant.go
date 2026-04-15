@@ -205,6 +205,7 @@ type SearchResult struct {
 	Source     string
 	Section    string
 	Category   string
+	Index      int
 	ChunkIndex int
 	Payload    map[string]any
 }
@@ -244,6 +245,9 @@ func (r SearchResult) GetSource() string {
 func (r SearchResult) GetChunkIndex() int {
 	if r.ChunkIndex != 0 {
 		return r.ChunkIndex
+	}
+	if r.Index != 0 {
+		return r.Index
 	}
 	if r.Payload == nil {
 		return 0
@@ -346,10 +350,13 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		switch idx := payload["chunk_index"].(type) {
 		case int:
 			result.ChunkIndex = idx
+			result.Index = idx
 		case int64:
 			result.ChunkIndex = int(idx)
+			result.Index = int(idx)
 		case float64:
 			result.ChunkIndex = int(idx)
+			result.Index = int(idx)
 		}
 		results[i] = result
 	}

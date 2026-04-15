@@ -93,6 +93,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 	if err := collectMarkdownFiles(localFS, scanRoot, "", &files); err != nil {
 		return nil, core.E("rag.Ingest", "error walking directory", err)
 	}
+	slices.Sort(files)
 
 	if len(files) == 0 {
 		return nil, core.E("rag.Ingest", core.Sprintf("no markdown files found in %s", scanRoot), nil)
@@ -255,6 +256,15 @@ func collectMarkdownFiles(localFS *core.Fs, currentPath string, currentRel strin
 	}
 
 	entries := listResult.Value.([]fs.DirEntry)
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
+		switch {
+		case a.Name() < b.Name():
+			return -1
+		case a.Name() > b.Name():
+			return 1
+		}
+		return 0
+	})
 	for _, entry := range entries {
 		childPath := entry.Name()
 		if currentPath != "." && currentPath != "" {
