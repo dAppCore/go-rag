@@ -211,9 +211,6 @@ func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*Col
 
 	return &CollectionInfo{
 		Name:       name,
-		Count:      pointCount,
-		Vectors:    pointCount,
-		Index:      "hnsw",
 		PointCount: pointCount,
 		VectorSize: vectorSize,
 		Status:     "green",
@@ -279,14 +276,9 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 		}
 
 		results = append(results, SearchResult{
-			ID:       p.ID,
-			Score:    1.0 - float32(i)*0.1,
-			Text:     stringValue(p.Payload, "text"),
-			Source:   stringValue(p.Payload, "source"),
-			Section:  stringValue(p.Payload, "section"),
-			Category: stringValue(p.Payload, "category"),
-			Index:    intValue(p.Payload, "chunk_index"),
-			Payload:  p.Payload,
+			ID:      p.ID,
+			Score:   1.0 - float32(i)*0.1,
+			Payload: p.Payload,
 		})
 	}
 
@@ -306,32 +298,6 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 	}
 
 	return results, nil
-}
-
-func stringValue(payload map[string]any, key string) string {
-	if payload == nil {
-		return ""
-	}
-	if v, ok := payload[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func intValue(payload map[string]any, key string) int {
-	if payload == nil {
-		return 0
-	}
-	switch v := payload[key].(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	default:
-		return 0
-	}
 }
 
 // allPoints returns all points stored across all collections.

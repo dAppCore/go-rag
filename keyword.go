@@ -16,7 +16,6 @@ type KeywordResult struct {
 	Text       string
 	Source     string
 	Section    string
-	Index      int
 	ChunkIndex int
 	Score      float32
 }
@@ -32,13 +31,7 @@ func (r KeywordResult) GetSource() string { return r.Source }
 
 // GetChunkIndex returns the source chunk index.
 func (r KeywordResult) GetChunkIndex() int {
-	if r.ChunkIndex != 0 {
-		return r.ChunkIndex
-	}
-	if r.Index != 0 {
-		return r.Index
-	}
-	return 0
+	return r.ChunkIndex
 }
 
 // KeywordIndex is a lightweight TF-IDF keyword search index over a fixed set
@@ -157,7 +150,6 @@ func (idx *KeywordIndex) Search(query string, topK int) []KeywordResult {
 		results = append(results, KeywordResult{
 			Text:       chunk.Text,
 			Section:    chunk.Section,
-			Index:      chunk.Index,
 			ChunkIndex: chunk.Index,
 			Score:      score,
 		})

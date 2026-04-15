@@ -165,18 +165,11 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 	}
 
 	pointCount := info.GetPointsCount()
-	indexedVectorsCount := info.GetIndexedVectorsCount()
 	ci := &CollectionInfo{
-		Count:      pointCount,
-		Vectors:    indexedVectorsCount,
 		Name:       name,
 		PointCount: pointCount,
 		VectorSize: 0,
 		Status:     "unknown",
-		Index:      "unknown",
-	}
-	if ci.Vectors == 0 {
-		ci.Vectors = pointCount
 	}
 
 	// Extract vector size + index type from the Qdrant config
@@ -185,12 +178,8 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 			if vectorsCfg := params.GetVectorsConfig(); vectorsCfg != nil {
 				if vecParams := vectorsCfg.GetParams(); vecParams != nil {
 					ci.VectorSize = vecParams.GetSize()
-					ci.Index = "hnsw"
 				}
 			}
-		}
-		if cfg.GetHnswConfig() != nil {
-			ci.Index = "hnsw"
 		}
 	}
 
@@ -243,21 +232,13 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 // SearchResult represents a low-level vector search hit.
 // result := SearchResult{ID: "chunk-1", Score: 0.92, Payload: map[string]any{"text": "..."}}
 type SearchResult struct {
-	ID       string
-	Score    float32
-	Text     string
-	Source   string
-	Section  string
-	Category string
-	Index    int
-	Payload  map[string]any
+	ID      string
+	Score   float32
+	Payload map[string]any
 }
 
 // GetText returns the text field from Payload (satisfies textResult / rankedResult).
 func (r SearchResult) GetText() string {
-	if r.Text != "" {
-		return r.Text
-	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -272,9 +253,6 @@ func (r SearchResult) GetScore() float32 { return r.Score }
 
 // GetSource returns the source field from Payload, if present.
 func (r SearchResult) GetSource() string {
-	if r.Source != "" {
-		return r.Source
-	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -286,9 +264,6 @@ func (r SearchResult) GetSource() string {
 
 // GetChunkIndex returns the chunk_index field from Payload, if present.
 func (r SearchResult) GetChunkIndex() int {
-	if r.Index != 0 {
-		return r.Index
-	}
 	if r.Payload == nil {
 		return 0
 	}
@@ -305,9 +280,6 @@ func (r SearchResult) GetChunkIndex() int {
 
 // GetSection returns the section field from Payload, if present.
 func (r SearchResult) GetSection() string {
-	if r.Section != "" {
-		return r.Section
-	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -319,9 +291,6 @@ func (r SearchResult) GetSection() string {
 
 // GetCategory returns the category field from Payload, if present.
 func (r SearchResult) GetCategory() string {
-	if r.Category != "" {
-		return r.Category
-	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -364,28 +333,10 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		for k, v := range p.Payload {
 			payload[k] = valueToGo(v)
 		}
-		text, _ := payload["text"].(string)
-		source, _ := payload["source"].(string)
-		section, _ := payload["section"].(string)
-		category, _ := payload["category"].(string)
-		index := 0
-		switch v := payload["chunk_index"].(type) {
-		case int:
-			index = v
-		case int64:
-			index = int(v)
-		case float64:
-			index = int(v)
-		}
 		results[i] = SearchResult{
-			ID:       pointIDToString(p.Id),
-			Score:    p.Score,
-			Text:     text,
-			Source:   source,
-			Section:  section,
-			Category: category,
-			Index:    index,
-			Payload:  payload,
+			ID:      pointIDToString(p.Id),
+			Score:   p.Score,
+			Payload: payload,
 		}
 	}
 	return results, nil

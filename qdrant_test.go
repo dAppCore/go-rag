@@ -310,7 +310,7 @@ func TestQdrant_Search_OptionalFilter_Good(t *testing.T) {
 		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5, map[string]string{"source": "a.md"})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, "a.md", results[0].Source)
+		assert.Equal(t, "a.md", results[0].Payload["source"])
 	})
 }
 
