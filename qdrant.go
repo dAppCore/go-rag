@@ -29,6 +29,19 @@ func DefaultQdrantConfig() QdrantConfig {
 	}
 }
 
+// NewQdrantStore creates a Qdrant client from a base endpoint URL string.
+// endpoint := "http://localhost:6333"
+func NewQdrantStore(endpoint string) (*QdrantClient, error) {
+	host, port, err := parseHostPort(endpoint, 6334)
+	if err != nil {
+		return nil, core.E("rag.NewQdrantStore", "invalid Qdrant endpoint", err)
+	}
+	return NewQdrantClient(QdrantConfig{
+		Host: host,
+		Port: port,
+	})
+}
+
 // QdrantClient wraps the Qdrant Go client with convenience methods.
 // client, _ := NewQdrantClient(DefaultQdrantConfig())
 type QdrantClient struct {

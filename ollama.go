@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"dappco.re/go/core"
@@ -29,6 +31,20 @@ func DefaultOllamaConfig() OllamaConfig {
 	}
 }
 
+// NewOllamaEmbedder creates an Ollama client from a base endpoint URL string.
+// endpoint := "http://localhost:11434"
+func NewOllamaEmbedder(endpoint string, model string) (*OllamaClient, error) {
+	host, port, err := parseHostPort(endpoint, 11434)
+	if err != nil {
+		return nil, core.E("rag.NewOllamaEmbedder", "invalid Ollama endpoint", err)
+	}
+	return NewOllamaClient(OllamaConfig{
+		Host:  host,
+		Port:  port,
+		Model: model,
+	})
+}
+
 // OllamaClient wraps the Ollama API client for embeddings.
 // client, _ := NewOllamaClient(DefaultOllamaConfig())
 type OllamaClient struct {
@@ -52,6 +68,37 @@ func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 		client: client,
 		config: cfg,
 	}, nil
+}
+
+func parseHostPort(endpoint string, defaultPort int) (string, int, error) {
+	if endpoint == "" {
+		return "localhost", defaultPort, nil
+	}
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "http://" + endpoint
+	}
+
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", 0, err
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		host = parsed.Path
+	}
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := defaultPort
+	if parsed.Port() != "" {
+		if parsedPort, err := strconv.Atoi(parsed.Port()); err == nil {
+			port = parsedPort
+		}
+	}
+
+	return host, port, nil
 }
 
 // EmbedDimension returns the embedding dimension for the configured model.
@@ -106,27 +153,12 @@ func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 		return [][]float32{}, nil
 	}
 
-	req := &api.EmbedRequest{
-		Model: o.config.Model,
-		Input: texts,
-	}
-
-	resp, err := o.client.Embed(ctx, req)
-	if err != nil {
-		return nil, core.E("rag.Ollama.EmbedBatch", "failed to generate batch embeddings", err)
-	}
-
-	if len(resp.Embeddings) == 0 {
-		return nil, core.E("rag.Ollama.EmbedBatch", "empty embedding response", nil)
-	}
-	if len(resp.Embeddings) != len(texts) {
-		return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("unexpected embedding count: got %d, want %d", len(resp.Embeddings), len(texts)), nil)
-	}
-
-	results := make([][]float32, len(resp.Embeddings))
-	for i, embedding := range resp.Embeddings {
-		vec := make([]float32, len(embedding))
-		copy(vec, embedding)
+	results := make([][]float32, len(texts))
+	for i, text := range texts {
+		vec, err := o.Embed(ctx, text)
+		if err != nil {
+			return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("failed to embed item %d", i), err)
+		}
 		results[i] = vec
 	}
 	return results, nil

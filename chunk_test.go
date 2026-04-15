@@ -107,6 +107,7 @@ func TestChunk_ShouldProcess_Good_MarkdownFiles(t *testing.T) {
 	assert.True(t, ShouldProcess("doc.md"))
 	assert.True(t, ShouldProcess("doc.markdown"))
 	assert.True(t, ShouldProcess("doc.txt"))
+	assert.False(t, ShouldProcess("doc.pdf"))
 	assert.False(t, ShouldProcess("doc.go"))
 	assert.False(t, ShouldProcess("doc.py"))
 	assert.False(t, ShouldProcess("doc"))
@@ -473,6 +474,14 @@ func TestChunk_SplitBySentences_Good(t *testing.T) {
 		assert.Len(t, result, 2)
 		assert.Equal(t, "Wow!", result[0])
 		assert.Equal(t, "That is amazing.", result[1])
+	})
+
+	t.Run("splits on newline boundaries", func(t *testing.T) {
+		result := splitBySentences("First line\nSecond line\nThird line")
+		assert.Len(t, result, 3)
+		assert.Equal(t, "First line", result[0])
+		assert.Equal(t, "Second line", result[1])
+		assert.Equal(t, "Third line", result[2])
 	})
 
 	t.Run("no boundaries returns single element", func(t *testing.T) {

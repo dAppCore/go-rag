@@ -362,7 +362,7 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 			// Find the earliest sentence boundary
 			bestIdx := -1
 			var bestSep string
-			for _, sep := range []string{". ", "? ", "! "} {
+			for _, sep := range []string{". ", "? ", "! ", "\n"} {
 				idx := indexOf(remaining, sep)
 				if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
 					bestIdx = idx
@@ -380,8 +380,13 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 				break
 			}
 
-			// Include the punctuation mark in the sentence, but not the trailing space
-			sentence := remaining[:bestIdx+len(bestSep)-1]
+			// Include the punctuation mark in the sentence, but not the trailing
+			// whitespace. Newline boundaries end the sentence at the newline.
+			sentenceEnd := bestIdx + len(bestSep)
+			if bestSep != "\n" {
+				sentenceEnd--
+			}
+			sentence := remaining[:sentenceEnd]
 			if s := core.Trim(sentence); s != "" {
 				if !yield(s) {
 					return
@@ -484,7 +489,7 @@ func ChunkID(path string, index int, text string) string {
 // FileExtensions returns the file extensions to process.
 // exts := FileExtensions()
 func FileExtensions() []string {
-	return []string{".md", ".markdown", ".pdf", ".txt"}
+	return []string{".md", ".markdown", ".txt"}
 }
 
 // ShouldProcess checks if a file should be processed based on extension.
