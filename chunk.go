@@ -213,51 +213,69 @@ func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	text = normalizeLineEndings(text)
 
 	return func(yield func(Chunk) bool) {
-		trimmed := core.Trim(text)
-		if trimmed == "" {
-			return
-		}
-
 		chunkIndex := 0
-		currentChunk := ""
+		currentParentSection := ""
 
-		for sentence := range splitBySentencesSeq(trimmed) {
-			sentence = core.Trim(sentence)
-			if sentence == "" {
+		for section := range splitBySectionsSeq(text) {
+			section = core.Trim(section)
+			if section == "" {
 				continue
 			}
 
-			// Accumulate while within size budget.
-			sep := " "
-			if currentChunk == "" {
-				sep = ""
+			parentTitle, title := markdownSectionTitle(section)
+			if parentTitle != "" {
+				currentParentSection = parentTitle
 			}
-			if runeLen(currentChunk)+runeLen(sep)+runeLen(sentence) <= cfg.Size {
-				currentChunk = currentChunk + sep + sentence
-				continue
+			if title == "" {
+				title = currentParentSection
+			} else if currentParentSection != "" && title != currentParentSection {
+				title = currentParentSection + " / " + title
 			}
 
-			// Emit current chunk if non-empty.
-			if currentChunk != "" {
+			trimmed := core.Trim(section)
+			currentChunk := ""
+
+			for sentence := range splitBySentencesSeq(trimmed) {
+				sentence = core.Trim(sentence)
+				if sentence == "" {
+					continue
+				}
+
+				// Accumulate while within size budget.
+				sep := " "
+				if currentChunk == "" {
+					sep = ""
+				}
+				if runeLen(currentChunk)+runeLen(sep)+runeLen(sentence) <= cfg.Size {
+					currentChunk = currentChunk + sep + sentence
+					continue
+				}
+
+				// Emit current chunk if non-empty.
+				if currentChunk != "" {
+					if !yield(Chunk{
+						Text:    core.Trim(currentChunk),
+						Section: title,
+						Index:   chunkIndex,
+					}) {
+						return
+					}
+					chunkIndex++
+				}
+
+				// Start a new chunk with overlap carried from the previous chunk.
+				currentChunk = overlapPrefixInline(currentChunk, cfg.Overlap, sentence)
+			}
+
+			if core.Trim(currentChunk) != "" {
 				if !yield(Chunk{
-					Text:  core.Trim(currentChunk),
-					Index: chunkIndex,
+					Text:    core.Trim(currentChunk),
+					Section: title,
+					Index:   chunkIndex,
 				}) {
 					return
 				}
 				chunkIndex++
-			}
-
-			// Start a new chunk with overlap carried from the previous chunk.
-			currentChunk = overlapPrefixInline(currentChunk, cfg.Overlap, sentence)
-		}
-
-		if core.Trim(currentChunk) != "" {
-			if !yield(Chunk{
-				Text:  core.Trim(currentChunk),
-				Index: chunkIndex,
-			}) {
-				return
 			}
 		}
 	}
@@ -284,54 +302,72 @@ func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	text = normalizeLineEndings(text)
 
 	return func(yield func(Chunk) bool) {
-		trimmed := core.Trim(text)
-		if trimmed == "" {
-			return
-		}
-
 		chunkIndex := 0
-		currentChunk := ""
+		currentParentSection := ""
 
-		for para := range splitByParagraphsSeq(trimmed) {
-			para = core.Trim(para)
-			if para == "" {
+		for section := range splitBySectionsSeq(text) {
+			section = core.Trim(section)
+			if section == "" {
 				continue
 			}
 
-			for sp := range yieldSubParas(para, cfg.Size) {
-				sp = core.Trim(sp)
-				if sp == "" {
-					continue
-				}
-
-				if runeLen(currentChunk)+runeLen(sp)+2 <= cfg.Size {
-					if currentChunk != "" {
-						currentChunk += "\n\n" + sp
-					} else {
-						currentChunk = sp
-					}
-					continue
-				}
-
-				if currentChunk != "" {
-					if !yield(Chunk{
-						Text:  core.Trim(currentChunk),
-						Index: chunkIndex,
-					}) {
-						return
-					}
-					chunkIndex++
-				}
-				currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
+			parentTitle, title := markdownSectionTitle(section)
+			if parentTitle != "" {
+				currentParentSection = parentTitle
 			}
-		}
+			if title == "" {
+				title = currentParentSection
+			} else if currentParentSection != "" && title != currentParentSection {
+				title = currentParentSection + " / " + title
+			}
 
-		if core.Trim(currentChunk) != "" {
-			if !yield(Chunk{
-				Text:  core.Trim(currentChunk),
-				Index: chunkIndex,
-			}) {
-				return
+			trimmed := core.Trim(section)
+			currentChunk := ""
+
+			for para := range splitByParagraphsSeq(trimmed) {
+				para = core.Trim(para)
+				if para == "" {
+					continue
+				}
+
+				for sp := range yieldSubParas(para, cfg.Size) {
+					sp = core.Trim(sp)
+					if sp == "" {
+						continue
+					}
+
+					if runeLen(currentChunk)+runeLen(sp)+2 <= cfg.Size {
+						if currentChunk != "" {
+							currentChunk += "\n\n" + sp
+						} else {
+							currentChunk = sp
+						}
+						continue
+					}
+
+					if currentChunk != "" {
+						if !yield(Chunk{
+							Text:    core.Trim(currentChunk),
+							Section: title,
+							Index:   chunkIndex,
+						}) {
+							return
+						}
+						chunkIndex++
+					}
+					currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
+				}
+			}
+
+			if core.Trim(currentChunk) != "" {
+				if !yield(Chunk{
+					Text:    core.Trim(currentChunk),
+					Section: title,
+					Index:   chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
 			}
 		}
 	}
