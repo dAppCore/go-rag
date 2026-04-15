@@ -234,3 +234,36 @@ func TestHelpers_IngestFileWith_Good(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+// --- JoinResults tests ---
+
+func TestHelpers_JoinResults_Good(t *testing.T) {
+	t.Run("joins non-empty result text with blank lines", func(t *testing.T) {
+		results := []QueryResult{
+			{Text: "First result."},
+			{Text: "   "},
+			{Text: "Second result."},
+		}
+
+		output := JoinResults(results)
+
+		assert.Equal(t, "First result.\n\nSecond result.", output)
+	})
+
+	t.Run("works with SearchResult values", func(t *testing.T) {
+		results := []SearchResult{
+			{Text: "Alpha."},
+			{Text: ""},
+			{Text: "Beta."},
+		}
+
+		output := JoinResults(results)
+
+		assert.Equal(t, "Alpha.\n\nBeta.", output)
+	})
+
+	t.Run("empty input returns empty string", func(t *testing.T) {
+		assert.Equal(t, "", JoinResults[QueryResult](nil))
+		assert.Equal(t, "", JoinResults([]QueryResult{}))
+	})
+}

@@ -6,6 +6,8 @@
 
 Retrieval-Augmented Generation library for Go. Provides document chunking with three-level Markdown splitting and configurable overlap, embedding generation via Ollama, vector storage and cosine-similarity search via Qdrant (gRPC), keyword boosting post-filter, and result formatting in plain text, XML (for LLM prompt injection), or JSON. Ingestion accepts Markdown, text, and PDF documents. Designed around `Embedder` and `VectorStore` interfaces that decouple business logic from service implementations and enable mock-based testing.
 
+The package also exposes convenience helpers such as `QueryWith`, `QueryContextWith`, `IngestDirWith`, `IngestFileWith`, `QueryDocs`, `QueryDocsContext`, `IngestDirectory`, `IngestSingleFile`, `CollectionStats`, `ListCollectionsSeq`, and `JoinResults` for common one-shot and prompt-assembly flows.
+
 **Module**: `forge.lthn.ai/core/go-rag`
 **Licence**: EUPL-1.2
 **Language**: Go 1.25
