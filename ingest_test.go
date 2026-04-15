@@ -482,6 +482,17 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		assert.Contains(t, err.Error(), "error upserting points")
 	})
 
+	t.Run("pdf fallback reads plaintext files with pdf extension", func(t *testing.T) {
+		dir := t.TempDir()
+		path := core.JoinPath(dir, "doc.pdf")
+		writeFile(t, path, "## Title\n\nPlaintext content in a mislabeled pdf file.\n")
+
+		content, err := readDocument((&core.Fs{}).NewUnrestricted(), path)
+
+		require.NoError(t, err)
+		assert.Contains(t, content, "Plaintext content")
+	})
+
 	t.Run("payload includes correct metadata", func(t *testing.T) {
 		dir := t.TempDir()
 		path := core.JoinPath(dir, "docs", "architecture", "guide.md")

@@ -225,14 +225,21 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 		return results
 	}
 
-	// Normalise keywords to lowercase once
-	lowerKeywords := slices.Collect(func(yield func(string) bool) {
-		for _, kw := range keywords {
-			if !yield(core.Lower(kw)) {
-				return
-			}
+	// Normalise keywords to lowercase once and deduplicate them so repeated
+	// query terms do not inflate the boost.
+	lowerKeywords := make([]string, 0, len(keywords))
+	seen := make(map[string]struct{}, len(keywords))
+	for _, kw := range keywords {
+		kw = core.Lower(kw)
+		if kw == "" {
+			continue
 		}
-	})
+		if _, ok := seen[kw]; ok {
+			continue
+		}
+		seen[kw] = struct{}{}
+		lowerKeywords = append(lowerKeywords, kw)
+	}
 
 	// Apply boost
 	boosted := make([]QueryResult, len(results))

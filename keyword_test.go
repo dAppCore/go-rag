@@ -122,6 +122,17 @@ func TestKeyword_KeywordFilter_Good(t *testing.T) {
 		filtered := KeywordFilter(nil, []string{"test"})
 		assert.Empty(t, filtered)
 	})
+
+	t.Run("duplicate keywords do not increase the boost", func(t *testing.T) {
+		results := []QueryResult{
+			{Text: "Guide to Kubernetes deployment.", Score: 0.8},
+		}
+
+		filtered := KeywordFilter(results, []string{"kubernetes", "KUBERNETES"})
+
+		require.Len(t, filtered, 1)
+		assert.InDelta(t, 0.88, filtered[0].Score, 0.001)
+	})
 }
 
 // --- KeywordFilterSeq tests ---

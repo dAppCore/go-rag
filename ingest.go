@@ -352,6 +352,16 @@ func shouldFallbackToPlainText(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	return core.Contains(msg, "not a PDF file") || core.Contains(msg, "missing %%EOF")
+	msg := core.Lower(err.Error())
+	if !core.Contains(msg, "pdf") {
+		return false
+	}
+
+	return core.Contains(msg, "not a pdf file") ||
+		core.Contains(msg, "missing %%eof") ||
+		core.Contains(msg, "unexpected eof") ||
+		core.Contains(msg, "invalid pdf") ||
+		core.Contains(msg, "malformed pdf") ||
+		core.Contains(msg, "no pdf header") ||
+		core.Contains(msg, "header")
 }

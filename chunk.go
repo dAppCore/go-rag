@@ -100,9 +100,9 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 				}
 
 				// If the paragraph itself exceeds Size, split at sentence
-				// boundaries and treat each sentence (or group of sentences)
-				// as a separate sub-paragraph.
-				for sp := range yieldSubParas(para, cfg.Size) {
+				// boundaries and fall back to word-safe splitting when a
+				// sentence is still too long.
+				for sp := range yieldSizedPieces(para, cfg.Size) {
 					sp = core.Trim(sp)
 					if sp == "" {
 						continue
@@ -147,18 +147,128 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	}
 }
 
-func yieldSubParas(para string, size int) iter.Seq[string] {
+func yieldSizedPieces(text string, size int) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		if runeLen(para) <= size {
-			yield(para)
+		text = core.Trim(normalizeLineEndings(text))
+		if text == "" {
 			return
 		}
-		for s := range splitBySentencesSeq(para) {
-			if !yield(s) {
-				return
+		if runeLen(text) <= size {
+			yield(text)
+			return
+		}
+
+		sentences := slices.Collect(splitBySentencesSeq(text))
+		if len(sentences) <= 1 {
+			for piece := range splitLongTextByWords(text, size) {
+				if !yield(piece) {
+					return
+				}
+			}
+			return
+		}
+
+		for _, sentence := range sentences {
+			sentence = core.Trim(sentence)
+			if sentence == "" {
+				continue
+			}
+			if runeLen(sentence) <= size {
+				if !yield(sentence) {
+					return
+				}
+				continue
+			}
+			for piece := range splitLongTextByWords(sentence, size) {
+				if !yield(piece) {
+					return
+				}
 			}
 		}
 	}
+}
+
+// splitLongTextByWords breaks oversized text into chunks of whole words.
+// If a single word is still too long, it falls back to rune-safe slicing.
+func splitLongTextByWords(text string, size int) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		words := splitWords(text)
+		if len(words) == 0 {
+			return
+		}
+
+		current := ""
+		flush := func() bool {
+			if current == "" {
+				return true
+			}
+			if !yield(core.Trim(current)) {
+				return false
+			}
+			current = ""
+			return true
+		}
+
+		for _, word := range words {
+			for _, part := range splitOversizedWord(word, size) {
+				if current == "" {
+					current = part
+					continue
+				}
+				if runeLen(current)+1+runeLen(part) <= size {
+					current += " " + part
+					continue
+				}
+				if !flush() {
+					return
+				}
+				current = part
+			}
+		}
+
+		_ = flush()
+	}
+}
+
+func splitWords(text string) []string {
+	var words []string
+	current := core.NewBuilder()
+
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		words = append(words, current.String())
+		current.Reset()
+	}
+
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			flush()
+			continue
+		}
+		current.WriteRune(r)
+	}
+	flush()
+
+	return words
+}
+
+func splitOversizedWord(word string, size int) []string {
+	if size <= 0 || runeLen(word) <= size {
+		return []string{word}
+	}
+
+	runes := []rune(word)
+	parts := make([]string, 0, (len(runes)/size)+1)
+	for start := 0; start < len(runes); start += size {
+		end := start + size
+		if end > len(runes) {
+			end = len(runes)
+		}
+		parts = append(parts, string(runes[start:end]))
+	}
+	return parts
 }
 
 // overlapPrefix builds the start of a new chunk by taking word-boundary-aligned
@@ -237,30 +347,37 @@ func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 					continue
 				}
 
-				// Accumulate while within size budget.
-				sep := " "
-				if currentChunk == "" {
-					sep = ""
-				}
-				if runeLen(currentChunk)+runeLen(sep)+runeLen(sentence) <= cfg.Size {
-					currentChunk = currentChunk + sep + sentence
-					continue
-				}
-
-				// Emit current chunk if non-empty.
-				if currentChunk != "" {
-					if !yield(Chunk{
-						Text:    core.Trim(currentChunk),
-						Section: title,
-						Index:   chunkIndex,
-					}) {
-						return
+				for piece := range yieldSizedPieces(sentence, cfg.Size) {
+					piece = core.Trim(piece)
+					if piece == "" {
+						continue
 					}
-					chunkIndex++
-				}
 
-				// Start a new chunk with overlap carried from the previous chunk.
-				currentChunk = overlapPrefixInline(currentChunk, cfg.Overlap, sentence)
+					// Accumulate while within size budget.
+					sep := " "
+					if currentChunk == "" {
+						sep = ""
+					}
+					if runeLen(currentChunk)+runeLen(sep)+runeLen(piece) <= cfg.Size {
+						currentChunk = currentChunk + sep + piece
+						continue
+					}
+
+					// Emit current chunk if non-empty.
+					if currentChunk != "" {
+						if !yield(Chunk{
+							Text:    core.Trim(currentChunk),
+							Section: title,
+							Index:   chunkIndex,
+						}) {
+							return
+						}
+						chunkIndex++
+					}
+
+					// Start a new chunk with overlap carried from the previous chunk.
+					currentChunk = overlapPrefixInline(currentChunk, cfg.Overlap, piece)
+				}
 			}
 
 			if core.Trim(currentChunk) != "" {
@@ -326,7 +443,7 @@ func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 					continue
 				}
 
-				for sp := range yieldSubParas(para, cfg.Size) {
+				for sp := range yieldSizedPieces(para, cfg.Size) {
 					sp = core.Trim(sp)
 					if sp == "" {
 						continue
