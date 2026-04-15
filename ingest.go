@@ -88,7 +88,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 		}
 	}
 
-	// Find markdown files
+	// Find ingestible files.
 	var files []string
 	if err := collectMarkdownFiles(localFS, scanRoot, "", &files); err != nil {
 		return nil, core.E("rag.Ingest", "error walking directory", err)
@@ -96,7 +96,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 	slices.Sort(files)
 
 	if len(files) == 0 {
-		return nil, core.E("rag.Ingest", core.Sprintf("no markdown files found in %s", scanRoot), nil)
+		return nil, core.E("rag.Ingest", core.Sprintf("no matching files found in %s", scanRoot), nil)
 	}
 
 	// Process files

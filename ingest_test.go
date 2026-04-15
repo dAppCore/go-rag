@@ -309,7 +309,7 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		assert.Contains(t, err.Error(), "error accessing directory")
 	})
 
-	t.Run("directory with no markdown files returns error", func(t *testing.T) {
+	t.Run("directory with no matching files returns error", func(t *testing.T) {
 		dir := t.TempDir()
 		writeFile(t, core.JoinPath(dir, "readme.go"), "package main\n")
 
@@ -322,7 +322,7 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no markdown files found")
+		assert.Contains(t, err.Error(), "no matching files found")
 	})
 
 	t.Run("empty file is skipped", func(t *testing.T) {
