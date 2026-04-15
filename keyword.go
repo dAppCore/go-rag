@@ -265,6 +265,24 @@ func KeywordFilter(results []QueryResult, keywords []string) []QueryResult {
 		} else if a.Score < b.Score {
 			return 1
 		}
+		if a.Source < b.Source {
+			return -1
+		}
+		if a.Source > b.Source {
+			return 1
+		}
+		if a.ChunkIndex < b.ChunkIndex {
+			return -1
+		}
+		if a.ChunkIndex > b.ChunkIndex {
+			return 1
+		}
+		if a.Text < b.Text {
+			return -1
+		}
+		if a.Text > b.Text {
+			return 1
+		}
 		return 0
 	})
 
