@@ -50,6 +50,27 @@ type KeywordIndex struct {
 	docCount int
 }
 
+// SearchKeywords builds a temporary TF-IDF index over the provided chunks and
+// returns the top-K keyword matches for the query.
+//
+//	results := SearchKeywords(chunks, "authentication setup", 5)
+func SearchKeywords(chunks []Chunk, query string, topK int) []KeywordResult {
+	return NewKeywordIndex(chunks).Search(query, topK)
+}
+
+// SearchKeywordsSeq is the iterator form of SearchKeywords.
+//
+//	for result := range SearchKeywordsSeq(chunks, "authentication setup", 5) { _ = result }
+func SearchKeywordsSeq(chunks []Chunk, query string, topK int) iter.Seq[KeywordResult] {
+	return func(yield func(KeywordResult) bool) {
+		for _, result := range SearchKeywords(chunks, query, topK) {
+			if !yield(result) {
+				return
+			}
+		}
+	}
+}
+
 // NewKeywordIndex builds a TF-IDF index from the given chunks.
 // Tokens shorter than 3 characters are ignored.
 //

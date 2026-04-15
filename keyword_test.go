@@ -375,6 +375,39 @@ func TestKeyword_KeywordIndex_Ugly(t *testing.T) {
 	})
 }
 
+// --- SearchKeywords helpers ---
+
+func TestKeyword_SearchKeywords_Good(t *testing.T) {
+	t.Run("builds a temporary index and returns top matches", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "general overview of the platform", Section: "Intro", Index: 0},
+			{Text: "authentication setup guide", Section: "Auth", Index: 1},
+			{Text: "deployment and operations guide", Section: "Ops", Index: 2},
+		}
+
+		results := SearchKeywords(chunks, "authentication setup", 5)
+
+		require.NotEmpty(t, results)
+		assert.Equal(t, "Auth", results[0].Section)
+		assert.Equal(t, 1, results[0].ChunkIndex)
+	})
+
+	t.Run("iterator wrapper yields the same results", func(t *testing.T) {
+		chunks := []Chunk{
+			{Text: "general overview of the platform", Section: "Intro", Index: 0},
+			{Text: "authentication setup guide", Section: "Auth", Index: 1},
+		}
+
+		var collected []KeywordResult
+		for result := range SearchKeywordsSeq(chunks, "authentication", 5) {
+			collected = append(collected, result)
+		}
+
+		require.NotEmpty(t, collected)
+		assert.Equal(t, "Auth", collected[0].Section)
+	})
+}
+
 // --- Query with Keywords integration ---
 
 func TestKeyword_QueryKeywords_Good(t *testing.T) {
