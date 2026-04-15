@@ -13,6 +13,12 @@ func TestEndpoint_QdrantConfigFromEndpoint(t *testing.T) {
 	assert.Equal(t, "example.com", cfg.Host)
 	assert.Equal(t, 6333, cfg.Port)
 	assert.True(t, cfg.UseTLS)
+
+	cfg, err = qdrantConfigFromEndpoint("localhost:6333")
+	require.NoError(t, err)
+	assert.Equal(t, "localhost", cfg.Host)
+	assert.Equal(t, 6333, cfg.Port)
+	assert.False(t, cfg.UseTLS)
 }
 
 func TestEndpoint_OllamaConfigFromEndpoint(t *testing.T) {
@@ -20,5 +26,11 @@ func TestEndpoint_OllamaConfigFromEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ollama.local", cfg.Host)
 	assert.Equal(t, 11435, cfg.Port)
+	assert.Equal(t, "http", cfg.Scheme)
+
+	cfg, err = ollamaConfigFromEndpoint("localhost:11434")
+	require.NoError(t, err)
+	assert.Equal(t, "localhost", cfg.Host)
+	assert.Equal(t, 11434, cfg.Port)
 	assert.Equal(t, "http", cfg.Scheme)
 }
