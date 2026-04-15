@@ -110,6 +110,9 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 		content, readErr := readDocument(localFS, filePath)
 		if readErr != nil {
 			stats.Errors++
+			if cfg.Verbose {
+				core.Print(nil, "  Error reading %s: %v", relPath, readErr)
+			}
 			continue
 		}
 

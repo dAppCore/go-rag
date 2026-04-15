@@ -196,6 +196,13 @@ func TestKeyword_ExtractKeywords_Good(t *testing.T) {
 		assert.Contains(t, keywords, "kubernetes")
 		assert.Contains(t, keywords, "deployment")
 	})
+
+	t.Run("punctuation is normalised", func(t *testing.T) {
+		keywords := extractKeywords("Go, Kubernetes! Deployment?")
+		assert.Contains(t, keywords, "kubernetes")
+		assert.Contains(t, keywords, "deployment")
+		assert.NotContains(t, keywords, "go")
+	})
 }
 
 // --- KeywordIndex tests ---

@@ -286,11 +286,9 @@ func extractKeywords(query string) []string {
 // extractKeywordsSeq returns an iterator that yields keywords from a query.
 func extractKeywordsSeq(query string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		for _, w := range fields(core.Lower(query)) {
-			if len(w) >= 3 {
-				if !yield(w) {
-					return
-				}
+		for _, w := range tokenise(query) {
+			if !yield(w) {
+				return
 			}
 		}
 	}
