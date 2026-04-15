@@ -231,26 +231,15 @@ func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, p
 	return nil
 }
 
-func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
+func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// Merge variadic filter maps to a single map for the legacy code path
-	var merged map[string]string
-	for _, f := range filter {
-		if merged == nil && len(f) > 0 {
-			merged = map[string]string{}
-		}
-		for k, v := range f {
-			merged[k] = v
-		}
-	}
 
 	m.searchCalls = append(m.searchCalls, searchCall{
 		Collection: collection,
 		Vector:     vector,
 		Limit:      limit,
-		Filter:     merged,
+		Filter:     filter,
 	})
 
 	if m.searchErr != nil {
@@ -258,7 +247,7 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 	}
 
 	if m.searchFunc != nil {
-		return m.searchFunc(collection, vector, limit, merged)
+		return m.searchFunc(collection, vector, limit, filter)
 	}
 
 	// Default: return stored points as search results, sorted by a fake
@@ -268,9 +257,9 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 
 	for i, p := range stored {
 		// Apply filter if provided
-		if len(merged) > 0 {
+		if len(filter) > 0 {
 			match := true
-			for k, v := range merged {
+			for k, v := range filter {
 				if pv, ok := p.Payload[k]; !ok || core.Sprintf("%v", pv) != v {
 					match = false
 					break
