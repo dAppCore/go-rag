@@ -14,6 +14,7 @@ var (
 	limit           int
 	threshold       float32
 	category        string
+	keywords        bool
 	format          string
 )
 
@@ -59,6 +60,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		Limit:      uint64(limit),
 		Threshold:  threshold,
 		Category:   category,
+		Keywords:   keywords,
 	}
 
 	// Run query

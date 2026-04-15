@@ -58,7 +58,7 @@ The package provides CLI subcommands mounted under `core ai rag`:
 core ai rag ingest /path/to/docs --collection my-docs --recreate
 
 # Query the vector database
-core ai rag query "how does the module system work?" --top 10 --format context
+core ai rag query "how does the module system work?" --top 10 --format context --keywords
 
 # List and manage collections
 core ai rag collections --stats

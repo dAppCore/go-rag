@@ -75,6 +75,7 @@ func initFlags() {
 	queryCmd.Flags().IntVar(&limit, "top", 5, i18n.T("cmd.rag.query.flag.top"))
 	queryCmd.Flags().Float32Var(&threshold, "threshold", 0.5, i18n.T("cmd.rag.query.flag.threshold"))
 	queryCmd.Flags().StringVar(&category, "category", "", i18n.T("cmd.rag.query.flag.category"))
+	queryCmd.Flags().BoolVar(&keywords, "keywords", false, i18n.T("cmd.rag.query.flag.keywords"))
 	queryCmd.Flags().StringVar(&format, "format", "text", i18n.T("cmd.rag.query.flag.format"))
 
 	// Collections command flags
