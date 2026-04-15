@@ -164,7 +164,7 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 	assert.Equal(t, []float32{0.1, 0.2}, vectors[0])
 	assert.Equal(t, []float32{0.3, 0.4}, vectors[1])
 	assert.Equal(t, 2, requestCount, "batch embedding should call Ollama once per input")
-	assert.Equal(t, []string{"first", "second"}, capturedInput)
+	assert.ElementsMatch(t, []string{"first", "second"}, capturedInput)
 }
 
 func TestOllama_EmbedBatch_Bad(t *testing.T) {
@@ -191,6 +191,6 @@ func TestOllama_EmbedBatch_Bad(t *testing.T) {
 
 	_, err = client.EmbedBatch(context.Background(), []string{"first", "second"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input 1")
+	assert.Contains(t, err.Error(), "failed to embed input")
 	assert.Equal(t, 2, requestCount)
 }

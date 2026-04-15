@@ -2,6 +2,7 @@ package rag
 
 import (
 	"context"
+	"sync"
 
 	"dappco.re/go/core"
 )
@@ -148,4 +149,35 @@ func JoinResults[T textResult](results []T) string {
 		parts = append(parts, text)
 	}
 	return core.Join("\n\n", parts...)
+}
+
+// embedBatchConcurrent runs embeddings in parallel while preserving input order.
+// It returns the collected vectors and a per-input error slice for callers that
+// need partial failure reporting.
+func embedBatchConcurrent(ctx context.Context, texts []string, embed func(context.Context, string) ([]float32, error)) ([][]float32, []error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+
+	vectors := make([][]float32, len(texts))
+	errs := make([]error, len(texts))
+
+	var wg sync.WaitGroup
+	wg.Add(len(texts))
+	for i, text := range texts {
+		i := i
+		text := text
+		go func() {
+			defer wg.Done()
+			vec, err := embed(ctx, text)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			vectors[i] = vec
+		}()
+	}
+
+	wg.Wait()
+	return vectors, errs
 }

@@ -202,22 +202,14 @@ func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, colle
 	return len(points), nil
 }
 
-// embedChunkBatch embeds each text sequentially and returns the per-item
+// embedChunkBatch embeds each text concurrently and returns the per-item
 // errors alongside the collected vectors.
 func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([][]float32, []error) {
-	if len(texts) == 0 {
-		return [][]float32{}, nil
-	}
-
-	embeddings := make([][]float32, len(texts))
-	errs := make([]error, len(texts))
-	for i, text := range texts {
-		vec, embedErr := embedder.Embed(ctx, text)
-		if embedErr != nil {
-			errs[i] = core.E("rag.embedChunkBatch", core.Sprintf("error embedding chunk %d", i), embedErr)
-			continue
+	embeddings, errs := embedBatchConcurrent(ctx, texts, embedder.Embed)
+	for i, err := range errs {
+		if err != nil {
+			errs[i] = core.E("rag.embedChunkBatch", core.Sprintf("error embedding chunk %d", i), err)
 		}
-		embeddings[i] = vec
 	}
 	return embeddings, errs
 }
