@@ -137,11 +137,15 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 	}
 
 	pointCount := info.GetPointsCount()
+	vectorCount := info.GetIndexedVectorsCount()
+	if vectorCount == 0 {
+		vectorCount = pointCount
+	}
 	ci := &CollectionInfo{
 		Name:       name,
 		PointCount: pointCount,
 		Count:      pointCount,
-		Vectors:    info.GetIndexedVectorsCount(),
+		Vectors:    vectorCount,
 		Index:      "unknown",
 	}
 
