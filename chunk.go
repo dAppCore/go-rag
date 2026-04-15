@@ -168,11 +168,7 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 		return newPara
 	}
 
-	runes := []rune(prevChunk)
-	if len(runes) <= overlap {
-		return newPara
-	}
-
+	runes := []rune(overlapSource(prevChunk))
 	start := len(runes) - overlap
 	if start < 0 {
 		start = 0
@@ -379,10 +375,7 @@ func overlapPrefixInline(prevChunk string, overlap int, newSentence string) stri
 	if overlap <= 0 {
 		return newSentence
 	}
-	runes := []rune(prevChunk)
-	if len(runes) <= overlap {
-		return newSentence
-	}
+	runes := []rune(overlapSource(prevChunk))
 	start := len(runes) - overlap
 	if start < 0 {
 		start = 0
@@ -396,6 +389,33 @@ func overlapPrefixInline(prevChunk string, overlap int, newSentence string) stri
 		return newSentence
 	}
 	return overlapText + " " + newSentence
+}
+
+// overlapSource strips leading markdown heading blocks so overlap is derived
+// from chunk content instead of section titles.
+func overlapSource(prevChunk string) string {
+	prevChunk = normalizeLineEndings(prevChunk)
+	lines := strings.Split(prevChunk, "\n")
+
+	i := 0
+	for i < len(lines) {
+		trimmed := core.Trim(lines[i])
+		if trimmed == "" {
+			i++
+			continue
+		}
+		if core.HasPrefix(trimmed, "#") {
+			i++
+			continue
+		}
+		break
+	}
+
+	if i >= len(lines) {
+		return ""
+	}
+
+	return strings.Join(lines[i:], "\n")
 }
 
 // splitBySentences splits text at sentence boundaries (". ", "? ", "! ").

@@ -80,6 +80,28 @@ Child content.
 	assert.Equal(t, "Parent Title / Child Section", chunks[1].Section)
 }
 
+func TestChunk_ChunkMarkdown_Good_OverlapUsesEntireShortChunk(t *testing.T) {
+	text := `alpha.
+
+beta.
+`
+	chunks := ChunkMarkdown(text, ChunkConfig{Size: 8, Overlap: 6})
+
+	require.Len(t, chunks, 2)
+	assert.Equal(t, "alpha.", core.Trim(chunks[0].Text))
+	assert.Contains(t, chunks[1].Text, "alpha.")
+	assert.Contains(t, chunks[1].Text, "beta.")
+}
+
+func TestChunk_ChunkBySentences_Good_OverlapUsesEntireShortChunk(t *testing.T) {
+	text := `alpha. beta.`
+	chunks := ChunkBySentences(text, ChunkConfig{Size: 8, Overlap: 6})
+
+	require.Len(t, chunks, 2)
+	assert.Contains(t, chunks[1].Text, "alpha.")
+	assert.Contains(t, chunks[1].Text, "beta.")
+}
+
 func TestChunk_Category_Good_UIComponent(t *testing.T) {
 	tests := []struct {
 		path     string
