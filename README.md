@@ -34,10 +34,10 @@ results, err := rag.QueryWith(ctx, store, embedder, "question", "collection", 5)
 ## Build & Test
 
 ```bash
-go test ./...                        # unit + mock tests (no external services)
+GOWORK=off go test ./...             # unit + mock tests (no external services)
 go test -tags rag ./...              # full suite with live Qdrant + Ollama
-go test -race ./...
-go build ./...
+GOWORK=off go test -race ./...
+GOWORK=off go build ./...
 ```
 
 ## Licence
