@@ -252,9 +252,9 @@ func TestHelpers_JoinResults_Good(t *testing.T) {
 
 	t.Run("works with SearchResult values", func(t *testing.T) {
 		results := []SearchResult{
-			{Text: "Alpha."},
-			{Text: ""},
-			{Text: "Beta."},
+			{Payload: map[string]any{"text": "Alpha."}},
+			{},
+			{Payload: map[string]any{"text": "Beta."}},
 		}
 
 		output := JoinResults(results)
