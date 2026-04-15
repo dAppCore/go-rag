@@ -7,16 +7,29 @@
 package rag
 
 import (
+	"sync"
+
 	"forge.lthn.ai/core/cli/pkg/cli"
 )
+
+var addCommandsOnce sync.Once
 
 // AddRAGSubcommands registers the 'rag' command as a subcommand of parent.
 // Called from the ai command package to mount under "core ai rag".
 // AddRAGSubcommands(rootCmd)
 func AddRAGSubcommands(parent *cli.Command) {
 	initFlags()
-	ragCmd.AddCommand(ingestCmd)
-	ragCmd.AddCommand(queryCmd)
-	ragCmd.AddCommand(collectionsCmd)
+
+	addCommandsOnce.Do(func() {
+		ragCmd.AddCommand(ingestCmd)
+		ragCmd.AddCommand(queryCmd)
+		ragCmd.AddCommand(collectionsCmd)
+	})
+
+	for _, cmd := range parent.Commands() {
+		if cmd.Name() == ragCmd.Name() {
+			return
+		}
+	}
 	parent.AddCommand(ragCmd)
 }
