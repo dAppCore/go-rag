@@ -55,6 +55,7 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 
 	return func(yield func(Chunk) bool) {
 		chunkIndex := 0
+		currentParentSection := ""
 
 		// Split by ## headers
 		for section := range splitBySectionsSeq(text) {
@@ -63,11 +64,17 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 				continue
 			}
 
-			// Extract section title
-			lines := core.SplitN(section, "\n", 2)
-			title := ""
-			if core.HasPrefix(lines[0], "#") {
-				title = trimHeadingPrefix(lines[0])
+			// Extract section title and preserve parent heading context.
+			parentTitle, title := markdownSectionTitle(section)
+			if parentTitle != "" {
+				currentParentSection = parentTitle
+			}
+			if title == "" {
+				title = currentParentSection
+			} else if currentParentSection != "" && title != currentParentSection && parentTitle == "" {
+				title = currentParentSection + " / " + title
+			} else if currentParentSection != "" && title != currentParentSection && parentTitle != "" {
+				title = currentParentSection + " / " + title
 			}
 
 			// If section is small enough, yield as-is
@@ -510,6 +517,51 @@ func trimHeadingPrefix(line string) string {
 		line = core.TrimPrefix(line, "#")
 	}
 	return core.Trim(line)
+}
+
+func markdownSectionTitle(section string) (string, string) {
+	var parentTitle string
+	var title string
+
+	for _, line := range core.Split(section, "\n") {
+		trimmed := core.Trim(line)
+		if trimmed == "" || !core.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		level := 0
+		for level < len(trimmed) && trimmed[level] == '#' {
+			level++
+		}
+		if level == 0 || level > 6 {
+			continue
+		}
+		if level < len(trimmed) && trimmed[level] != ' ' {
+			continue
+		}
+
+		heading := trimHeadingPrefix(trimmed)
+		if heading == "" {
+			continue
+		}
+
+		switch level {
+		case 1:
+			parentTitle = heading
+			if title == "" {
+				title = heading
+			}
+		case 2:
+			title = heading
+			return parentTitle, title
+		default:
+			if title == "" {
+				title = heading
+			}
+		}
+	}
+
+	return parentTitle, title
 }
 
 func indexOf(s, substr string) int {

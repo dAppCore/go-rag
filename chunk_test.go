@@ -64,6 +64,22 @@ Some content here.
 	assert.Equal(t, "My Section Title", chunks[0].Section)
 }
 
+func TestChunk_ChunkMarkdown_Good_PreservesHierarchy(t *testing.T) {
+	text := `# Parent Title
+
+Intro text.
+
+## Child Section
+
+Child content.
+`
+	chunks := ChunkMarkdown(text, DefaultChunkConfig())
+
+	require.Len(t, chunks, 2)
+	assert.Equal(t, "Parent Title", chunks[0].Section)
+	assert.Equal(t, "Parent Title / Child Section", chunks[1].Section)
+}
+
 func TestChunk_Category_Good_UIComponent(t *testing.T) {
 	tests := []struct {
 		path     string
