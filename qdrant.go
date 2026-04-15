@@ -237,15 +237,23 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 }
 
 // SearchResult represents a low-level vector search hit.
-// result := SearchResult{ID: "chunk-1", Score: 0.92, Payload: map[string]any{"text": "..."}}
+// result := SearchResult{ID: "chunk-1", Score: 0.92, Text: "...", Source: "docs.md"}
 type SearchResult struct {
-	ID      string
-	Score   float32
-	Payload map[string]any
+	ID         string
+	Score      float32
+	Text       string
+	Source     string
+	Section    string
+	Category   string
+	ChunkIndex int
+	Payload    map[string]any
 }
 
 // GetText returns the text field from Payload (satisfies textResult / rankedResult).
 func (r SearchResult) GetText() string {
+	if r.Text != "" {
+		return r.Text
+	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -260,6 +268,9 @@ func (r SearchResult) GetScore() float32 { return r.Score }
 
 // GetSource returns the source field from Payload, if present.
 func (r SearchResult) GetSource() string {
+	if r.Source != "" {
+		return r.Source
+	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -271,6 +282,9 @@ func (r SearchResult) GetSource() string {
 
 // GetChunkIndex returns the chunk_index field from Payload, if present.
 func (r SearchResult) GetChunkIndex() int {
+	if r.ChunkIndex != 0 {
+		return r.ChunkIndex
+	}
 	if r.Payload == nil {
 		return 0
 	}
@@ -287,6 +301,9 @@ func (r SearchResult) GetChunkIndex() int {
 
 // GetSection returns the section field from Payload, if present.
 func (r SearchResult) GetSection() string {
+	if r.Section != "" {
+		return r.Section
+	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -298,6 +315,9 @@ func (r SearchResult) GetSection() string {
 
 // GetCategory returns the category field from Payload, if present.
 func (r SearchResult) GetCategory() string {
+	if r.Category != "" {
+		return r.Category
+	}
 	if r.Payload == nil {
 		return ""
 	}
@@ -339,10 +359,28 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		for k, v := range p.Payload {
 			payload[k] = valueToGo(v)
 		}
+		text, _ := payload["text"].(string)
+		source, _ := payload["source"].(string)
+		section, _ := payload["section"].(string)
+		category, _ := payload["category"].(string)
+		chunkIndex := 0
+		switch v := payload["chunk_index"].(type) {
+		case int:
+			chunkIndex = v
+		case int64:
+			chunkIndex = int(v)
+		case float64:
+			chunkIndex = int(v)
+		}
 		results[i] = SearchResult{
-			ID:      pointIDToString(p.Id),
-			Score:   p.Score,
-			Payload: payload,
+			ID:         pointIDToString(p.Id),
+			Score:      p.Score,
+			Text:       text,
+			Source:     source,
+			Section:    section,
+			Category:   category,
+			ChunkIndex: chunkIndex,
+			Payload:    payload,
 		}
 	}
 	return results, nil

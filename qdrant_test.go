@@ -331,4 +331,47 @@ func TestQdrant_SearchResult_Good(t *testing.T) {
 		assert.Equal(t, float32(0.95), sr.Score)
 		assert.Equal(t, "some text", sr.Payload["text"])
 	})
+
+	t.Run("prefers denormalized fields when present", func(t *testing.T) {
+		sr := SearchResult{
+			ID:         "result-2",
+			Score:      0.9,
+			Text:       "denormalized text",
+			Source:     "doc.md",
+			Section:    "Intro",
+			Category:   "docs",
+			ChunkIndex: 7,
+			Payload: map[string]any{
+				"text":        "payload text",
+				"source":      "payload.md",
+				"section":     "Payload",
+				"category":    "payload",
+				"chunk_index": 42,
+			},
+		}
+
+		assert.Equal(t, "denormalized text", sr.GetText())
+		assert.Equal(t, "doc.md", sr.GetSource())
+		assert.Equal(t, "Intro", sr.GetSection())
+		assert.Equal(t, "docs", sr.GetCategory())
+		assert.Equal(t, 7, sr.GetChunkIndex())
+	})
+
+	t.Run("falls back to payload when denormalized fields are empty", func(t *testing.T) {
+		sr := SearchResult{
+			Payload: map[string]any{
+				"text":        "payload text",
+				"source":      "payload.md",
+				"section":     "Payload",
+				"category":    "payload",
+				"chunk_index": int64(42),
+			},
+		}
+
+		assert.Equal(t, "payload text", sr.GetText())
+		assert.Equal(t, "payload.md", sr.GetSource())
+		assert.Equal(t, "Payload", sr.GetSection())
+		assert.Equal(t, "payload", sr.GetCategory())
+		assert.Equal(t, 42, sr.GetChunkIndex())
+	})
 }
