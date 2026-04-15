@@ -246,6 +246,7 @@ type SearchResult struct {
 	Section    string
 	Category   string
 	ChunkIndex int
+	Index      int
 	Payload    map[string]any
 }
 
@@ -284,6 +285,9 @@ func (r SearchResult) GetSource() string {
 func (r SearchResult) GetChunkIndex() int {
 	if r.ChunkIndex != 0 {
 		return r.ChunkIndex
+	}
+	if r.Index != 0 {
+		return r.Index
 	}
 	if r.Payload == nil {
 		return 0
@@ -380,6 +384,7 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 			Section:    section,
 			Category:   category,
 			ChunkIndex: chunkIndex,
+			Index:      chunkIndex,
 			Payload:    payload,
 		}
 	}
