@@ -235,7 +235,6 @@ func buildPoint(source, category string, chunk Chunk, embedding []float32) Point
 			"source":      source,
 			"section":     chunk.Section,
 			"category":    category,
-			"index":       chunk.Index,
 			"chunk_index": chunk.Index,
 		},
 	}
