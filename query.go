@@ -37,6 +37,7 @@ type QueryResult struct {
 	Source     string
 	Section    string
 	Category   string
+	Index      int
 	ChunkIndex int
 	Score      float32
 }
@@ -52,6 +53,12 @@ func (r QueryResult) GetSource() string { return r.Source }
 
 // GetChunkIndex returns the source chunk index (satisfies the rankedResult interface).
 func (r QueryResult) GetChunkIndex() int {
+	if r.ChunkIndex != 0 {
+		return r.ChunkIndex
+	}
+	if r.Index != 0 {
+		return r.Index
+	}
 	return r.ChunkIndex
 }
 
@@ -174,6 +181,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 				Source:     r.GetSource(),
 				Section:    r.GetSection(),
 				Category:   r.GetCategory(),
+				Index:      r.GetChunkIndex(),
 				ChunkIndex: r.GetChunkIndex(),
 				Score:      r.Score,
 			}
@@ -255,6 +263,7 @@ func FormatResultsJSON(results []QueryResult) string {
 		Source   string  `json:"source"`
 		Section  string  `json:"section"`
 		Category string  `json:"category"`
+		Index    int     `json:"index"`
 		Score    float64 `json:"score"`
 		Text     string  `json:"text"`
 	}, len(results))
@@ -264,12 +273,14 @@ func FormatResultsJSON(results []QueryResult) string {
 			Source   string  `json:"source"`
 			Section  string  `json:"section"`
 			Category string  `json:"category"`
+			Index    int     `json:"index"`
 			Score    float64 `json:"score"`
 			Text     string  `json:"text"`
 		}{
 			Source:   r.Source,
 			Section:  r.Section,
 			Category: r.Category,
+			Index:    r.GetChunkIndex(),
 			Score:    math.Round(float64(r.Score)*10000) / 10000,
 			Text:     r.Text,
 		}

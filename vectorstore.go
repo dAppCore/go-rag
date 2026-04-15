@@ -43,6 +43,9 @@ type Vector struct {
 // info := CollectionInfo{Name: "project-docs", PointCount: 42, VectorSize: 768, Status: "green"}
 type CollectionInfo struct {
 	Name       string
+	Count      uint64
+	Vectors    uint64
+	Index      string
 	PointCount uint64
 	VectorSize uint64
 	Status     string // e.g. "green", "yellow", "red", "unknown"
