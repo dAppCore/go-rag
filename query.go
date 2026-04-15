@@ -156,11 +156,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 
 	// Search vector store
 	var results []SearchResult
-	if len(filter) > 0 {
-		results, err = store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
-	} else {
-		results, err = store.Search(ctx, cfg.Collection, embedding, cfg.Limit)
-	}
+	results, err = store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
 	if err != nil {
 		return nil, core.E("rag.Query", "error searching", err)
 	}

@@ -231,12 +231,7 @@ func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, p
 	return nil
 }
 
-func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
-	var filterMap map[string]string
-	if len(filter) > 0 {
-		filterMap = filter[0]
-	}
-
+func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -244,7 +239,7 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 		Collection: collection,
 		Vector:     vector,
 		Limit:      limit,
-		Filter:     filterMap,
+		Filter:     filter,
 	})
 
 	if m.searchErr != nil {
@@ -252,7 +247,7 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 	}
 
 	if m.searchFunc != nil {
-		return m.searchFunc(collection, vector, limit, filterMap)
+		return m.searchFunc(collection, vector, limit, filter)
 	}
 
 	// Default: return stored points as search results, sorted by a fake
@@ -262,9 +257,9 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 
 	for i, p := range stored {
 		// Apply filter if provided
-		if len(filterMap) > 0 {
+		if len(filter) > 0 {
 			match := true
-			for k, v := range filterMap {
+			for k, v := range filter {
 				if pv, ok := p.Payload[k]; !ok || core.Sprintf("%v", pv) != v {
 					match = false
 					break

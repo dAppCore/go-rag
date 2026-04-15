@@ -301,9 +301,9 @@ func (r SearchResult) GetCategory() string {
 }
 
 // Search performs a vector similarity search.
-// results, _ := client.Search(ctx, "project-docs", vector, 5)
+// results, _ := client.Search(ctx, "project-docs", vector, 5, nil)
 // results, _ := client.Search(ctx, "project-docs", vector, 5, map[string]string{"source": "docs"})
-func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
+func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
@@ -311,10 +311,9 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 
-	if len(filter) > 0 && len(filter[0]) > 0 {
-		filterMap := filter[0]
-		conditions := make([]*qdrant.Condition, 0, len(filterMap))
-		for k, v := range filterMap {
+	if len(filter) > 0 {
+		conditions := make([]*qdrant.Condition, 0, len(filter))
+		for k, v := range filter {
 			conditions = append(conditions, qdrant.NewMatch(k, v))
 		}
 		query.Filter = &qdrant.Filter{

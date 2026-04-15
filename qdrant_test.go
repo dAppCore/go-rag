@@ -301,7 +301,7 @@ func TestQdrant_Search_OptionalFilter_Good(t *testing.T) {
 	}
 
 	t.Run("allows RFC-style call without filter", func(t *testing.T) {
-		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5)
+		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5, nil)
 		require.NoError(t, err)
 		require.Len(t, results, 2)
 	})
