@@ -81,7 +81,10 @@ func Rank[T rankedResult](results []T, topK int) []T {
 	if len(results) == 0 {
 		return nil
 	}
-	if topK <= 0 || topK > len(results) {
+	if topK <= 0 {
+		return nil
+	}
+	if topK > len(results) {
 		topK = len(results)
 	}
 
