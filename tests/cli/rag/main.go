@@ -5,7 +5,7 @@ import (
 	"os"
 
 	ragcmd "dappco.re/go/rag/cmd/rag"
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 func main() {

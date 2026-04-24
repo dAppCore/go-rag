@@ -3,7 +3,7 @@ package rag
 import (
 	"testing"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 func TestAddRAGSubcommands_Idempotent(t *testing.T) {
