@@ -3,11 +3,11 @@ go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	forge.lthn.ai/core/cli v0.3.7
-	forge.lthn.ai/core/go-i18n v0.1.7
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/ollama/ollama v0.18.1
-	github.com/qdrant/go-client v1.17.1
+	forge.lthn.ai/core/cli v0.3.7 // Note: CLI command framework for rag ingest, query, and collection commands.
+	forge.lthn.ai/core/go-i18n v0.1.7 // Note: localized CLI labels and messages for the rag command surface.
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // Note: PDF text extraction lets .pdf documents enter the chunking pipeline.
+	github.com/ollama/ollama v0.18.1 // Note: Ollama embeddings client backing the repository's Embedder implementation.
+	github.com/qdrant/go-client v1.17.1 // Note: Qdrant vector database client backing the repository's VectorStore implementation.
 )
 
 require (
