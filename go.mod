@@ -1,5 +1,4 @@
-module forge.lthn.ai/core/go-rag
-
+module dappco.re/go/rag
 go 1.26.0
 
 require (
