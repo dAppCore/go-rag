@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // skipIfServicesUnavailable skips the test if either Qdrant or Ollama is not
@@ -34,12 +32,12 @@ func TestIntegration_Pipeline_Ugly(t *testing.T) {
 	// Create shared clients for the pipeline tests.
 	qdrantCfg := DefaultQdrantConfig()
 	qdrantClient, err := NewQdrantClient(qdrantCfg)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	t.Cleanup(func() { _ = qdrantClient.Close() })
 
 	ollamaCfg := DefaultOllamaConfig()
 	ollamaClient, err := NewOllamaClient(ollamaCfg)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	t.Run("ingest and query end-to-end", func(t *testing.T) {
 		collection := core.Sprintf("test-pipeline-%d", time.Now().UnixNano())
@@ -95,10 +93,10 @@ dangling pointers, and buffer overflows.
 		ingestCfg.Chunk = ChunkConfig{Size: 500, Overlap: 50}
 
 		stats, err := Ingest(ctx, qdrantClient, ollamaClient, ingestCfg, nil)
-		require.NoError(t, err, "ingest should succeed")
-		assert.Equal(t, 3, stats.Files, "all three files should be ingested")
-		assert.Greater(t, stats.Chunks, 0, "should produce at least one chunk")
-		assert.Equal(t, 0, stats.Errors, "no errors should occur during ingest")
+		assertNoError(t, err, "ingest should succeed")
+		assertEqual(t, 3, stats.Files, "all three files should be ingested")
+		assertGreater(t, stats.Chunks, 0, "should produce at least one chunk")
+		assertEqual(t, 0, stats.Errors, "no errors should occur during ingest")
 
 		// Allow Qdrant to index
 		time.Sleep(1 * time.Second)
@@ -110,8 +108,8 @@ dangling pointers, and buffer overflows.
 		queryCfg.Threshold = 0.0 // Accept all results for testing
 
 		results, err := Query(ctx, qdrantClient, ollamaClient, "goroutines and channels in Go", queryCfg)
-		require.NoError(t, err, "query should succeed")
-		require.NotEmpty(t, results, "query should return at least one result")
+		assertNoError(t, err, "query should succeed")
+		assertNotEmpty(t, results, "query should return at least one result")
 
 		// The top result should be about Go concurrency
 		foundGoContent := false
@@ -121,14 +119,14 @@ dangling pointers, and buffer overflows.
 				break
 			}
 		}
-		assert.True(t, foundGoContent, "results should contain content with source and text fields")
+		assertTrue(t, foundGoContent, "results should contain content with source and text fields")
 
 		// Verify all results have expected metadata fields populated
 		for i, r := range results {
-			assert.NotEmpty(t, r.Text, "result %d should have text", i)
-			assert.NotEmpty(t, r.Source, "result %d should have source", i)
-			assert.NotEmpty(t, r.Category, "result %d should have category", i)
-			assert.Greater(t, r.Score, float32(0.0), "result %d should have positive score", i)
+			assertNotEmptyf(t, r.Text, "result %d should have text", i)
+			assertNotEmptyf(t, r.Source, "result %d should have source", i)
+			assertNotEmptyf(t, r.Category, "result %d should have category", i)
+			assertGreaterf(t, r.Score, float32(0.0), "result %d should have positive score", i)
 		}
 	})
 
@@ -150,7 +148,7 @@ output when given real query results from live services.
 		ingestCfg.Collection = collection
 
 		_, err := Ingest(ctx, qdrantClient, ollamaClient, ingestCfg, nil)
-		require.NoError(t, err)
+		assertNoError(t, err)
 		time.Sleep(1 * time.Second)
 
 		queryCfg := DefaultQueryConfig()
@@ -159,29 +157,29 @@ output when given real query results from live services.
 		queryCfg.Threshold = 0.0
 
 		results, err := Query(ctx, qdrantClient, ollamaClient, "format test document", queryCfg)
-		require.NoError(t, err)
-		require.NotEmpty(t, results, "should return at least one result for formatting")
+		assertNoError(t, err)
+		assertNotEmpty(t, results, "should return at least one result for formatting")
 
 		// FormatResultsText
 		textOutput := FormatResultsText(results)
-		assert.NotEmpty(t, textOutput)
-		assert.NotEqual(t, "No results found.", textOutput)
-		assert.Contains(t, textOutput, "Result 1")
-		assert.Contains(t, textOutput, "Source:")
+		assertNotEmpty(t, textOutput)
+		assertNotEqual(t, "No results found.", textOutput)
+		assertContains(t, textOutput, "Result 1")
+		assertContains(t, textOutput, "Source:")
 
 		// FormatResultsContext
 		ctxOutput := FormatResultsContext(results)
-		assert.NotEmpty(t, ctxOutput)
-		assert.Contains(t, ctxOutput, "<retrieved_context>")
-		assert.Contains(t, ctxOutput, "</retrieved_context>")
-		assert.Contains(t, ctxOutput, "<document ")
+		assertNotEmpty(t, ctxOutput)
+		assertContains(t, ctxOutput, "<retrieved_context>")
+		assertContains(t, ctxOutput, "</retrieved_context>")
+		assertContains(t, ctxOutput, "<document ")
 
 		// FormatResultsJSON
 		jsonOutput := FormatResultsJSON(results)
-		assert.NotEmpty(t, jsonOutput)
-		assert.NotEqual(t, "[]", jsonOutput)
-		assert.Contains(t, jsonOutput, `"source"`)
-		assert.Contains(t, jsonOutput, `"text"`)
+		assertNotEmpty(t, jsonOutput)
+		assertNotEqual(t, "[]", jsonOutput)
+		assertContains(t, jsonOutput, `"source"`)
+		assertContains(t, jsonOutput, `"text"`)
 	})
 
 	t.Run("IngestFile single file with live services", func(t *testing.T) {
@@ -192,7 +190,7 @@ output when given real query results from live services.
 
 		// Create the collection first (IngestFile does not create collections)
 		err := qdrantClient.CreateCollection(ctx, collection, ollamaClient.EmbedDimension())
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		dir := t.TempDir()
 		path := core.JoinPath(dir, "single.md")
@@ -203,8 +201,8 @@ should be chunked, embedded, and stored in Qdrant.
 `)
 
 		count, err := IngestFile(ctx, qdrantClient, ollamaClient, collection, path, DefaultChunkConfig())
-		require.NoError(t, err, "IngestFile should succeed")
-		assert.Greater(t, count, 0, "should produce at least one point")
+		assertNoError(t, err, "IngestFile should succeed")
+		assertGreater(t, count, 0, "should produce at least one point")
 	})
 
 	t.Run("QueryWith helper with live services", func(t *testing.T) {
@@ -225,18 +223,18 @@ with real Qdrant and Ollama connections.
 		ingestCfg.Collection = collection
 
 		_, err := Ingest(ctx, qdrantClient, ollamaClient, ingestCfg, nil)
-		require.NoError(t, err)
+		assertNoError(t, err)
 		time.Sleep(1 * time.Second)
 
 		// Test QueryWith
 		results, err := QueryWith(ctx, qdrantClient, ollamaClient, "helper function test", collection, 3)
-		require.NoError(t, err, "QueryWith should succeed")
+		assertNoError(t, err, "QueryWith should succeed")
 		// Results may or may not pass the default threshold — that is fine
 		_ = results
 
 		// Test QueryContextWith
 		ctxOutput, err := QueryContextWith(ctx, qdrantClient, ollamaClient, "helper function test", collection, 3)
-		require.NoError(t, err, "QueryContextWith should succeed")
+		assertNoError(t, err, "QueryContextWith should succeed")
 		// Even if no results pass threshold, the function should not error
 		_ = ctxOutput
 	})
@@ -258,12 +256,12 @@ Second document for the same test, ensuring multiple files are processed.
 `)
 
 		err := IngestDirWith(ctx, qdrantClient, ollamaClient, dir, collection, false)
-		require.NoError(t, err, "IngestDirWith should succeed")
+		assertNoError(t, err, "IngestDirWith should succeed")
 
 		// Verify the collection now exists and has data
 		exists, err := qdrantClient.CollectionExists(ctx, collection)
-		require.NoError(t, err)
-		assert.True(t, exists, "collection should exist after IngestDirWith")
+		assertNoError(t, err)
+		assertTrue(t, exists, "collection should exist after IngestDirWith")
 	})
 
 	t.Run("IngestFileWith helper with live services", func(t *testing.T) {
@@ -274,7 +272,7 @@ Second document for the same test, ensuring multiple files are processed.
 
 		// Create collection first
 		err := qdrantClient.CreateCollection(ctx, collection, ollamaClient.EmbedDimension())
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		dir := t.TempDir()
 		path := core.JoinPath(dir, "filewith.md")
@@ -284,8 +282,8 @@ Testing the IngestFileWith convenience wrapper with live services.
 `)
 
 		count, err := IngestFileWith(ctx, qdrantClient, ollamaClient, path, collection)
-		require.NoError(t, err, "IngestFileWith should succeed")
-		assert.Greater(t, count, 0, "should produce at least one point")
+		assertNoError(t, err, "IngestFileWith should succeed")
+		assertGreater(t, count, 0, "should produce at least one point")
 	})
 
 	t.Run("QueryDocs with default clients", func(t *testing.T) {
@@ -307,11 +305,11 @@ Content to verify that QueryDocs can query with internally constructed clients.
 		ingestCfg.Directory = dir
 		ingestCfg.Collection = collection
 		_, err := Ingest(ctx, qdrantClient, ollamaClient, ingestCfg, nil)
-		require.NoError(t, err)
+		assertNoError(t, err)
 		time.Sleep(1 * time.Second)
 
 		results, err := QueryDocs(ctx, "default client test query", collection, 3)
-		require.NoError(t, err, "QueryDocs should succeed with default clients")
+		assertNoError(t, err, "QueryDocs should succeed with default clients")
 		_ = results // Results depend on threshold; the important thing is no error
 	})
 
@@ -329,11 +327,11 @@ Qdrant and Ollama clients internally.
 `)
 
 		err := IngestDirectory(ctx, dir, collection, true)
-		require.NoError(t, err, "IngestDirectory should succeed with default clients")
+		assertNoError(t, err, "IngestDirectory should succeed with default clients")
 
 		exists, err := qdrantClient.CollectionExists(ctx, collection)
-		require.NoError(t, err)
-		assert.True(t, exists, "collection should exist after IngestDirectory")
+		assertNoError(t, err)
+		assertTrue(t, exists, "collection should exist after IngestDirectory")
 	})
 
 	t.Run("recreate flag drops and recreates collection", func(t *testing.T) {
@@ -353,7 +351,7 @@ Original content that will be replaced.
 		cfg.Directory = dir
 		cfg.Collection = collection
 		_, err := Ingest(ctx, qdrantClient, ollamaClient, cfg, nil)
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		// Replace the file content and re-ingest with recreate
 		writeTestFile(t, core.JoinPath(dir, "v1.md"), `## Version 2
@@ -362,9 +360,9 @@ Updated content after recreation.
 `)
 		cfg.Recreate = true
 		stats, err := Ingest(ctx, qdrantClient, ollamaClient, cfg, nil)
-		require.NoError(t, err)
-		assert.Equal(t, 1, stats.Files)
-		assert.Equal(t, 0, stats.Errors)
+		assertNoError(t, err)
+		assertEqual(t, 1, stats.Files)
+		assertEqual(t, 0, stats.Errors)
 	})
 
 	t.Run("semantic similarity — related queries rank higher", func(t *testing.T) {
@@ -390,7 +388,7 @@ their surrounding scope.
 		cfg.Directory = dir
 		cfg.Collection = collection
 		_, err := Ingest(ctx, qdrantClient, ollamaClient, cfg, nil)
-		require.NoError(t, err)
+		assertNoError(t, err)
 		time.Sleep(1 * time.Second)
 
 		// Query about programming
@@ -400,8 +398,8 @@ their surrounding scope.
 		queryCfg.Threshold = 0.0
 
 		results, err := Query(ctx, qdrantClient, ollamaClient, "How do Go functions and closures work?", queryCfg)
-		require.NoError(t, err)
-		require.NotEmpty(t, results)
+		assertNoError(t, err)
+		assertNotEmpty(t, results)
 
 		// The programming document should rank higher than the cooking one
 		foundProgrammingFirst := false
@@ -412,7 +410,7 @@ their surrounding scope.
 				break
 			}
 		}
-		assert.True(t, foundProgrammingFirst,
+		assertTrue(t, foundProgrammingFirst,
 			"programming content should rank higher for a programming query")
 	})
 }

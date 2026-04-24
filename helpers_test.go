@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // --- QueryWith tests ---
@@ -23,9 +21,9 @@ func TestHelpers_QueryWith_Good(t *testing.T) {
 
 		results, err := QueryWith(context.Background(), store, embedder, "hello", "my-docs", 5)
 
-		require.NoError(t, err)
-		assert.Len(t, results, 1)
-		assert.Equal(t, "Hello from helper.", results[0].Text)
+		assertNoError(t, err)
+		assertLen(t, results, 1)
+		assertEqual(t, "Hello from helper.", results[0].Text)
 	})
 
 	t.Run("respects topK parameter", func(t *testing.T) {
@@ -43,8 +41,8 @@ func TestHelpers_QueryWith_Good(t *testing.T) {
 
 		results, err := QueryWith(context.Background(), store, embedder, "test", "col", 3)
 
-		require.NoError(t, err)
-		assert.Len(t, results, 3)
+		assertNoError(t, err)
+		assertLen(t, results, 3)
 	})
 
 	t.Run("embedder error propagates", func(t *testing.T) {
@@ -54,7 +52,7 @@ func TestHelpers_QueryWith_Good(t *testing.T) {
 
 		_, err := QueryWith(context.Background(), store, embedder, "test", "col", 5)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("search error propagates", func(t *testing.T) {
@@ -64,7 +62,7 @@ func TestHelpers_QueryWith_Good(t *testing.T) {
 
 		_, err := QueryWith(context.Background(), store, embedder, "test", "col", 5)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
@@ -82,10 +80,10 @@ func TestHelpers_QueryContextWith_Good(t *testing.T) {
 
 		result, err := QueryContextWith(context.Background(), store, embedder, "question", "ctx-col", 5)
 
-		require.NoError(t, err)
-		assert.Contains(t, result, "<retrieved_context>")
-		assert.Contains(t, result, "Context content.")
-		assert.Contains(t, result, "</retrieved_context>")
+		assertNoError(t, err)
+		assertContains(t, result, "<retrieved_context>")
+		assertContains(t, result, "Context content.")
+		assertContains(t, result, "</retrieved_context>")
 	})
 
 	t.Run("empty results return empty string", func(t *testing.T) {
@@ -94,8 +92,8 @@ func TestHelpers_QueryContextWith_Good(t *testing.T) {
 
 		result, err := QueryContextWith(context.Background(), store, embedder, "question", "empty", 5)
 
-		require.NoError(t, err)
-		assert.Equal(t, "", result)
+		assertNoError(t, err)
+		assertEqual(t, "", result)
 	})
 
 	t.Run("error from query propagates", func(t *testing.T) {
@@ -105,7 +103,7 @@ func TestHelpers_QueryContextWith_Good(t *testing.T) {
 
 		_, err := QueryContextWith(context.Background(), store, embedder, "question", "col", 5)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
@@ -122,9 +120,9 @@ func TestHelpers_IngestDirWith_Good(t *testing.T) {
 
 		err := IngestDirWith(context.Background(), store, embedder, dir, "project-docs", false)
 
-		require.NoError(t, err)
+		assertNoError(t, err)
 		points := store.allPoints("project-docs")
-		assert.Len(t, points, 2)
+		assertLen(t, points, 2)
 	})
 
 	t.Run("recreate flag deletes existing collection", func(t *testing.T) {
@@ -137,9 +135,9 @@ func TestHelpers_IngestDirWith_Good(t *testing.T) {
 
 		err := IngestDirWith(context.Background(), store, embedder, dir, "col", true)
 
-		require.NoError(t, err)
-		assert.Len(t, store.deleteCalls, 1)
-		assert.Equal(t, "col", store.deleteCalls[0])
+		assertNoError(t, err)
+		assertLen(t, store.deleteCalls, 1)
+		assertEqual(t, "col", store.deleteCalls[0])
 	})
 
 	t.Run("error from ingest propagates", func(t *testing.T) {
@@ -149,7 +147,7 @@ func TestHelpers_IngestDirWith_Good(t *testing.T) {
 
 		err := IngestDirWith(context.Background(), store, embedder, "/tmp", "col", false)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("nonexistent directory returns error", func(t *testing.T) {
@@ -158,7 +156,7 @@ func TestHelpers_IngestDirWith_Good(t *testing.T) {
 
 		err := IngestDirWith(context.Background(), store, embedder, "/tmp/nonexistent-go-rag-test-dir", "col", false)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
@@ -175,12 +173,12 @@ func TestHelpers_IngestFileWith_Good(t *testing.T) {
 
 		count, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		require.NoError(t, err)
-		assert.Equal(t, 1, count)
+		assertNoError(t, err)
+		assertEqual(t, 1, count)
 
 		points := store.allPoints("col")
-		require.Len(t, points, 1)
-		assert.Contains(t, points[0].Payload["text"], "File content for testing.")
+		assertLen(t, points, 1)
+		assertContains(t, points[0].Payload["text"], "File content for testing.")
 	})
 
 	t.Run("nonexistent file returns error", func(t *testing.T) {
@@ -189,7 +187,7 @@ func TestHelpers_IngestFileWith_Good(t *testing.T) {
 
 		_, err := IngestFileWith(context.Background(), store, embedder, "/tmp/nonexistent-test-file.md", "col")
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("empty file returns zero count", func(t *testing.T) {
@@ -202,8 +200,8 @@ func TestHelpers_IngestFileWith_Good(t *testing.T) {
 
 		count, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		assertNoError(t, err)
+		assertEqual(t, 0, count)
 	})
 
 	t.Run("embedder error propagates", func(t *testing.T) {
@@ -217,7 +215,7 @@ func TestHelpers_IngestFileWith_Good(t *testing.T) {
 
 		_, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("store error propagates", func(t *testing.T) {
@@ -231,7 +229,7 @@ func TestHelpers_IngestFileWith_Good(t *testing.T) {
 
 		_, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
@@ -247,7 +245,7 @@ func TestHelpers_JoinResults_Good(t *testing.T) {
 
 		output := JoinResults(results)
 
-		assert.Equal(t, "First result.\n\nSecond result.", output)
+		assertEqual(t, "First result.\n\nSecond result.", output)
 	})
 
 	t.Run("works with SearchResult values", func(t *testing.T) {
@@ -259,11 +257,11 @@ func TestHelpers_JoinResults_Good(t *testing.T) {
 
 		output := JoinResults(results)
 
-		assert.Equal(t, "Alpha.\n\nBeta.", output)
+		assertEqual(t, "Alpha.\n\nBeta.", output)
 	})
 
 	t.Run("empty input returns empty string", func(t *testing.T) {
-		assert.Equal(t, "", JoinResults[QueryResult](nil))
-		assert.Equal(t, "", JoinResults([]QueryResult{}))
+		assertEqual(t, "", JoinResults[QueryResult](nil))
+		assertEqual(t, "", JoinResults([]QueryResult{}))
 	})
 }

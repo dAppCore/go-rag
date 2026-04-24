@@ -7,9 +7,6 @@ import (
 	"net"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // skipIfOllamaUnavailable skips the test if Ollama is not reachable on the
@@ -28,22 +25,22 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 
 	cfg := DefaultOllamaConfig()
 	client, err := NewOllamaClient(cfg)
-	require.NoError(t, err, "failed to create Ollama client")
+	assertNoError(t, err, "failed to create Ollama client")
 
 	ctx := context.Background()
 
 	t.Run("verify model is available", func(t *testing.T) {
 		err := client.VerifyModel(ctx)
-		require.NoError(t, err, "nomic-embed-text model should be available")
+		assertNoError(t, err, "nomic-embed-text model should be available")
 	})
 
 	t.Run("embed single text returns correct dimension", func(t *testing.T) {
 		vec, err := client.Embed(ctx, "The quick brown fox jumps over the lazy dog.")
-		require.NoError(t, err, "embedding should succeed")
-		require.NotEmpty(t, vec, "embedding vector should not be empty")
+		assertNoError(t, err, "embedding should succeed")
+		assertNotEmpty(t, vec, "embedding vector should not be empty")
 
 		expectedDim := client.EmbedDimension()
-		assert.Equal(t, int(expectedDim), len(vec),
+		assertEqual(t, int(expectedDim), len(vec),
 			"embedding dimension should match EmbedDimension() for nomic-embed-text (768)")
 	})
 
@@ -55,12 +52,12 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 		}
 
 		vectors, err := client.EmbedBatch(ctx, texts)
-		require.NoError(t, err, "batch embedding should succeed")
-		require.Len(t, vectors, 3, "should return one vector per input text")
+		assertNoError(t, err, "batch embedding should succeed")
+		assertLen(t, vectors, 3, "should return one vector per input text")
 
 		expectedDim := int(client.EmbedDimension())
 		for i, vec := range vectors {
-			assert.Len(t, vec, expectedDim,
+			assertLen(t, vec, expectedDim,
 				"vector %d should have dimension %d", i, expectedDim)
 		}
 	})
@@ -69,14 +66,14 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 		text := "Deterministic embedding test."
 
 		vec1, err := client.Embed(ctx, text)
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		vec2, err := client.Embed(ctx, text)
-		require.NoError(t, err)
+		assertNoError(t, err)
 
-		require.Equal(t, len(vec1), len(vec2), "vectors should have same length")
+		assertEqual(t, len(vec1), len(vec2), "vectors should have same length")
 		for i := range vec1 {
-			assert.Equal(t, vec1[i], vec2[i],
+			assertEqual(t, vec1[i], vec2[i],
 				"vectors should be identical at index %d — same input must produce same output", i)
 		}
 	})
@@ -84,26 +81,26 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 	t.Run("dimension matches config — EmbedDimension equals actual embedding size", func(t *testing.T) {
 		// EmbedDimension is a pure lookup, but here we verify it matches reality
 		declaredDim := client.EmbedDimension()
-		assert.Equal(t, uint64(768), declaredDim,
+		assertEqual(t, uint64(768), declaredDim,
 			"nomic-embed-text should declare 768 dimensions")
 
 		vec, err := client.Embed(ctx, "dimension verification")
-		require.NoError(t, err)
-		assert.Equal(t, int(declaredDim), len(vec),
+		assertNoError(t, err)
+		assertEqual(t, int(declaredDim), len(vec),
 			"actual embedding length should match declared dimension")
 	})
 
 	t.Run("model name returns configured model", func(t *testing.T) {
-		assert.Equal(t, "nomic-embed-text", client.Model(),
+		assertEqual(t, "nomic-embed-text", client.Model(),
 			"Model() should return the configured model name")
 	})
 
 	t.Run("different texts produce different embeddings", func(t *testing.T) {
 		vec1, err := client.Embed(ctx, "Qdrant is a vector database.")
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		vec2, err := client.Embed(ctx, "Banana bread recipe with walnuts.")
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		// Check that the vectors differ in at least some positions
 		differ := false
@@ -113,12 +110,12 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 				break
 			}
 		}
-		assert.True(t, differ, "semantically different texts should produce different vectors")
+		assertTrue(t, differ, "semantically different texts should produce different vectors")
 	})
 
 	t.Run("embedding vectors contain non-zero values", func(t *testing.T) {
 		vec, err := client.Embed(ctx, "Non-zero embedding check.")
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		hasNonZero := false
 		for _, v := range vec {
@@ -127,7 +124,7 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 				break
 			}
 		}
-		assert.True(t, hasNonZero, "embedding should contain at least one non-zero value")
+		assertTrue(t, hasNonZero, "embedding should contain at least one non-zero value")
 	})
 
 	t.Run("empty string can be embedded without error", func(t *testing.T) {
@@ -135,7 +132,7 @@ func TestOllama_Integration_Ugly(t *testing.T) {
 		vec, err := client.Embed(ctx, "")
 		if err == nil {
 			// If it succeeds, the dimension should still be correct
-			assert.Equal(t, int(client.EmbedDimension()), len(vec))
+			assertEqual(t, int(client.EmbedDimension()), len(vec))
 		}
 		// If it errors, that is also acceptable — we just document it
 	})
