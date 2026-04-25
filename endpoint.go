@@ -2,7 +2,8 @@ package rag
 
 import (
 	"net/url"
-	"strings"
+
+	"dappco.re/go/core"
 )
 
 // parseEndpointURL normalizes host-style endpoints into a parsed URL.
@@ -12,8 +13,8 @@ func parseEndpointURL(endpoint string) (*url.URL, error) {
 	if endpoint == "" {
 		return &url.URL{Scheme: "http"}, nil
 	}
-	if !strings.Contains(endpoint, "://") {
-		endpoint = "http://" + endpoint
+	if !core.Contains(endpoint, "://") {
+		endpoint = core.Concat("http://", endpoint)
 	}
 	return url.Parse(endpoint)
 }

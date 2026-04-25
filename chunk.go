@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"iter"
 	"slices"
-	"strings"
 	"unicode"
 
 	"dappco.re/go/core"
@@ -287,7 +286,7 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 		start--
 	}
 
-	overlapText := strings.TrimLeftFunc(string(runes[start:]), unicode.IsSpace)
+	overlapText := trimLeftSpace(string(runes[start:]))
 	overlapText = trimLeadingNonWordRunes(overlapText)
 
 	if overlapText == "" {
@@ -500,7 +499,7 @@ func overlapPrefixInline(prevChunk string, overlap int, newSentence string) stri
 	for start > 0 && !unicode.IsSpace(runes[start-1]) {
 		start--
 	}
-	overlapText := strings.TrimLeftFunc(string(runes[start:]), unicode.IsSpace)
+	overlapText := trimLeftSpace(string(runes[start:]))
 	overlapText = trimLeadingNonWordRunes(overlapText)
 	if overlapText == "" {
 		return newSentence
@@ -512,7 +511,7 @@ func overlapPrefixInline(prevChunk string, overlap int, newSentence string) stri
 // from chunk content instead of section titles.
 func overlapSource(prevChunk string) string {
 	prevChunk = normalizeLineEndings(prevChunk)
-	lines := strings.Split(prevChunk, "\n")
+	lines := core.Split(prevChunk, "\n")
 
 	i := 0
 	for i < len(lines) {
@@ -532,7 +531,7 @@ func overlapSource(prevChunk string) string {
 		return ""
 	}
 
-	return strings.Join(lines[i:], "\n")
+	return core.Join("\n", lines[i:]...)
 }
 
 // splitBySentences splits text at sentence boundaries (". ", "? ", "! ").
@@ -576,7 +575,7 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 					return
 				}
 			}
-			remaining = strings.TrimLeftFunc(remaining[boundary:], unicode.IsSpace)
+			remaining = trimLeftSpace(remaining[boundary:])
 		}
 	}
 }
@@ -685,7 +684,7 @@ func ShouldProcess(path string) bool {
 }
 
 func normalizeLineEndings(text string) string {
-	return strings.ReplaceAll(text, "\r\n", "\n")
+	return core.Replace(text, "\r\n", "\n")
 }
 
 func trimHeadingPrefix(line string) string {
@@ -759,6 +758,15 @@ func runeLen(text string) int {
 func trimLeadingNonWordRunes(text string) string {
 	for i, r := range text {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return text[i:]
+		}
+	}
+	return ""
+}
+
+func trimLeftSpace(text string) string {
+	for i, r := range text {
+		if !unicode.IsSpace(r) {
 			return text[i:]
 		}
 	}
