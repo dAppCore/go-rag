@@ -1,11 +1,15 @@
 package rag
 
 import (
+	// Note: AX-6 - Ollama embedding calls propagate cancellation through context.Context.
 	"context"
+	// Note: AX-6 - Ollama's API constructor requires a standard *http.Client boundary.
 	"net/http"
+	// Note: AX-6 - Ollama's API constructor requires *url.URL; core has no URL primitive.
 	"net/url"
+	// Note: AX-6 - URL port parsing needs decimal string-to-int conversion; core v0.8.0-alpha.1 has no Atoi primitive.
 	"strconv"
-	"strings"
+	// Note: AX-6 - http.Client timeout is expressed as time.Duration; core has no duration primitive.
 	"time"
 
 	"dappco.re/go/core"
@@ -73,37 +77,6 @@ func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 		client: client,
 		config: cfg,
 	}, nil
-}
-
-func parseHostPort(endpoint string, defaultPort int) (string, int, error) {
-	if endpoint == "" {
-		return "localhost", defaultPort, nil
-	}
-	if !strings.Contains(endpoint, "://") {
-		endpoint = "http://" + endpoint
-	}
-
-	parsed, err := url.Parse(endpoint)
-	if err != nil {
-		return "", 0, err
-	}
-
-	host := parsed.Hostname()
-	if host == "" {
-		host = parsed.Path
-	}
-	if host == "" {
-		host = "localhost"
-	}
-
-	port := defaultPort
-	if parsed.Port() != "" {
-		if parsedPort, err := strconv.Atoi(parsed.Port()); err == nil {
-			port = parsedPort
-		}
-	}
-
-	return host, port, nil
 }
 
 func ollamaConfigFromEndpoint(endpoint string) (OllamaConfig, error) {
