@@ -76,7 +76,7 @@ All commands accept `--qdrant-host`, `--qdrant-port`, `--ollama-host`, `--ollama
 | `forge.lthn.ai/core/cli` | CLI framework (cobra-based commands) |
 | `github.com/ollama/ollama` | Ollama HTTP client for embedding generation |
 | `github.com/qdrant/go-client` | Qdrant gRPC client for vector storage and search |
-| `github.com/stretchr/testify` | Test assertions (test-only) |
+| `github.com/ledongthuc/pdf` | PDF text extraction for ingestion pipeline |
 
 Transitive dependencies include `google.golang.org/grpc`, `google.golang.org/protobuf`, and `github.com/google/uuid`.
 

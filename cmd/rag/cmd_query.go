@@ -2,9 +2,10 @@ package rag
 
 import (
 	"context"
+	"io"
 
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/core"
 	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )
@@ -70,13 +71,14 @@ func runQuery(cmd *cli.Command, args []string) error {
 	}
 
 	// Format output
+	out := cmd.OutOrStdout()
 	switch format {
 	case "json":
-		core.Println(rag.FormatResultsJSON(results))
+		_, _ = io.WriteString(out, rag.FormatResultsJSON(results)+"\n")
 	case "context":
-		core.Println(rag.FormatResultsContext(results))
+		_, _ = io.WriteString(out, rag.FormatResultsContext(results)+"\n")
 	default:
-		core.Println(rag.FormatResultsText(results))
+		_, _ = io.WriteString(out, rag.FormatResultsText(results)+"\n")
 	}
 
 	return nil

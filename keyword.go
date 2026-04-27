@@ -29,6 +29,9 @@ func (r KeywordResult) GetScore() float32 { return r.Score }
 // GetSource returns the source path.
 func (r KeywordResult) GetSource() string { return r.Source }
 
+// HasChunkIndex reports whether this result carries explicit chunk metadata.
+func (r KeywordResult) HasChunkIndex() bool { return true }
+
 // GetChunkIndex returns the source chunk index.
 func (r KeywordResult) GetChunkIndex() int {
 	return r.ChunkIndex

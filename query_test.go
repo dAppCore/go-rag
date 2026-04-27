@@ -515,3 +515,17 @@ func TestQuery_Query_Good(t *testing.T) {
 		assertLen(t, results, 3)
 	})
 }
+
+func TestQuery_Rank_Good_ChunklessSourceKeepsDistinctText(t *testing.T) {
+	results := []QueryResult{
+		{Text: "first chunkless hit", Source: "same.md", Score: 0.9},
+		{Text: "second chunkless hit", Source: "same.md", Score: 0.8},
+	}
+
+	ranked := Rank(results, 10)
+
+	assertLen(t, ranked, 2)
+	assertEqual(t, missingChunkIndex, ranked[0].GetChunkIndex())
+	assertEqual(t, "first chunkless hit", ranked[0].Text)
+	assertEqual(t, "second chunkless hit", ranked[1].Text)
+}

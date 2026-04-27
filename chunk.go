@@ -621,11 +621,11 @@ func splitByParagraphsSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		text = normalizeLineEndings(text)
 		// Replace multiple newlines with a marker, then split
-		normalized := text
-		for core.Contains(normalized, "\n\n\n") {
-			normalized = core.Replace(normalized, "\n\n\n", "\n\n")
+		normalised := text
+		for core.Contains(normalised, "\n\n\n") {
+			normalised = core.Replace(normalised, "\n\n\n", "\n\n")
 		}
-		for _, s := range core.Split(normalized, "\n\n") {
+		for _, s := range core.Split(normalised, "\n\n") {
 			if !yield(s) {
 				return
 			}

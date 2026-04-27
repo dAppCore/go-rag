@@ -365,12 +365,22 @@ func isEmpty(value any) bool {
 
 func lengthOf(value any) (int, bool) {
 	if value == nil {
-		return 0, true
+		return 0, false
 	}
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
-	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
+	case reflect.Chan, reflect.Map, reflect.Slice:
+		if v.IsNil() {
+			return 0, false
+		}
 		return v.Len(), true
+	case reflect.Array, reflect.String:
+		return v.Len(), true
+	case reflect.Func, reflect.Interface, reflect.Pointer:
+		if v.IsNil() {
+			return 0, false
+		}
+		return 0, false
 	default:
 		return 0, false
 	}

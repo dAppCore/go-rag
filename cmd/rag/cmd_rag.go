@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"sync"
 
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/core"
 	"dappco.re/go/i18n"
 )
 
@@ -36,12 +36,7 @@ func initFlags() {
 		}
 		ragCmd.PersistentFlags().StringVar(&qdrantHost, "qdrant-host", qHost, i18n.T("cmd.rag.flag.qdrant_host"))
 
-		qPort := 6334
-		if v := core.Env("QDRANT_PORT"); v != "" {
-			if p, err := strconv.Atoi(v); err == nil {
-				qPort = p
-			}
-		}
+		qPort := envPortOrDefault("QDRANT_PORT", 6334)
 		ragCmd.PersistentFlags().IntVar(&qdrantPort, "qdrant-port", qPort, i18n.T("cmd.rag.flag.qdrant_port"))
 
 		// Ollama connection flags (persistent) - defaults to localhost for local development
@@ -51,12 +46,7 @@ func initFlags() {
 		}
 		ragCmd.PersistentFlags().StringVar(&ollamaHost, "ollama-host", oHost, i18n.T("cmd.rag.flag.ollama_host"))
 
-		oPort := 11434
-		if v := core.Env("OLLAMA_PORT"); v != "" {
-			if p, err := strconv.Atoi(v); err == nil {
-				oPort = p
-			}
-		}
+		oPort := envPortOrDefault("OLLAMA_PORT", 11434)
 		ragCmd.PersistentFlags().IntVar(&ollamaPort, "ollama-port", oPort, i18n.T("cmd.rag.flag.ollama_port"))
 
 		m := "nomic-embed-text"
@@ -87,4 +77,19 @@ func initFlags() {
 		collectionsCmd.Flags().BoolVar(&showStats, "stats", false, i18n.T("cmd.rag.collections.flag.stats"))
 		collectionsCmd.Flags().StringVar(&deleteCollection, "delete", "", i18n.T("cmd.rag.collections.flag.delete"))
 	})
+}
+
+func envPortOrDefault(name string, fallback int) int {
+	value := core.Env(name)
+	if value == "" {
+		return fallback
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil {
+		panic(core.E("rag.cmd.flags", core.Sprintf("invalid %s value: %s", name, value), err))
+	}
+	if port < 1 || port > 65535 {
+		panic(core.E("rag.cmd.flags", core.Sprintf("invalid %s value: %d", name, port), nil))
+	}
+	return port
 }

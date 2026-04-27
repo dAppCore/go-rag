@@ -7,6 +7,8 @@ import (
 	"dappco.re/go/core"
 )
 
+const maxConcurrentEmbeddings = 8
+
 // QueryWith queries the vector store using the provided embedder and store.
 // QueryWith(ctx, store, embedder, "how do goroutines work?", "project-docs", 5)
 func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) ([]QueryResult, error) {
@@ -164,22 +166,43 @@ func embedBatchConcurrent(ctx context.Context, texts []string, embed func(contex
 
 	vectors := make([][]float32, len(texts))
 	errs := make([]error, len(texts))
+	workerCount := len(texts)
+	if workerCount > maxConcurrentEmbeddings {
+		workerCount = maxConcurrentEmbeddings
+	}
 
+	jobs := make(chan int)
 	var wg sync.WaitGroup
-	wg.Add(len(texts))
-	for i, text := range texts {
-		i := i
-		text := text
+	wg.Add(workerCount)
+	for range workerCount {
 		go func() {
 			defer wg.Done()
-			vec, err := embed(ctx, text)
-			if err != nil {
-				errs[i] = err
-				return
+			for i := range jobs {
+				select {
+				case <-ctx.Done():
+					errs[i] = ctx.Err()
+					continue
+				default:
+				}
+
+				vec, err := embed(ctx, texts[i])
+				if err != nil {
+					errs[i] = err
+					continue
+				}
+				vectors[i] = vec
 			}
-			vectors[i] = vec
 		}()
 	}
+
+	for i := range texts {
+		select {
+		case <-ctx.Done():
+			errs[i] = ctx.Err()
+		case jobs <- i:
+		}
+	}
+	close(jobs)
 
 	wg.Wait()
 	return vectors, errs

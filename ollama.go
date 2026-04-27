@@ -7,8 +7,6 @@ import (
 	"net/http"
 	// Note: AX-6 - Ollama's API constructor requires *url.URL; core has no URL primitive.
 	"net/url"
-	// Note: AX-6 - URL port parsing needs decimal string-to-int conversion; core v0.8.0-alpha.1 has no Atoi primitive.
-	"strconv"
 	// Note: AX-6 - http.Client timeout is expressed as time.Duration; core has no duration primitive.
 	"time"
 
@@ -93,9 +91,11 @@ func ollamaConfigFromEndpoint(endpoint string) (OllamaConfig, error) {
 	cfg.Host = host
 
 	if portText := parsed.Port(); portText != "" {
-		if port, err := strconv.Atoi(portText); err == nil {
-			cfg.Port = port
+		port, err := parseEndpointPort("rag.ollamaConfigFromEndpoint", portText)
+		if err != nil {
+			return OllamaConfig{}, err
 		}
+		cfg.Port = port
 	}
 
 	if parsed.Scheme != "" {

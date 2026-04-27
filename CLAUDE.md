@@ -42,7 +42,7 @@ The library is built around two core interfaces (`Embedder` in `embedder.go`, `V
 - Conventional commits: `type(scope): description`
 - Co-Author: `Co-Authored-By: Virgil <virgil@lethean.io>`
 - Licence: EUPL-1.2
-- Tests: testify assert/require
+- Tests: stdlib `testing` with the local helpers in `test_helpers_test.go`; do not add testify
 - Integration tests: `//go:build rag` build tag — requires live Qdrant + Ollama
 - Mocks: `mockEmbedder` and `mockVectorStore` in `mock_test.go` — error injection via fields, call tracking for verification
 

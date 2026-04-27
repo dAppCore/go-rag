@@ -47,7 +47,7 @@ func TestIntegration_Pipeline_Ugly(t *testing.T) {
 
 		// Create temp directory with markdown files
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "go-intro.md"), `# Go Programming
+		writeFile(t, core.JoinPath(dir, "go-intro.md"), `# Go Programming
 
 ## Overview
 
@@ -62,7 +62,7 @@ are lightweight threads managed by the Go runtime. Channels allow goroutines
 to communicate safely without shared memory.
 `)
 
-		writeTestFile(t, core.JoinPath(dir, "qdrant-intro.md"), `# Qdrant Vector Database
+		writeFile(t, core.JoinPath(dir, "qdrant-intro.md"), `# Qdrant Vector Database
 
 ## What Is Qdrant
 
@@ -77,7 +77,7 @@ retrieval-augmented generation (RAG) pipelines. It supports cosine, dot product,
 and Euclidean distance metrics.
 `)
 
-		writeTestFile(t, core.JoinPath(dir, "rust-intro.md"), `# Rust Programming
+		writeFile(t, core.JoinPath(dir, "rust-intro.md"), `# Rust Programming
 
 ## Memory Safety
 
@@ -137,7 +137,7 @@ dangling pointers, and buffer overflows.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "format-test.md"), `## Format Test
+		writeFile(t, core.JoinPath(dir, "format-test.md"), `## Format Test
 
 This document is used to verify that the format functions produce non-empty
 output when given real query results from live services.
@@ -194,7 +194,7 @@ output when given real query results from live services.
 
 		dir := t.TempDir()
 		path := core.JoinPath(dir, "single.md")
-		writeTestFile(t, path, `## Single File Ingest
+		writeFile(t, path, `## Single File Ingest
 
 Testing the IngestFile function with a single markdown file. This content
 should be chunked, embedded, and stored in Qdrant.
@@ -212,7 +212,7 @@ should be chunked, embedded, and stored in Qdrant.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "helper-test.md"), `## Helper Test
+		writeFile(t, core.JoinPath(dir, "helper-test.md"), `## Helper Test
 
 Content for testing the QueryWith and QueryContextWith helper functions
 with real Qdrant and Ollama connections.
@@ -246,11 +246,11 @@ with real Qdrant and Ollama connections.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "dirwith-a.md"), `## Directory Ingest A
+		writeFile(t, core.JoinPath(dir, "dirwith-a.md"), `## Directory Ingest A
 
 First document for testing the IngestDirWith convenience wrapper.
 `)
-		writeTestFile(t, core.JoinPath(dir, "dirwith-b.md"), `## Directory Ingest B
+		writeFile(t, core.JoinPath(dir, "dirwith-b.md"), `## Directory Ingest B
 
 Second document for the same test, ensuring multiple files are processed.
 `)
@@ -276,7 +276,7 @@ Second document for the same test, ensuring multiple files are processed.
 
 		dir := t.TempDir()
 		path := core.JoinPath(dir, "filewith.md")
-		writeTestFile(t, path, `## File With Helper
+		writeFile(t, path, `## File With Helper
 
 Testing the IngestFileWith convenience wrapper with live services.
 `)
@@ -296,7 +296,7 @@ Testing the IngestFileWith convenience wrapper with live services.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "default-client.md"), `## Default Client Test
+		writeFile(t, core.JoinPath(dir, "default-client.md"), `## Default Client Test
 
 Content to verify that QueryDocs can query with internally constructed clients.
 `)
@@ -320,7 +320,7 @@ Content to verify that QueryDocs can query with internally constructed clients.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "ingestdir.md"), `## Ingest Directory
+		writeFile(t, core.JoinPath(dir, "ingestdir.md"), `## Ingest Directory
 
 Testing the IngestDirectory convenience wrapper that constructs its own
 Qdrant and Ollama clients internally.
@@ -341,7 +341,7 @@ Qdrant and Ollama clients internally.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "v1.md"), `## Version 1
+		writeFile(t, core.JoinPath(dir, "v1.md"), `## Version 1
 
 Original content that will be replaced.
 `)
@@ -354,7 +354,7 @@ Original content that will be replaced.
 		assertNoError(t, err)
 
 		// Replace the file content and re-ingest with recreate
-		writeTestFile(t, core.JoinPath(dir, "v1.md"), `## Version 2
+		writeFile(t, core.JoinPath(dir, "v1.md"), `## Version 2
 
 Updated content after recreation.
 `)
@@ -372,12 +372,12 @@ Updated content after recreation.
 		})
 
 		dir := t.TempDir()
-		writeTestFile(t, core.JoinPath(dir, "cooking.md"), `## Cooking
+		writeFile(t, core.JoinPath(dir, "cooking.md"), `## Cooking
 
 Pasta with tomato sauce is a classic Italian dish. Boil the spaghetti for
 eight minutes, then drain and add the sauce. Season with basil and parmesan.
 `)
-		writeTestFile(t, core.JoinPath(dir, "programming.md"), `## Programming
+		writeFile(t, core.JoinPath(dir, "programming.md"), `## Programming
 
 Functions in Go are first-class citizens. You can pass functions as arguments,
 return them from other functions, and assign them to variables. Closures capture
@@ -413,10 +413,4 @@ their surrounding scope.
 		assertTrue(t, foundProgrammingFirst,
 			"programming content should rank higher for a programming query")
 	})
-}
-
-// writeTestFile creates a test file, ensuring parent directories exist.
-func writeTestFile(t *testing.T, path string, content string) {
-	t.Helper()
-	writeFile(t, path, content)
 }

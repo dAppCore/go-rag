@@ -330,11 +330,11 @@ func TestQdrant_SearchResult_Good(t *testing.T) {
 		assertEqual(t, "some text", sr.Payload["text"])
 	})
 
-	t.Run("prefers denormalized fields when present", func(t *testing.T) {
+	t.Run("prefers denormalised fields when present", func(t *testing.T) {
 		sr := SearchResult{
 			ID:         "result-2",
 			Score:      0.9,
-			Text:       "denormalized text",
+			Text:       "denormalised text",
 			Source:     "doc.md",
 			Section:    "Intro",
 			Category:   "docs",
@@ -348,14 +348,14 @@ func TestQdrant_SearchResult_Good(t *testing.T) {
 			},
 		}
 
-		assertEqual(t, "denormalized text", sr.GetText())
+		assertEqual(t, "denormalised text", sr.GetText())
 		assertEqual(t, "doc.md", sr.GetSource())
 		assertEqual(t, "Intro", sr.GetSection())
 		assertEqual(t, "docs", sr.GetCategory())
 		assertEqual(t, 7, sr.GetChunkIndex())
 	})
 
-	t.Run("falls back to payload when denormalized fields are empty", func(t *testing.T) {
+	t.Run("falls back to payload when denormalised fields are empty", func(t *testing.T) {
 		sr := SearchResult{
 			Payload: map[string]any{
 				"text":        "payload text",
@@ -371,5 +371,25 @@ func TestQdrant_SearchResult_Good(t *testing.T) {
 		assertEqual(t, "Payload", sr.GetSection())
 		assertEqual(t, "payload", sr.GetCategory())
 		assertEqual(t, 42, sr.GetChunkIndex())
+	})
+
+	t.Run("explicit zero chunk index takes precedence over payload", func(t *testing.T) {
+		sr := SearchResult{
+			ChunkIndex:        0,
+			ChunkIndexPresent: true,
+			Payload: map[string]any{
+				"chunk_index": 42,
+			},
+		}
+
+		assertTrue(t, sr.HasChunkIndex())
+		assertEqual(t, 0, sr.GetChunkIndex())
+	})
+
+	t.Run("missing chunk index uses sentinel", func(t *testing.T) {
+		sr := SearchResult{}
+
+		assertFalse(t, sr.HasChunkIndex())
+		assertEqual(t, missingChunkIndex, sr.GetChunkIndex())
 	})
 }

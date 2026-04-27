@@ -10,6 +10,8 @@ import (
 	"dappco.re/go/core"
 )
 
+const missingChunkIndex = -1
+
 // QueryConfig holds query configuration.
 // cfg := QueryConfig{Collection: "project-docs", Limit: 5, Threshold: 0.6}
 type QueryConfig struct {
@@ -33,13 +35,15 @@ func DefaultQueryConfig() QueryConfig {
 // QueryResult represents a query result with metadata.
 // result := QueryResult{Source: "docs/go.md", Section: "Concurrency", Score: 0.92}
 type QueryResult struct {
-	Text       string
-	Source     string
-	Section    string
-	Category   string
-	ChunkIndex int
-	Index      int
-	Score      float32
+	Text              string
+	Source            string
+	Section           string
+	Category          string
+	ChunkIndex        int
+	Index             int
+	ChunkIndexPresent bool
+	IndexPresent      bool
+	Score             float32
 }
 
 // GetText returns the result text (satisfies the rankedResult interface).
@@ -51,15 +55,24 @@ func (r QueryResult) GetScore() float32 { return r.Score }
 // GetSource returns the result source path (satisfies the rankedResult interface).
 func (r QueryResult) GetSource() string { return r.Source }
 
+// HasChunkIndex reports whether this result carries explicit chunk metadata.
+func (r QueryResult) HasChunkIndex() bool {
+	if r.ChunkIndexPresent || r.IndexPresent {
+		return true
+	}
+	return (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) ||
+		(r.Index != 0 && r.Index != missingChunkIndex)
+}
+
 // GetChunkIndex returns the source chunk index (satisfies the rankedResult interface).
 func (r QueryResult) GetChunkIndex() int {
-	if r.ChunkIndex != 0 {
+	if r.ChunkIndexPresent || (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) {
 		return r.ChunkIndex
 	}
-	if r.Index != 0 {
+	if r.IndexPresent || (r.Index != 0 && r.Index != missingChunkIndex) {
 		return r.Index
 	}
-	return 0
+	return missingChunkIndex
 }
 
 // rankedResult is implemented by any result type that carries enough
@@ -71,6 +84,10 @@ type rankedResult interface {
 	GetScore() float32
 	GetSource() string
 	GetChunkIndex() int
+}
+
+type chunkIndexedResult interface {
+	HasChunkIndex() bool
 }
 
 // Rank sorts results by score (descending), removes duplicate documents by
@@ -127,13 +144,26 @@ func Rank[T rankedResult](results []T, topK int) []T {
 // rankKey produces a deduplication key for a ranked result: prefer
 // (source, chunkIndex) when source is known, fall back to text, then score.
 func rankKey[T rankedResult](result T) string {
-	if result.GetSource() != "" {
-		return core.Sprintf("%s:%d", result.GetSource(), result.GetChunkIndex())
+	if source := result.GetSource(); source != "" {
+		if resultHasChunkIndex(result) {
+			return core.Sprintf("%s:%d", source, result.GetChunkIndex())
+		}
+		if text := result.GetText(); text != "" {
+			return core.Sprintf("%s:%d:%s", source, missingChunkIndex, text)
+		}
+		return core.Sprintf("%s:%d:%f", source, missingChunkIndex, result.GetScore())
 	}
 	if text := result.GetText(); text != "" {
 		return text
 	}
 	return core.Sprintf("score:%f", result.GetScore())
+}
+
+func resultHasChunkIndex[T rankedResult](result T) bool {
+	if indexed, ok := any(result).(chunkIndexedResult); ok {
+		return indexed.HasChunkIndex()
+	}
+	return result.GetChunkIndex() != missingChunkIndex
 }
 
 // Query searches for similar documents in the vector store.
@@ -178,13 +208,15 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 			}
 
 			qr := QueryResult{
-				Text:       r.GetText(),
-				Source:     r.GetSource(),
-				Section:    r.GetSection(),
-				Category:   r.GetCategory(),
-				ChunkIndex: r.GetChunkIndex(),
-				Index:      r.GetChunkIndex(),
-				Score:      r.Score,
+				Text:              r.GetText(),
+				Source:            r.GetSource(),
+				Section:           r.GetSection(),
+				Category:          r.GetCategory(),
+				ChunkIndex:        r.GetChunkIndex(),
+				Index:             r.GetChunkIndex(),
+				ChunkIndexPresent: r.HasChunkIndex(),
+				IndexPresent:      r.HasChunkIndex(),
+				Score:             r.Score,
 			}
 
 			queryResults = append(queryResults, qr)

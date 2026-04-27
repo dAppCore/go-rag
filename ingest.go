@@ -63,7 +63,10 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 	if !infoResult.OK {
 		return nil, core.Wrap(resultError(infoResult), "rag.Ingest", "error accessing directory")
 	}
-	info := infoResult.Value.(fs.FileInfo)
+	info, ok := infoResult.Value.(fs.FileInfo)
+	if !ok {
+		return nil, core.E("rag.Ingest", core.Sprintf("unexpected stat result type: %T", infoResult.Value), nil)
+	}
 	if !info.IsDir() {
 		return nil, core.E("rag.Ingest", core.Sprintf("not a directory: %s", scanRoot), nil)
 	}
@@ -246,7 +249,10 @@ func collectMarkdownFiles(localFS *core.Fs, currentPath string, currentRel strin
 		return resultError(listResult)
 	}
 
-	entries := listResult.Value.([]fs.DirEntry)
+	entries, ok := listResult.Value.([]fs.DirEntry)
+	if !ok {
+		return core.E("rag.collectMarkdownFiles", core.Sprintf("unexpected list result type: %T", listResult.Value), nil)
+	}
 	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
 		switch {
 		case a.Name() < b.Name():

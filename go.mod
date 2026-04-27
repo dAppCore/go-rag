@@ -3,8 +3,8 @@ module dappco.re/go/rag
 go 1.26.0
 
 require (
-	dappco.re/go/core v0.8.0-alpha.1
 	dappco.re/go/cli v0.8.0-alpha.1 // Note: CLI command framework for rag ingest, query, and collection commands.
+	dappco.re/go/core v0.8.0-alpha.1 // Note: structured errors, formatting helpers, and filesystem wrappers used across the RAG package.
 	dappco.re/go/i18n v0.8.0-alpha.1 // Note: localized CLI labels and messages for the rag command surface.
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // Note: PDF text extraction lets .pdf documents enter the chunking pipeline.
 	github.com/ollama/ollama v0.18.1 // Note: Ollama embeddings client backing the repository's Embedder implementation.
@@ -12,7 +12,6 @@ require (
 )
 
 require (
-	dappco.re/go/core v0.8.0-alpha.1 // indirect
 	dappco.re/go/inference v0.8.0-alpha.1 // indirect
 	dappco.re/go/log v0.8.0-alpha.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

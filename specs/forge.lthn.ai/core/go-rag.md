@@ -7,7 +7,7 @@
 ### `ChunkConfig`
 `type ChunkConfig struct { Size int; Overlap int }`
 
-Chunking configuration for markdown splitting. `Size` is the target chunk length in characters. `Overlap` is the number of trailing characters from the previous chunk that can be prepended to the next chunk. `ChunkMarkdownSeq` normalizes non-positive sizes to `500` and overlap values outside `0 <= overlap < size` to `0`.
+Chunking configuration for markdown splitting. `Size` is the target chunk length in characters. `Overlap` is the number of trailing characters from the previous chunk that can be prepended to the next chunk. `ChunkMarkdownSeq` normalises non-positive sizes to `500` and overlap values outside `0 <= overlap < size` to `0`.
 
 ### `Chunk`
 `type Chunk struct { Text string; Section string; Index int }`
@@ -72,7 +72,7 @@ Query settings. `Collection` selects the collection to search. `Limit` is forwar
 ### `QueryResult`
 `type QueryResult struct { Text string; Source string; Section string; Category string; ChunkIndex int; Score float32 }`
 
-Normalized result returned by `Query` and `QuerySeq`. The fields are projected from vector store payloads plus the similarity score returned by the search backend.
+Normalised result returned by `Query` and `QuerySeq`. The fields are projected from vector store payloads plus the similarity score returned by the search backend.
 
 ### `SearchResult`
 `type SearchResult struct { ID string; Score float32; Payload map[string]any }`
@@ -125,7 +125,7 @@ Delegates directly to `store.CollectionInfo(ctx, name)`.
 Returns `IngestConfig{Collection: "hostuk-docs", BatchSize: 100, Chunk: DefaultChunkConfig()}`. `Directory`, `Recreate`, and `Verbose` remain at their zero values.
 
 ### `func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg IngestConfig, progress IngestProgress) (*IngestStats, error)`
-Recursively scans `cfg.Directory` or `.` for `.md`, `.markdown`, and `.txt` files; validates that the scan root exists and is a directory; optionally deletes and recreates the target collection; creates the collection when it does not already exist using `embedder.EmbedDimension()`; reads each file; skips empty content; chunks each document; embeds each chunk; builds `Point` payloads containing `text`, `source`, `section`, `category`, and `chunk_index`; and batch-upserts the resulting points. `stats.Errors` increments for unreadable files and embedding failures. The function returns an error when directory access fails, the scan root is not a directory, no matching files are found, collection operations fail, or any upsert batch fails.
+Recursively scans `cfg.Directory` or `.` for `.md`, `.markdown`, `.pdf`, and `.txt` files; validates that the scan root exists and is a directory; optionally deletes and recreates the target collection; creates the collection when it does not already exist using `embedder.EmbedDimension()`; reads each file; skips empty content; chunks each document; embeds chunks in batches; builds `Point` payloads containing `text`, `source`, `section`, `category`, and `chunk_index`; and batch-upserts the resulting points. `stats.Errors` increments for unreadable files and embedding failures. The function returns an error when directory access fails, the scan root is not a directory, no matching files are found, collection operations fail, or any upsert batch fails.
 
 ### `func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error)`
 Reads one file, returns `0, nil` for empty content, chunks the content with `chunkCfg`, embeds every chunk, creates `Point` payloads with the same metadata keys used by `Ingest`, and upserts them into `collection`. It does not create or verify the collection before writing.
@@ -173,7 +173,7 @@ Returns `QueryConfig{Collection: "hostuk-docs", Limit: 5, Threshold: 0.5}`. `Cat
 Collects the iterator returned by `QuerySeq` into a slice.
 
 ### `func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error)`
-Embeds the query text, builds a `category` filter when `cfg.Category` is non-empty, searches `cfg.Collection` with `cfg.Limit`, drops hits below `cfg.Threshold`, projects payload fields into `QueryResult`, normalizes `chunk_index` values coming back as `int64`, `float64`, or `int`, and optionally re-ranks the results with `KeywordFilter` when `cfg.Keywords` is `true`.
+Embeds the query text, builds a `category` filter when `cfg.Category` is non-empty, searches `cfg.Collection` with `cfg.Limit`, drops hits below `cfg.Threshold`, projects payload fields into `QueryResult`, normalises `chunk_index` values coming back as `int64`, `float64`, or `int`, and optionally re-ranks the results with `KeywordFilter` when `cfg.Keywords` is `true`.
 
 ### `func FormatResultsText(results []QueryResult) string`
 Returns `"No results found."` for empty input. Otherwise renders one plain-text block per result including score, source, optional section, category, and the chunk text.
@@ -182,7 +182,7 @@ Returns `"No results found."` for empty input. Otherwise renders one plain-text 
 Returns an empty string for empty input. Otherwise emits a `<retrieved_context>` wrapper containing one `<document>` element per result. Source, section, category, and text content are escaped with `html.EscapeString`.
 
 ### `func FormatResultsJSON(results []QueryResult) string`
-Returns `"[]"` for empty input. Otherwise serializes a JSON array containing `source`, `section`, `category`, `score`, and `text` for each result. Scores are rounded to four decimal places before encoding.
+Returns `"[]"` for empty input. Otherwise serialises a JSON array containing `source`, `section`, `category`, `score`, and `text` for each result. Scores are rounded to four decimal places before encoding.
 
 ### `func KeywordFilter(results []QueryResult, keywords []string) []QueryResult`
 Returns the original slice unchanged when either input slice is empty. Otherwise lowercases the keywords once, counts case-insensitive keyword matches in each result's text, multiplies the original score by `1 + 0.1*matchCount`, and returns a score-descending copy of the input results.

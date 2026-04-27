@@ -4,7 +4,6 @@ package rag
 
 import (
 	"context"
-	"strconv"
 
 	"dappco.re/go/core"
 	"github.com/qdrant/go-client/qdrant"
@@ -32,7 +31,7 @@ func DefaultQdrantConfig() QdrantConfig {
 
 // NewQdrantStore creates a Qdrant client from a base endpoint URL string.
 // The convenience form accepts the common Qdrant REST endpoint example
-// (http://localhost:6333) and normalizes it to the gRPC port used by the
+// (http://localhost:6333) and normalises it to the gRPC port used by the
 // Go client.
 func NewQdrantStore(endpoint string) (*QdrantClient, error) {
 	cfg, err := qdrantConfigFromEndpoint(endpoint)
@@ -64,9 +63,11 @@ func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
 	cfg.Host = host
 
 	if portText := parsed.Port(); portText != "" {
-		if port, err := strconv.Atoi(portText); err == nil {
-			cfg.Port = port
+		port, err := parseEndpointPort("rag.qdrantConfigFromEndpoint", portText)
+		if err != nil {
+			return QdrantConfig{}, err
 		}
+		cfg.Port = port
 	}
 
 	switch parsed.Scheme {
@@ -239,15 +240,17 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 // SearchResult represents a low-level vector search hit.
 // result := SearchResult{ID: "chunk-1", Score: 0.92, Text: "...", Source: "docs.md"}
 type SearchResult struct {
-	ID         string
-	Score      float32
-	Text       string
-	Source     string
-	Section    string
-	Category   string
-	ChunkIndex int
-	Index      int
-	Payload    map[string]any
+	ID                string
+	Score             float32
+	Text              string
+	Source            string
+	Section           string
+	Category          string
+	ChunkIndex        int
+	Index             int
+	ChunkIndexPresent bool
+	IndexPresent      bool
+	Payload           map[string]any
 }
 
 // GetText returns the text field from Payload (satisfies textResult / rankedResult).
@@ -281,26 +284,30 @@ func (r SearchResult) GetSource() string {
 	return ""
 }
 
-// GetChunkIndex returns the chunk_index field from Payload, if present.
+// HasChunkIndex reports whether this result carries explicit chunk metadata.
+func (r SearchResult) HasChunkIndex() bool {
+	if r.ChunkIndexPresent || r.IndexPresent {
+		return true
+	}
+	if (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) || (r.Index != 0 && r.Index != missingChunkIndex) {
+		return true
+	}
+	_, ok := payloadChunkIndex(r.Payload)
+	return ok
+}
+
+// GetChunkIndex returns the explicit chunk index, or the payload value.
 func (r SearchResult) GetChunkIndex() int {
-	if r.ChunkIndex != 0 {
+	if r.ChunkIndexPresent || (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) {
 		return r.ChunkIndex
 	}
-	if r.Index != 0 {
+	if r.IndexPresent || (r.Index != 0 && r.Index != missingChunkIndex) {
 		return r.Index
 	}
-	if r.Payload == nil {
-		return 0
+	if index, ok := payloadChunkIndex(r.Payload); ok {
+		return index
 	}
-	switch v := r.Payload["chunk_index"].(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	}
-	return 0
+	return missingChunkIndex
 }
 
 // GetSection returns the section field from Payload, if present.
@@ -367,28 +374,38 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		source, _ := payload["source"].(string)
 		section, _ := payload["section"].(string)
 		category, _ := payload["category"].(string)
-		chunkIndex := 0
-		switch v := payload["chunk_index"].(type) {
-		case int:
-			chunkIndex = v
-		case int64:
-			chunkIndex = int(v)
-		case float64:
-			chunkIndex = int(v)
-		}
+		chunkIndex, chunkIndexPresent := payloadChunkIndex(payload)
 		results[i] = SearchResult{
-			ID:         pointIDToString(p.Id),
-			Score:      p.Score,
-			Text:       text,
-			Source:     source,
-			Section:    section,
-			Category:   category,
-			ChunkIndex: chunkIndex,
-			Index:      chunkIndex,
-			Payload:    payload,
+			ID:                pointIDToString(p.Id),
+			Score:             p.Score,
+			Text:              text,
+			Source:            source,
+			Section:           section,
+			Category:          category,
+			ChunkIndex:        chunkIndex,
+			Index:             chunkIndex,
+			ChunkIndexPresent: chunkIndexPresent,
+			IndexPresent:      chunkIndexPresent,
+			Payload:           payload,
 		}
 	}
 	return results, nil
+}
+
+func payloadChunkIndex(payload map[string]any) (int, bool) {
+	if payload == nil {
+		return 0, false
+	}
+	switch v := payload["chunk_index"].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	default:
+		return 0, false
+	}
 }
 
 // pointIDToString converts a Qdrant point ID to string.

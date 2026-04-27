@@ -152,8 +152,8 @@ Each `Chunk` carries:
 2. Check whether the target collection exists. If `Recreate` is set and it exists, delete it first.
 3. Create the collection if it does not exist, using `embedder.EmbedDimension()` to set the vector size.
 4. Walk the directory recursively, collecting files that pass `ShouldProcess`.
-5. For each file: read content, extracting text from PDFs when needed, call `ChunkMarkdown`, embed each chunk individually, and build `Point` structs.
-6. Batch-upsert all accumulated points in slices of `BatchSize` (default 100).
+5. For each file: read content, extracting text from PDFs when needed, call `ChunkMarkdown`, then process chunks in batches of up to `BatchSize` (default 100). Each batch is sent through `EmbedBatch`; when that batch API fails or returns the wrong shape, the fallback embeds the batch with a bounded worker pool while preserving chunk order so embeddings still map back to their source chunks before `Point` structs are built.
+6. Batch-upsert all accumulated points in slices of `BatchSize`.
 
 The optional `IngestProgress` callback is invoked after each file is processed.
 

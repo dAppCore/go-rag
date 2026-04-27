@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/core"
 	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )
@@ -33,6 +33,14 @@ func runIngest(cmd *cli.Command, args []string) error {
 
 	ctx := context.Background()
 	out := cmd.OutOrStdout()
+
+	// Validate local config before opening network clients.
+	if chunkSize <= 0 {
+		return core.E("rag.cmd.ingest", "chunk-size must be > 0", nil)
+	}
+	if chunkOverlap < 0 || chunkOverlap >= chunkSize {
+		return core.E("rag.cmd.ingest", "chunk-overlap must be >= 0 and < chunk-size", nil)
+	}
 
 	// Connect to Qdrant
 	core.Print(out, "Connecting to Qdrant at %s:%d...", qdrantHost, qdrantPort)
@@ -63,14 +71,6 @@ func runIngest(cmd *cli.Command, args []string) error {
 
 	if err := ollamaClient.VerifyModel(ctx); err != nil {
 		return err
-	}
-
-	// Configure ingestion
-	if chunkSize <= 0 {
-		return core.E("rag.cmd.ingest", "chunk-size must be > 0", nil)
-	}
-	if chunkOverlap < 0 || chunkOverlap >= chunkSize {
-		return core.E("rag.cmd.ingest", "chunk-overlap must be >= 0 and < chunk-size", nil)
 	}
 
 	cfg := rag.IngestConfig{
