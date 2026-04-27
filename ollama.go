@@ -1,18 +1,21 @@
 package rag
 
 import (
+	// Note: AX-6 - Ollama embedding calls propagate cancellation through context.Context.
 	"context"
-	"fmt"
+	// Note: AX-6 - Ollama's API constructor requires a standard *http.Client boundary.
 	"net/http"
+	// Note: AX-6 - Ollama's API constructor requires *url.URL; core has no URL primitive.
 	"net/url"
-	"strconv"
+	// Note: AX-6 - http.Client timeout is expressed as time.Duration; core has no duration primitive.
 	"time"
 
-	"dappco.re/go/core/log"
+	"dappco.re/go/core"
 	"github.com/ollama/ollama/api"
 )
 
 // OllamaConfig holds Ollama connection configuration.
+// cfg := OllamaConfig{Host: "localhost", Port: 11434, Model: "nomic-embed-text"}
 type OllamaConfig struct {
 	Scheme string
 	Host   string
@@ -22,6 +25,7 @@ type OllamaConfig struct {
 
 // DefaultOllamaConfig returns default Ollama configuration.
 // Host defaults to localhost for local development.
+// cfg := DefaultOllamaConfig()
 func DefaultOllamaConfig() OllamaConfig {
 	return OllamaConfig{
 		Scheme: "http",
@@ -31,13 +35,28 @@ func DefaultOllamaConfig() OllamaConfig {
 	}
 }
 
+// NewOllamaEmbedder creates an Ollama client from a base endpoint URL string.
+// endpoint := "http://localhost:11434"
+func NewOllamaEmbedder(endpoint string, model string) (*OllamaClient, error) {
+	cfg, err := ollamaConfigFromEndpoint(endpoint)
+	if err != nil {
+		return nil, core.E("rag.NewOllamaEmbedder", "invalid Ollama endpoint", err)
+	}
+	if model != "" {
+		cfg.Model = model
+	}
+	return NewOllamaClient(cfg)
+}
+
 // OllamaClient wraps the Ollama API client for embeddings.
+// client, _ := NewOllamaClient(DefaultOllamaConfig())
 type OllamaClient struct {
 	client *api.Client
 	config OllamaConfig
 }
 
 // NewOllamaClient creates a new Ollama client.
+// client, err := NewOllamaClient(DefaultOllamaConfig())
 func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 	scheme := cfg.Scheme
 	if scheme == "" {
@@ -45,7 +64,7 @@ func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 	}
 	baseURL := &url.URL{
 		Scheme: scheme,
-		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Host:   core.Sprintf("%s:%d", cfg.Host, cfg.Port),
 	}
 
 	client := api.NewClient(baseURL, &http.Client{
@@ -58,24 +77,8 @@ func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
 	}, nil
 }
 
-// NewOllamaEmbedder creates an Ollama embedder from a base URL and model name.
-func NewOllamaEmbedder(baseURL, model string) (*OllamaClient, error) {
-	cfg, err := ollamaConfigFromEndpoint(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	if model != "" {
-		cfg.Model = model
-	}
-	return NewOllamaClient(cfg)
-}
-
 func ollamaConfigFromEndpoint(endpoint string) (OllamaConfig, error) {
 	cfg := DefaultOllamaConfig()
-	if endpoint == "" {
-		return cfg, nil
-	}
-
 	parsed, err := parseEndpointURL(endpoint)
 	if err != nil {
 		return OllamaConfig{}, err
@@ -85,25 +88,26 @@ func ollamaConfigFromEndpoint(endpoint string) (OllamaConfig, error) {
 	if host == "" {
 		host = cfg.Host
 	}
-
-	port := cfg.Port
-	if p := parsed.Port(); p != "" {
-		if parsedPort, err := strconv.Atoi(p); err == nil {
-			port = parsedPort
-		}
-	}
-
-	cfg.Scheme = parsed.Scheme
-	if cfg.Scheme == "" {
-		cfg.Scheme = "http"
-	}
 	cfg.Host = host
-	cfg.Port = port
+
+	if portText := parsed.Port(); portText != "" {
+		port, err := parseEndpointPort("rag.ollamaConfigFromEndpoint", portText)
+		if err != nil {
+			return OllamaConfig{}, err
+		}
+		cfg.Port = port
+	}
+
+	if parsed.Scheme != "" {
+		cfg.Scheme = parsed.Scheme
+	}
+
 	return cfg, nil
 }
 
 // EmbedDimension returns the embedding dimension for the configured model.
 // nomic-embed-text uses 768 dimensions.
+// dim := client.EmbedDimension()
 func (o *OllamaClient) EmbedDimension() uint64 {
 	switch o.config.Model {
 	case "nomic-embed-text":
@@ -118,6 +122,7 @@ func (o *OllamaClient) EmbedDimension() uint64 {
 }
 
 // Embed generates embeddings for the given text.
+// vector, _ := client.Embed(ctx, "How do goroutines work?")
 func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error) {
 	req := &api.EmbedRequest{
 		Model: o.config.Model,
@@ -126,11 +131,11 @@ func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 
 	resp, err := o.client.Embed(ctx, req)
 	if err != nil {
-		return nil, log.E("rag.Ollama.Embed", "failed to generate embedding", err)
+		return nil, core.E("rag.Ollama.Embed", "failed to generate embedding", err)
 	}
 
 	if len(resp.Embeddings) == 0 || len(resp.Embeddings[0]) == 0 {
-		return nil, log.E("rag.Ollama.Embed", "empty embedding response", nil)
+		return nil, core.E("rag.Ollama.Embed", "empty embedding response", nil)
 	}
 
 	// Convert float64 to float32 for Qdrant
@@ -143,33 +148,21 @@ func (o *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 	return result, nil
 }
 
-// EmbedBatch generates embeddings for multiple texts.
+// EmbedBatch generates embeddings for multiple texts by calling Embed for
+// each input in order and preserves input order in the response.
+//
+// vectors, _ := client.EmbedBatch(ctx, []string{"How do goroutines work?", "What is Qdrant?"})
 func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
 	if len(texts) == 0 {
 		return [][]float32{}, nil
 	}
 
-	req := &api.EmbedRequest{
-		Model: o.config.Model,
-		Input: texts,
-	}
-
-	resp, err := o.client.Embed(ctx, req)
-	if err != nil {
-		return nil, log.E("rag.Ollama.EmbedBatch", "failed to generate batch embeddings", err)
-	}
-
-	if len(resp.Embeddings) == 0 {
-		return nil, log.E("rag.Ollama.EmbedBatch", "empty embedding response", nil)
-	}
-	if len(resp.Embeddings) != len(texts) {
-		return nil, log.E("rag.Ollama.EmbedBatch", fmt.Sprintf("unexpected embedding count: got %d, want %d", len(resp.Embeddings), len(texts)), nil)
-	}
-
-	results := make([][]float32, len(resp.Embeddings))
-	for i, embedding := range resp.Embeddings {
-		vec := make([]float32, len(embedding))
-		copy(vec, embedding)
+	results := make([][]float32, len(texts))
+	for i, text := range texts {
+		vec, err := o.Embed(ctx, text)
+		if err != nil {
+			return nil, core.E("rag.Ollama.EmbedBatch", core.Sprintf("error embedding item %d", i), err)
+		}
 		results[i] = vec
 	}
 
@@ -177,15 +170,21 @@ func (o *OllamaClient) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 }
 
 // VerifyModel checks if the embedding model is available.
+// client.VerifyModel(ctx)
 func (o *OllamaClient) VerifyModel(ctx context.Context) error {
 	_, err := o.Embed(ctx, "test")
 	if err != nil {
-		return log.E("rag.Ollama.VerifyModel", fmt.Sprintf("model %s not available (run: ollama pull %s)", o.config.Model, o.config.Model), err)
+		return core.E(
+			"rag.Ollama.VerifyModel",
+			core.Sprintf("model %s not available (run: ollama pull %s)", o.config.Model, o.config.Model),
+			err,
+		)
 	}
 	return nil
 }
 
 // Model returns the configured embedding model name.
+// name := client.Model()
 func (o *OllamaClient) Model() string {
 	return o.config.Model
 }

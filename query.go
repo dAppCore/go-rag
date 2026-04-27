@@ -2,16 +2,18 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"html"
 	"iter"
+	"math"
 	"slices"
-	"strings"
 
-	"dappco.re/go/core/log"
+	"dappco.re/go/core"
 )
 
+const missingChunkIndex = -1
+
 // QueryConfig holds query configuration.
+// cfg := QueryConfig{Collection: "project-docs", Limit: 5, Threshold: 0.6}
 type QueryConfig struct {
 	Collection string
 	Limit      uint64
@@ -21,6 +23,7 @@ type QueryConfig struct {
 }
 
 // DefaultQueryConfig returns default query configuration.
+// cfg := DefaultQueryConfig()
 func DefaultQueryConfig() QueryConfig {
 	return QueryConfig{
 		Collection: "hostuk-docs",
@@ -30,94 +33,52 @@ func DefaultQueryConfig() QueryConfig {
 }
 
 // QueryResult represents a query result with metadata.
+// result := QueryResult{Source: "docs/go.md", Section: "Concurrency", Score: 0.92}
 type QueryResult struct {
-	Text       string
-	Source     string
-	Section    string
-	Category   string
-	ChunkIndex int
-	Score      float32
+	Text              string
+	Source            string
+	Section           string
+	Category          string
+	ChunkIndex        int
+	Index             int
+	ChunkIndexPresent bool
+	IndexPresent      bool
+	Score             float32
 }
 
-func (r QueryResult) GetText() string {
-	return r.Text
+// GetText returns the result text (satisfies the rankedResult interface).
+func (r QueryResult) GetText() string { return r.Text }
+
+// GetScore returns the result similarity score (satisfies the rankedResult interface).
+func (r QueryResult) GetScore() float32 { return r.Score }
+
+// GetSource returns the result source path (satisfies the rankedResult interface).
+func (r QueryResult) GetSource() string { return r.Source }
+
+// HasChunkIndex reports whether this result carries explicit chunk metadata.
+func (r QueryResult) HasChunkIndex() bool {
+	if r.ChunkIndexPresent || r.IndexPresent {
+		return true
+	}
+	return (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) ||
+		(r.Index != 0 && r.Index != missingChunkIndex)
 }
 
-func (r QueryResult) GetScore() float32 {
-	return r.Score
-}
-
-func (r QueryResult) GetSource() string {
-	return r.Source
-}
-
+// GetChunkIndex returns the source chunk index (satisfies the rankedResult interface).
 func (r QueryResult) GetChunkIndex() int {
-	return r.ChunkIndex
+	if r.ChunkIndexPresent || (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) {
+		return r.ChunkIndex
+	}
+	if r.IndexPresent || (r.Index != 0 && r.Index != missingChunkIndex) {
+		return r.Index
+	}
+	return missingChunkIndex
 }
 
-// Query searches for similar documents in the vector store.
-func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
-	it, err := QuerySeq(ctx, store, embedder, query, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return slices.Collect(it), nil
-}
-
-// QuerySeq returns an iterator that yields query results from the vector store.
-func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error) {
-	// Generate embedding for query
-	embedding, err := embedder.Embed(ctx, query)
-	if err != nil {
-		return nil, log.E("rag.Query", "error generating query embedding", err)
-	}
-
-	// Build filter
-	var filter map[string]string
-	if cfg.Category != "" {
-		filter = map[string]string{"category": cfg.Category}
-	}
-
-	// Search vector store
-	results, err := store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
-	if err != nil {
-		return nil, log.E("rag.Query", "error searching", err)
-	}
-
-	// Filter by threshold and convert to iterator
-	filteredIt := func(yield func(QueryResult) bool) {
-		var queryResults []QueryResult
-
-		for _, r := range results {
-			if r.Score < cfg.Threshold {
-				continue
-			}
-
-			queryResults = append(queryResults, searchResultToQueryResult(r))
-		}
-
-		// Apply keyword boosting when enabled
-		if cfg.Keywords && len(queryResults) > 0 {
-			keywords := extractKeywords(query)
-			if len(keywords) > 0 {
-				queryResults = KeywordFilter(queryResults, keywords)
-			}
-		}
-
-		if len(queryResults) > 0 && cfg.Limit > 0 {
-			queryResults = Rank(queryResults, int(cfg.Limit))
-		}
-
-		for _, qr := range queryResults {
-			if !yield(qr) {
-				return
-			}
-		}
-	}
-
-	return filteredIt, nil
-}
-
+// rankedResult is implemented by any result type that carries enough
+// identity and score data to participate in Rank / deduplication.
+//
+//	var _ rankedResult = QueryResult{}
 type rankedResult interface {
 	GetText() string
 	GetScore() float32
@@ -125,35 +86,40 @@ type rankedResult interface {
 	GetChunkIndex() int
 }
 
-// Rank sorts results by score descending, removes duplicate documents, and
-// truncates the slice to topK results.
+type chunkIndexedResult interface {
+	HasChunkIndex() bool
+}
+
+// Rank sorts results by score (descending), removes duplicate documents by
+// (source, chunk-index) or text identity, and returns the first topK.
+//
+//	top := Rank(results, 5)
 func Rank[T rankedResult](results []T, topK int) []T {
 	if len(results) == 0 {
 		return nil
 	}
-	if topK <= 0 || topK > len(results) {
+	if topK <= 0 {
+		return nil
+	}
+	if topK > len(results) {
 		topK = len(results)
 	}
 
 	sorted := make([]T, len(results))
 	copy(sorted, results)
 	slices.SortFunc(sorted, func(a, b T) int {
-		if a.GetScore() > b.GetScore() {
+		switch {
+		case a.GetScore() > b.GetScore():
 			return -1
-		}
-		if a.GetScore() < b.GetScore() {
+		case a.GetScore() < b.GetScore():
 			return 1
-		}
-		if a.GetSource() < b.GetSource() {
+		case a.GetSource() < b.GetSource():
 			return -1
-		}
-		if a.GetSource() > b.GetSource() {
+		case a.GetSource() > b.GetSource():
 			return 1
-		}
-		if a.GetChunkIndex() < b.GetChunkIndex() {
+		case a.GetChunkIndex() < b.GetChunkIndex():
 			return -1
-		}
-		if a.GetChunkIndex() > b.GetChunkIndex() {
+		case a.GetChunkIndex() > b.GetChunkIndex():
 			return 1
 		}
 		return 0
@@ -168,88 +134,129 @@ func Rank[T rankedResult](results []T, topK int) []T {
 		}
 		seen[key] = struct{}{}
 		ranked = append(ranked, result)
-		if len(ranked) == topK {
+		if len(ranked) >= topK {
 			break
 		}
 	}
-
 	return ranked
 }
 
+// rankKey produces a deduplication key for a ranked result: prefer
+// (source, chunkIndex) when source is known, fall back to text, then score.
 func rankKey[T rankedResult](result T) string {
-	if result.GetSource() != "" {
-		return fmt.Sprintf("%s:%d", result.GetSource(), result.GetChunkIndex())
+	if source := result.GetSource(); source != "" {
+		if resultHasChunkIndex(result) {
+			return core.Sprintf("%s:%d", source, result.GetChunkIndex())
+		}
+		if text := result.GetText(); text != "" {
+			return core.Sprintf("%s:%d:%s", source, missingChunkIndex, text)
+		}
+		return core.Sprintf("%s:%d:%f", source, missingChunkIndex, result.GetScore())
 	}
 	if text := result.GetText(); text != "" {
 		return text
 	}
-	return fmt.Sprintf("score:%f", result.GetScore())
+	return core.Sprintf("score:%f", result.GetScore())
 }
 
-func searchResultToQueryResult(r SearchResult) QueryResult {
-	qr := QueryResult{
-		Text:       r.Text,
-		Source:     r.Source,
-		Section:    r.Section,
-		Category:   r.Category,
-		ChunkIndex: r.Index,
-		Score:      r.Score,
+func resultHasChunkIndex[T rankedResult](result T) bool {
+	if indexed, ok := any(result).(chunkIndexedResult); ok {
+		return indexed.HasChunkIndex()
+	}
+	return result.GetChunkIndex() != missingChunkIndex
+}
+
+// Query searches for similar documents in the vector store.
+// Query(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
+func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
+	it, err := QuerySeq(ctx, store, embedder, query, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Collect(it), nil
+}
+
+// QuerySeq returns an iterator that yields query results from the vector store.
+// it, _ := QuerySeq(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
+func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error) {
+	// Generate embedding for query
+	embedding, err := embedder.Embed(ctx, query)
+	if err != nil {
+		return nil, core.E("rag.Query", "error generating query embedding", err)
 	}
 
-	// Fall back to the raw payload for compatibility with older stores and
-	// test doubles that only populate payload fields.
-	if qr.Text == "" {
-		if text, ok := r.Payload["text"].(string); ok {
-			qr.Text = text
-		}
+	// Build filter
+	var filter map[string]string
+	if cfg.Category != "" {
+		filter = map[string]string{"category": cfg.Category}
 	}
-	if qr.Source == "" {
-		if source, ok := r.Payload["source"].(string); ok {
-			qr.Source = source
-		}
+
+	// Search vector store
+	var results []SearchResult
+	results, err = store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
+	if err != nil {
+		return nil, core.E("rag.Query", "error searching", err)
 	}
-	if qr.Section == "" {
-		if section, ok := r.Payload["section"].(string); ok {
-			qr.Section = section
+
+	// Filter by threshold and convert to iterator
+	filteredIt := func(yield func(QueryResult) bool) {
+		var queryResults []QueryResult
+
+		for _, r := range results {
+			if r.Score < cfg.Threshold {
+				continue
+			}
+
+			qr := QueryResult{
+				Text:              r.GetText(),
+				Source:            r.GetSource(),
+				Section:           r.GetSection(),
+				Category:          r.GetCategory(),
+				ChunkIndex:        r.GetChunkIndex(),
+				Index:             r.GetChunkIndex(),
+				ChunkIndexPresent: r.HasChunkIndex(),
+				IndexPresent:      r.HasChunkIndex(),
+				Score:             r.Score,
+			}
+
+			queryResults = append(queryResults, qr)
 		}
-	}
-	if qr.Category == "" {
-		if category, ok := r.Payload["category"].(string); ok {
-			qr.Category = category
+
+		// Apply keyword boosting when enabled
+		if cfg.Keywords && len(queryResults) > 0 {
+			keywords := extractKeywords(query)
+			if len(keywords) > 0 {
+				queryResults = KeywordFilter(queryResults, keywords)
+			}
 		}
-	}
-	if qr.ChunkIndex == 0 {
-		switch idx := r.Payload["chunk_index"].(type) {
-		case int64:
-			qr.ChunkIndex = int(idx)
-		case float64:
-			qr.ChunkIndex = int(idx)
-		case int:
-			qr.ChunkIndex = idx
-		case float32:
-			qr.ChunkIndex = int(idx)
-		case string:
-			fmt.Sscanf(idx, "%d", &qr.ChunkIndex)
+
+		queryResults = Rank(queryResults, int(cfg.Limit))
+
+		for _, qr := range queryResults {
+			if !yield(qr) {
+				return
+			}
 		}
 	}
 
-	return qr
+	return filteredIt, nil
 }
 
 // FormatResultsText formats query results as plain text.
+// text := FormatResultsText(results)
 func FormatResultsText(results []QueryResult) string {
 	if len(results) == 0 {
 		return "No results found."
 	}
 
-	var sb strings.Builder
+	sb := core.NewBuilder()
 	for i, r := range results {
-		sb.WriteString(fmt.Sprintf("\n--- Result %d (score: %.2f) ---\n", i+1, r.Score))
-		sb.WriteString(fmt.Sprintf("Source: %s\n", r.Source))
+		sb.WriteString(core.Sprintf("\n--- Result %d (score: %.2f) ---\n", i+1, r.Score))
+		sb.WriteString(core.Sprintf("Source: %s\n", r.Source))
 		if r.Section != "" {
-			sb.WriteString(fmt.Sprintf("Section: %s\n", r.Section))
+			sb.WriteString(core.Sprintf("Section: %s\n", r.Section))
 		}
-		sb.WriteString(fmt.Sprintf("Category: %s\n\n", r.Category))
+		sb.WriteString(core.Sprintf("Category: %s\n\n", r.Category))
 		sb.WriteString(r.Text)
 		sb.WriteString("\n")
 	}
@@ -257,19 +264,20 @@ func FormatResultsText(results []QueryResult) string {
 }
 
 // FormatResultsContext formats query results for LLM context injection.
+// promptContext := FormatResultsContext(results)
 func FormatResultsContext(results []QueryResult) string {
 	if len(results) == 0 {
 		return ""
 	}
 
-	var sb strings.Builder
+	sb := core.NewBuilder()
 	sb.WriteString("<retrieved_context>\n")
 	for _, r := range results {
 		// Escape XML special characters to prevent malformed output
-		fmt.Fprintf(&sb, "<document source=\"%s\" section=\"%s\" category=\"%s\">\n",
+		sb.WriteString(core.Sprintf("<document source=\"%s\" section=\"%s\" category=\"%s\">\n",
 			html.EscapeString(r.Source),
 			html.EscapeString(r.Section),
-			html.EscapeString(r.Category))
+			html.EscapeString(r.Category)))
 		sb.WriteString(html.EscapeString(r.Text))
 		sb.WriteString("\n</document>\n\n")
 	}
@@ -278,26 +286,35 @@ func FormatResultsContext(results []QueryResult) string {
 }
 
 // FormatResultsJSON formats query results as JSON-like output.
+// payload := FormatResultsJSON(results)
 func FormatResultsJSON(results []QueryResult) string {
 	if len(results) == 0 {
 		return "[]"
 	}
 
-	var sb strings.Builder
-	sb.WriteString("[\n")
+	formatted := make([]struct {
+		Source   string  `json:"source"`
+		Section  string  `json:"section"`
+		Category string  `json:"category"`
+		Score    float64 `json:"score"`
+		Text     string  `json:"text"`
+	}, len(results))
+
 	for i, r := range results {
-		sb.WriteString("  {\n")
-		sb.WriteString(fmt.Sprintf("    \"source\": %q,\n", r.Source))
-		sb.WriteString(fmt.Sprintf("    \"section\": %q,\n", r.Section))
-		sb.WriteString(fmt.Sprintf("    \"category\": %q,\n", r.Category))
-		sb.WriteString(fmt.Sprintf("    \"score\": %.4f,\n", r.Score))
-		sb.WriteString(fmt.Sprintf("    \"text\": %q\n", r.Text))
-		if i < len(results)-1 {
-			sb.WriteString("  },\n")
-		} else {
-			sb.WriteString("  }\n")
+		formatted[i] = struct {
+			Source   string  `json:"source"`
+			Section  string  `json:"section"`
+			Category string  `json:"category"`
+			Score    float64 `json:"score"`
+			Text     string  `json:"text"`
+		}{
+			Source:   r.Source,
+			Section:  r.Section,
+			Category: r.Category,
+			Score:    math.Round(float64(r.Score)*10000) / 10000,
+			Text:     r.Text,
 		}
 	}
-	sb.WriteString("]")
-	return sb.String()
+
+	return core.JSONMarshalString(formatted)
 }

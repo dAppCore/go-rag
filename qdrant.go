@@ -4,16 +4,13 @@ package rag
 
 import (
 	"context"
-	"fmt"
-	"net/url"
-	"strconv"
-	"strings"
 
-	"dappco.re/go/core/log"
+	"dappco.re/go/core"
 	"github.com/qdrant/go-client/qdrant"
 )
 
 // QdrantConfig holds Qdrant connection configuration.
+// cfg := QdrantConfig{Host: "localhost", Port: 6334, UseTLS: false}
 type QdrantConfig struct {
 	Host   string
 	Port   int
@@ -23,6 +20,7 @@ type QdrantConfig struct {
 
 // DefaultQdrantConfig returns default Qdrant configuration.
 // Host defaults to localhost for local development.
+// cfg := DefaultQdrantConfig()
 func DefaultQdrantConfig() QdrantConfig {
 	return QdrantConfig{
 		Host:   "localhost",
@@ -31,15 +29,68 @@ func DefaultQdrantConfig() QdrantConfig {
 	}
 }
 
+// NewQdrantStore creates a Qdrant client from a base endpoint URL string.
+// The convenience form accepts the common Qdrant REST endpoint example
+// (http://localhost:6333) and normalises it to the gRPC port used by the
+// Go client.
+func NewQdrantStore(endpoint string) (*QdrantClient, error) {
+	cfg, err := qdrantConfigFromEndpoint(endpoint)
+	if err != nil {
+		return nil, core.E("rag.NewQdrantStore", "invalid Qdrant endpoint", err)
+	}
+	cfg.Port = normalizeQdrantGRPCPort(cfg.Port)
+	return NewQdrantClient(cfg)
+}
+
+func normalizeQdrantGRPCPort(port int) int {
+	if port == 6333 {
+		return 6334
+	}
+	return port
+}
+
+func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
+	cfg := DefaultQdrantConfig()
+	parsed, err := parseEndpointURL(endpoint)
+	if err != nil {
+		return QdrantConfig{}, err
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		host = cfg.Host
+	}
+	cfg.Host = host
+
+	if portText := parsed.Port(); portText != "" {
+		port, err := parseEndpointPort("rag.qdrantConfigFromEndpoint", portText)
+		if err != nil {
+			return QdrantConfig{}, err
+		}
+		cfg.Port = port
+	}
+
+	switch parsed.Scheme {
+	case "https":
+		cfg.UseTLS = true
+	case "http":
+		cfg.UseTLS = false
+	}
+
+	return cfg, nil
+}
+
 // QdrantClient wraps the Qdrant Go client with convenience methods.
+// client, _ := NewQdrantClient(DefaultQdrantConfig())
 type QdrantClient struct {
 	client *qdrant.Client
 	config QdrantConfig
 }
 
 // NewQdrantClient creates a new Qdrant client.
+// client, err := NewQdrantClient(DefaultQdrantConfig())
 func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
-	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	addr := core.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host:   cfg.Host,
@@ -48,7 +99,7 @@ func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 		UseTLS: cfg.UseTLS,
 	})
 	if err != nil {
-		return nil, log.E("rag.Qdrant", fmt.Sprintf("failed to connect to Qdrant at %s", addr), err)
+		return nil, core.E("rag.Qdrant", core.Sprintf("failed to connect to Qdrant at %s", addr), err)
 	}
 
 	return &QdrantClient{
@@ -57,59 +108,21 @@ func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 	}, nil
 }
 
-// NewQdrantStore creates a Qdrant client from an endpoint string.
-//
-// The endpoint may be a bare host:port, http://host:port, or https://host:port.
-// The scheme only affects TLS selection; the underlying client remains gRPC.
-func NewQdrantStore(endpoint string) (*QdrantClient, error) {
-	cfg, err := qdrantConfigFromEndpoint(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	return NewQdrantClient(cfg)
-}
-
-func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
-	if endpoint == "" {
-		return DefaultQdrantConfig(), nil
-	}
-
-	parsed, err := parseEndpointURL(endpoint)
-	if err != nil {
-		return QdrantConfig{}, err
-	}
-
-	host := parsed.Hostname()
-	if host == "" {
-		host = "localhost"
-	}
-
-	port := 6334
-	if p := parsed.Port(); p != "" {
-		if parsedPort, err := strconv.Atoi(p); err == nil {
-			port = parsedPort
-		}
-	}
-
-	return QdrantConfig{
-		Host:   host,
-		Port:   port,
-		UseTLS: parsed.Scheme == "https",
-	}, nil
-}
-
 // Close closes the Qdrant client connection.
+// defer client.Close()
 func (q *QdrantClient) Close() error {
 	return q.client.Close()
 }
 
 // HealthCheck verifies the connection to Qdrant.
+// client.HealthCheck(ctx)
 func (q *QdrantClient) HealthCheck(ctx context.Context) error {
 	_, err := q.client.HealthCheck(ctx)
 	return err
 }
 
 // ListCollections returns all collection names.
+// names, _ := client.ListCollections(ctx)
 func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
 	resp, err := q.client.ListCollections(ctx)
 	if err != nil {
@@ -121,11 +134,13 @@ func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
 }
 
 // CollectionExists checks if a collection exists.
+// exists, _ := client.CollectionExists(ctx, "project-docs")
 func (q *QdrantClient) CollectionExists(ctx context.Context, name string) (bool, error) {
 	return q.client.CollectionExists(ctx, name)
 }
 
 // CreateCollection creates a new collection with cosine distance.
+// client.CreateCollection(ctx, "project-docs", 768)
 func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vectorSize uint64) error {
 	return q.client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: name,
@@ -137,11 +152,13 @@ func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vector
 }
 
 // DeleteCollection deletes a collection.
+// client.DeleteCollection(ctx, "project-docs")
 func (q *QdrantClient) DeleteCollection(ctx context.Context, name string) error {
 	return q.client.DeleteCollection(ctx, name)
 }
 
 // CollectionInfo returns backend-agnostic metadata about a collection.
+// info, _ := client.CollectionInfo(ctx, "project-docs")
 func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
 	info, err := q.client.GetCollectionInfo(ctx, name)
 	if err != nil {
@@ -151,28 +168,27 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 	pointCount := info.GetPointsCount()
 	ci := &CollectionInfo{
 		Name:       name,
-		PointCount: pointCount,
 		Count:      pointCount,
-		Vectors:    info.GetIndexedVectorsCount(),
+		Vectors:    pointCount,
+		PointCount: pointCount,
+		VectorSize: 0,
 		Index:      "unknown",
+		Status:     "unknown",
 	}
 
-	// Extract vector size from the Qdrant config
+	// Extract vector size + index type from the Qdrant config
 	if cfg := info.GetConfig(); cfg != nil {
 		if params := cfg.GetParams(); params != nil {
 			if vectorsCfg := params.GetVectorsConfig(); vectorsCfg != nil {
 				if vecParams := vectorsCfg.GetParams(); vecParams != nil {
 					ci.VectorSize = vecParams.GetSize()
 				}
+				ci.Index = "hnsw"
 			}
 		}
-		if cfg.GetHnswConfig() != nil {
+		if ci.Index == "unknown" && cfg.GetHnswConfig() != nil {
 			ci.Index = "hnsw"
 		}
-	}
-
-	if ci.Vectors == 0 {
-		ci.Vectors = pointCount
 	}
 
 	// Map Qdrant status to a simple string
@@ -191,6 +207,7 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 }
 
 // Point represents a vector point with payload.
+// point := Point{ID: "chunk-1", Vector: []float32{0.1, 0.2}, Payload: map[string]any{"source": "docs/go.md"}}
 type Point struct {
 	ID      string
 	Vector  []float32
@@ -198,6 +215,7 @@ type Point struct {
 }
 
 // UpsertPoints inserts or updates points in a collection.
+// client.UpsertPoints(ctx, "project-docs", points)
 func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, points []Point) error {
 	if len(points) == 0 {
 		return nil
@@ -219,55 +237,111 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 	return err
 }
 
-// SearchResult represents a search result with score.
+// SearchResult represents a low-level vector search hit.
+// result := SearchResult{ID: "chunk-1", Score: 0.92, Text: "...", Source: "docs.md"}
 type SearchResult struct {
-	ID       string
-	Score    float32
-	Text     string
-	Source   string
-	Section  string
-	Category string
-	Index    int
-	Payload  map[string]any
+	ID                string
+	Score             float32
+	Text              string
+	Source            string
+	Section           string
+	Category          string
+	ChunkIndex        int
+	Index             int
+	ChunkIndexPresent bool
+	IndexPresent      bool
+	Payload           map[string]any
 }
 
+// GetText returns the text field from Payload (satisfies textResult / rankedResult).
 func (r SearchResult) GetText() string {
-	return r.Text
+	if r.Text != "" {
+		return r.Text
+	}
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["text"].(string); ok {
+		return v
+	}
+	return ""
 }
 
-func (r SearchResult) GetScore() float32 {
-	return r.Score
-}
+// GetScore returns the similarity score.
+func (r SearchResult) GetScore() float32 { return r.Score }
 
+// GetSource returns the source field from Payload, if present.
 func (r SearchResult) GetSource() string {
-	return r.Source
+	if r.Source != "" {
+		return r.Source
+	}
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["source"].(string); ok {
+		return v
+	}
+	return ""
 }
 
+// HasChunkIndex reports whether this result carries explicit chunk metadata.
+func (r SearchResult) HasChunkIndex() bool {
+	if r.ChunkIndexPresent || r.IndexPresent {
+		return true
+	}
+	if (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) || (r.Index != 0 && r.Index != missingChunkIndex) {
+		return true
+	}
+	_, ok := payloadChunkIndex(r.Payload)
+	return ok
+}
+
+// GetChunkIndex returns the explicit chunk index, or the payload value.
 func (r SearchResult) GetChunkIndex() int {
-	return r.Index
+	if r.ChunkIndexPresent || (r.ChunkIndex != 0 && r.ChunkIndex != missingChunkIndex) {
+		return r.ChunkIndex
+	}
+	if r.IndexPresent || (r.Index != 0 && r.Index != missingChunkIndex) {
+		return r.Index
+	}
+	if index, ok := payloadChunkIndex(r.Payload); ok {
+		return index
+	}
+	return missingChunkIndex
 }
 
-// Add inserts or updates vectors in a collection using the RFC-compatible
-// Vector representation.
-func (q *QdrantClient) Add(ctx context.Context, collection string, vectors []Vector) error {
-	if len(vectors) == 0 {
-		return nil
+// GetSection returns the section field from Payload, if present.
+func (r SearchResult) GetSection() string {
+	if r.Section != "" {
+		return r.Section
 	}
-
-	points := make([]Point, len(vectors))
-	for i, v := range vectors {
-		points[i] = Point{
-			ID:      v.ID,
-			Vector:  v.Values,
-			Payload: v.Payload,
-		}
+	if r.Payload == nil {
+		return ""
 	}
+	if v, ok := r.Payload["section"].(string); ok {
+		return v
+	}
+	return ""
+}
 
-	return q.UpsertPoints(ctx, collection, points)
+// GetCategory returns the category field from Payload, if present.
+func (r SearchResult) GetCategory() string {
+	if r.Category != "" {
+		return r.Category
+	}
+	if r.Payload == nil {
+		return ""
+	}
+	if v, ok := r.Payload["category"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // Search performs a vector similarity search.
-func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
+// results, _ := client.Search(ctx, "project-docs", vector, 5, nil)
+// results, _ := client.Search(ctx, "project-docs", vector, 5, map[string]string{"source": "docs"})
+func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
@@ -275,11 +349,9 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 
-	// Add filter if provided
-	mergedFilter := mergeStringFilters(filter...)
-	if len(mergedFilter) > 0 {
-		conditions := make([]*qdrant.Condition, 0, len(mergedFilter))
-		for k, v := range mergedFilter {
+	if len(filter) > 0 {
+		conditions := make([]*qdrant.Condition, 0, len(filter))
+		for k, v := range filter {
 			conditions = append(conditions, qdrant.NewMatch(k, v))
 		}
 		query.Filter = &qdrant.Filter{
@@ -298,76 +370,42 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		for k, v := range p.Payload {
 			payload[k] = valueToGo(v)
 		}
-
-		searchResult := SearchResult{
-			ID:      pointIDToString(p.Id),
-			Score:   p.Score,
-			Payload: payload,
+		text, _ := payload["text"].(string)
+		source, _ := payload["source"].(string)
+		section, _ := payload["section"].(string)
+		category, _ := payload["category"].(string)
+		chunkIndex, chunkIndexPresent := payloadChunkIndex(payload)
+		results[i] = SearchResult{
+			ID:                pointIDToString(p.Id),
+			Score:             p.Score,
+			Text:              text,
+			Source:            source,
+			Section:           section,
+			Category:          category,
+			ChunkIndex:        chunkIndex,
+			Index:             chunkIndex,
+			ChunkIndexPresent: chunkIndexPresent,
+			IndexPresent:      chunkIndexPresent,
+			Payload:           payload,
 		}
-		if text, ok := payload["text"].(string); ok {
-			searchResult.Text = text
-		}
-		if source, ok := payload["source"].(string); ok {
-			searchResult.Source = source
-		}
-		if section, ok := payload["section"].(string); ok {
-			searchResult.Section = section
-		}
-		if category, ok := payload["category"].(string); ok {
-			searchResult.Category = category
-		}
-		switch idx := payload["chunk_index"].(type) {
-		case int:
-			searchResult.Index = idx
-		case int32:
-			searchResult.Index = int(idx)
-		case int64:
-			searchResult.Index = int(idx)
-		case float32:
-			searchResult.Index = int(idx)
-		case float64:
-			searchResult.Index = int(idx)
-		case uint64:
-			searchResult.Index = int(idx)
-		case string:
-			if parsed, err := strconv.Atoi(idx); err == nil {
-				searchResult.Index = parsed
-			}
-		}
-		results[i] = searchResult
 	}
 	return results, nil
 }
 
-func mergeStringFilters(filters ...map[string]string) map[string]string {
-	if len(filters) == 0 {
-		return nil
+func payloadChunkIndex(payload map[string]any) (int, bool) {
+	if payload == nil {
+		return 0, false
 	}
-
-	merged := make(map[string]string)
-	for _, filter := range filters {
-		for k, v := range filter {
-			merged[k] = v
-		}
+	switch v := payload["chunk_index"].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	default:
+		return 0, false
 	}
-
-	if len(merged) == 0 {
-		return nil
-	}
-	return merged
-}
-
-func parseEndpointURL(endpoint string) (*url.URL, error) {
-	raw := endpoint
-	if !strings.Contains(raw, "://") {
-		raw = "http://" + raw
-	}
-
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return nil, err
-	}
-	return parsed, nil
 }
 
 // pointIDToString converts a Qdrant point ID to string.
@@ -377,12 +415,31 @@ func pointIDToString(id *qdrant.PointId) string {
 	}
 	switch v := id.PointIdOptions.(type) {
 	case *qdrant.PointId_Num:
-		return fmt.Sprintf("%d", v.Num)
+		return core.Sprintf("%d", v.Num)
 	case *qdrant.PointId_Uuid:
 		return v.Uuid
 	default:
 		return ""
 	}
+}
+
+// Add inserts RFC-shaped Vector payloads into the collection.
+// It wraps UpsertPoints so callers can pass []Vector directly from ingestion pipelines.
+//
+//	err := client.Add(ctx, "docs", []Vector{{ID: "1", Values: embedding, Payload: meta}})
+func (q *QdrantClient) Add(ctx context.Context, collection string, vectors []Vector) error {
+	if len(vectors) == 0 {
+		return nil
+	}
+	points := make([]Point, len(vectors))
+	for i, v := range vectors {
+		points[i] = Point{
+			ID:      v.ID,
+			Vector:  v.Values,
+			Payload: v.Payload,
+		}
+	}
+	return q.UpsertPoints(ctx, collection, points)
 }
 
 // valueToGo converts a Qdrant value to a Go value.

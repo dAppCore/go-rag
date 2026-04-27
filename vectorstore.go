@@ -3,7 +3,7 @@ package rag
 import "context"
 
 // VectorStore defines the interface for vector storage and search.
-// QdrantClient satisfies this interface.
+// var store VectorStore = qdrantClient
 type VectorStore interface {
 	// CreateCollection creates a new vector collection with the given
 	// name and vector dimensionality.
@@ -27,8 +27,8 @@ type VectorStore interface {
 	UpsertPoints(ctx context.Context, collection string, points []Point) error
 
 	// Search performs a vector similarity search, returning up to limit results.
-	// One or more optional filter maps restrict results by payload field values.
-	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error)
+	// The filter map restricts results by payload field values when non-nil.
+	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error)
 }
 
 // Vector represents an RFC-compatible vector payload for storage.
@@ -40,12 +40,13 @@ type Vector struct {
 }
 
 // CollectionInfo holds backend-agnostic metadata about a collection.
+// info := CollectionInfo{Name: "project-docs", Count: 42, Vectors: 42, PointCount: 42, VectorSize: 768, Status: "green"}
 type CollectionInfo struct {
 	Name       string
-	PointCount uint64
-	VectorSize uint64
-	Status     string // e.g. "green", "yellow", "red", "unknown"
 	Count      uint64
 	Vectors    uint64
 	Index      string
+	PointCount uint64
+	VectorSize uint64
+	Status     string // e.g. "green", "yellow", "red", "unknown"
 }

@@ -2,27 +2,24 @@ package rag
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestChunkBySentences(t *testing.T) {
 	chunks := ChunkBySentences("One. Two. Three.", ChunkConfig{Size: 8, Overlap: 0})
 
-	require.Len(t, chunks, 3)
-	assert.Equal(t, "One.", chunks[0].Text)
-	assert.Equal(t, "Two.", chunks[1].Text)
-	assert.Equal(t, "Three.", chunks[2].Text)
+	assertLen(t, chunks, 3)
+	assertEqual(t, "One.", chunks[0].Text)
+	assertEqual(t, "Two.", chunks[1].Text)
+	assertEqual(t, "Three.", chunks[2].Text)
 }
 
 func TestChunkByParagraphs(t *testing.T) {
 	text := "First paragraph.\n\nSecond paragraph."
 	chunks := ChunkByParagraphs(text, ChunkConfig{Size: 100, Overlap: 0})
 
-	require.Len(t, chunks, 2)
-	assert.Equal(t, "First paragraph.", chunks[0].Text)
-	assert.Equal(t, "Second paragraph.", chunks[1].Text)
+	assertLen(t, chunks, 1)
+	assertContains(t, chunks[0].Text, "First paragraph.")
+	assertContains(t, chunks[0].Text, "Second paragraph.")
 }
 
 func TestRank(t *testing.T) {
@@ -34,9 +31,9 @@ func TestRank(t *testing.T) {
 
 	ranked := Rank(results, 2)
 
-	require.Len(t, ranked, 2)
-	assert.Equal(t, "duplicate high", ranked[0].Text)
-	assert.Equal(t, "other", ranked[1].Text)
+	assertLen(t, ranked, 2)
+	assertEqual(t, "duplicate high", ranked[0].Text)
+	assertEqual(t, "other", ranked[1].Text)
 }
 
 func TestJoinResults(t *testing.T) {
@@ -45,7 +42,7 @@ func TestJoinResults(t *testing.T) {
 		{Text: "beta"},
 	}
 
-	assert.Equal(t, "alpha\n\nbeta", JoinResults(results))
+	assertEqual(t, "alpha\n\nbeta", JoinResults(results))
 }
 
 func TestJoinResultsSearchResult(t *testing.T) {
@@ -54,7 +51,7 @@ func TestJoinResultsSearchResult(t *testing.T) {
 		{Text: "beta"},
 	}
 
-	assert.Equal(t, "alpha\n\nbeta", JoinResults(results))
+	assertEqual(t, "alpha\n\nbeta", JoinResults(results))
 }
 
 func TestRankSearchResult(t *testing.T) {
@@ -66,9 +63,9 @@ func TestRankSearchResult(t *testing.T) {
 
 	ranked := Rank(results, 2)
 
-	require.Len(t, ranked, 2)
-	assert.Equal(t, "duplicate high", ranked[0].Text)
-	assert.Equal(t, "other", ranked[1].Text)
+	assertLen(t, ranked, 2)
+	assertEqual(t, "duplicate high", ranked[0].Text)
+	assertEqual(t, "other", ranked[1].Text)
 }
 
 func TestKeywordIndex(t *testing.T) {
@@ -79,21 +76,21 @@ func TestKeywordIndex(t *testing.T) {
 
 	hits := index.Search("kubernetes guide", 1)
 
-	require.Len(t, hits, 1)
-	assert.Equal(t, "Kubernetes deployment guide", hits[0].Text)
-	assert.Equal(t, "Ops", hits[0].Section)
+	assertLen(t, hits, 1)
+	assertEqual(t, "Kubernetes deployment guide", hits[0].Text)
+	assertEqual(t, "Ops", hits[0].Section)
 }
 
 func TestEndpointConfigParsing(t *testing.T) {
 	qcfg, err := qdrantConfigFromEndpoint("https://example.com:6333")
-	require.NoError(t, err)
-	assert.Equal(t, "example.com", qcfg.Host)
-	assert.Equal(t, 6333, qcfg.Port)
-	assert.True(t, qcfg.UseTLS)
+	assertNoError(t, err)
+	assertEqual(t, "example.com", qcfg.Host)
+	assertEqual(t, 6333, qcfg.Port)
+	assertTrue(t, qcfg.UseTLS)
 
 	ocfg, err := ollamaConfigFromEndpoint("http://ollama.local:11435")
-	require.NoError(t, err)
-	assert.Equal(t, "ollama.local", ocfg.Host)
-	assert.Equal(t, 11435, ocfg.Port)
-	assert.Equal(t, "http", ocfg.Scheme)
+	assertNoError(t, err)
+	assertEqual(t, "ollama.local", ocfg.Host)
+	assertEqual(t, 11435, ocfg.Port)
+	assertEqual(t, "http", ocfg.Scheme)
 }

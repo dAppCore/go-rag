@@ -2,15 +2,21 @@ package rag
 
 import (
 	"context"
-	"strings"
+	"sync"
 
-	"dappco.re/go/core/log"
+	"dappco.re/go/core"
 )
 
+const maxConcurrentEmbeddings = 8
+
 // QueryWith queries the vector store using the provided embedder and store.
+// QueryWith(ctx, store, embedder, "how do goroutines work?", "project-docs", 5)
 func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) ([]QueryResult, error) {
 	cfg := DefaultQueryConfig()
 	cfg.Collection = collectionName
+	if topK < 0 {
+		topK = 0
+	}
 	cfg.Limit = uint64(topK)
 
 	return Query(ctx, store, embedder, question, cfg)
@@ -18,6 +24,7 @@ func QueryWith(ctx context.Context, store VectorStore, embedder Embedder, questi
 
 // QueryContextWith queries and returns context-formatted results using the
 // provided embedder and store.
+// QueryContextWith(ctx, store, embedder, "how do goroutines work?", "project-docs", 5)
 func QueryContextWith(ctx context.Context, store VectorStore, embedder Embedder, question, collectionName string, topK int) (string, error) {
 	results, err := QueryWith(ctx, store, embedder, question, collectionName, topK)
 	if err != nil {
@@ -28,6 +35,7 @@ func QueryContextWith(ctx context.Context, store VectorStore, embedder Embedder,
 
 // IngestDirWith ingests all documents in a directory using the provided
 // embedder and store.
+// IngestDirWith(ctx, store, embedder, "./docs", "project-docs", true)
 func IngestDirWith(ctx context.Context, store VectorStore, embedder Embedder, directory, collectionName string, recreateCollection bool) error {
 	cfg := DefaultIngestConfig()
 	cfg.Directory = directory
@@ -39,11 +47,13 @@ func IngestDirWith(ctx context.Context, store VectorStore, embedder Embedder, di
 }
 
 // IngestFileWith ingests a single file using the provided embedder and store.
+// IngestFileWith(ctx, store, embedder, "./docs/guide.md", "project-docs")
 func IngestFileWith(ctx context.Context, store VectorStore, embedder Embedder, filePath, collectionName string) (int, error) {
 	return IngestFile(ctx, store, embedder, collectionName, filePath, DefaultChunkConfig())
 }
 
 // QueryDocs queries the RAG database with default clients.
+// QueryDocs(ctx, "how do goroutines work?", "project-docs", 5)
 func QueryDocs(ctx context.Context, question, collectionName string, topK int) ([]QueryResult, error) {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
 	if err != nil {
@@ -60,6 +70,7 @@ func QueryDocs(ctx context.Context, question, collectionName string, topK int) (
 }
 
 // QueryDocsContext queries the RAG database and returns context-formatted results.
+// QueryDocsContext(ctx, "how do goroutines work?", "project-docs", 5)
 func QueryDocsContext(ctx context.Context, question, collectionName string, topK int) (string, error) {
 	results, err := QueryDocs(ctx, question, collectionName, topK)
 	if err != nil {
@@ -69,6 +80,7 @@ func QueryDocsContext(ctx context.Context, question, collectionName string, topK
 }
 
 // IngestDirectory ingests all documents in a directory with default clients.
+// IngestDirectory(ctx, "./docs", "project-docs", true)
 func IngestDirectory(ctx context.Context, directory, collectionName string, recreateCollection bool) error {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
 	if err != nil {
@@ -77,7 +89,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 	defer func() { _ = qdrantClient.Close() }()
 
 	if err := qdrantClient.HealthCheck(ctx); err != nil {
-		return log.E("rag.IngestDirectory", "qdrant health check failed", err)
+		return core.E("rag.IngestDirectory", "qdrant health check failed", err)
 	}
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
@@ -93,6 +105,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 }
 
 // IngestSingleFile ingests a single file with default clients.
+// IngestSingleFile(ctx, "./docs/guide.md", "project-docs")
 func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int, error) {
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
 	if err != nil {
@@ -101,7 +114,7 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 	defer func() { _ = qdrantClient.Close() }()
 
 	if err := qdrantClient.HealthCheck(ctx); err != nil {
-		return 0, log.E("rag.IngestSingleFile", "qdrant health check failed", err)
+		return 0, core.E("rag.IngestSingleFile", "qdrant health check failed", err)
 	}
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
@@ -116,24 +129,81 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 	return IngestFileWith(ctx, qdrantClient, ollamaClient, filePath, collectionName)
 }
 
+// textResult is implemented by any result type that can expose its text for
+// prompt assembly. QueryResult and SearchResult both satisfy this interface.
+//
+//	var _ textResult = QueryResult{}
 type textResult interface {
 	GetText() string
 }
 
-// JoinResults concatenates result text into a single prompt-friendly string.
+// JoinResults concatenates result text into a single prompt-friendly string,
+// skipping empty entries. Generic over anything that exposes GetText().
+//
+//	prompt := JoinResults(results)
 func JoinResults[T textResult](results []T) string {
 	if len(results) == 0 {
 		return ""
 	}
-
 	parts := make([]string, 0, len(results))
 	for _, result := range results {
-		text := strings.TrimSpace(result.GetText())
+		text := core.Trim(result.GetText())
 		if text == "" {
 			continue
 		}
 		parts = append(parts, text)
 	}
+	return core.Join("\n\n", parts...)
+}
 
-	return strings.Join(parts, "\n\n")
+// embedBatchConcurrent runs embeddings in parallel while preserving input order.
+// It returns the collected vectors and a per-input error slice for callers that
+// need partial failure reporting.
+func embedBatchConcurrent(ctx context.Context, texts []string, embed func(context.Context, string) ([]float32, error)) ([][]float32, []error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+
+	vectors := make([][]float32, len(texts))
+	errs := make([]error, len(texts))
+	workerCount := len(texts)
+	if workerCount > maxConcurrentEmbeddings {
+		workerCount = maxConcurrentEmbeddings
+	}
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(workerCount)
+	for range workerCount {
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				select {
+				case <-ctx.Done():
+					errs[i] = ctx.Err()
+					continue
+				default:
+				}
+
+				vec, err := embed(ctx, texts[i])
+				if err != nil {
+					errs[i] = err
+					continue
+				}
+				vectors[i] = vec
+			}
+		}()
+	}
+
+	for i := range texts {
+		select {
+		case <-ctx.Done():
+			errs[i] = ctx.Err()
+		case jobs <- i:
+		}
+	}
+	close(jobs)
+
+	wg.Wait()
+	return vectors, errs
 }

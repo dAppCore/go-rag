@@ -2,21 +2,22 @@ package rag
 
 import (
 	"crypto/md5"
-	"fmt"
 	"iter"
-	"path/filepath"
 	"slices"
-	"strings"
-	"unicode/utf8"
+	"unicode"
+
+	"dappco.re/go/core"
 )
 
 // ChunkConfig holds chunking configuration.
+// cfg := ChunkConfig{Size: 500, Overlap: 50}
 type ChunkConfig struct {
 	Size    int // Characters per chunk
 	Overlap int // Overlap between chunks
 }
 
 // DefaultChunkConfig returns default chunking configuration.
+// cfg := DefaultChunkConfig()
 func DefaultChunkConfig() ChunkConfig {
 	return ChunkConfig{
 		Size:    500,
@@ -25,6 +26,7 @@ func DefaultChunkConfig() ChunkConfig {
 }
 
 // Chunk represents a text chunk with metadata.
+// chunk := Chunk{Text: "Go uses goroutines.", Section: "Concurrency", Index: 0}
 type Chunk struct {
 	Text    string
 	Section string
@@ -35,72 +37,44 @@ type Chunk struct {
 // Preserves context with configurable overlap. When a paragraph exceeds the
 // configured Size, it is split at sentence boundaries. Overlap is aligned to
 // word boundaries to avoid splitting mid-word.
+// chunks := ChunkMarkdown(markdown, DefaultChunkConfig())
 func ChunkMarkdown(text string, cfg ChunkConfig) []Chunk {
 	return slices.Collect(ChunkMarkdownSeq(text, cfg))
 }
 
-func normalizeChunkConfig(cfg ChunkConfig) ChunkConfig {
+// ChunkMarkdownSeq returns an iterator that yields document chunks from markdown text.
+// for chunk := range ChunkMarkdownSeq(markdown, DefaultChunkConfig()) { _ = chunk }
+func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 	if cfg.Size <= 0 {
 		cfg.Size = 500
 	}
 	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
 		cfg.Overlap = 0
 	}
-	return cfg
-}
-
-// ChunkBySentences splits text into chunks at sentence boundaries.
-func ChunkBySentences(text string, cfg ChunkConfig) []Chunk {
-	return slices.Collect(ChunkBySentencesSeq(text, cfg))
-}
-
-// ChunkBySentencesSeq returns an iterator that yields sentence-based chunks.
-func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
-	cfg = normalizeChunkConfig(cfg)
-	return func(yield func(Chunk) bool) {
-		chunkIndex := 0
-		if !emitSegmentsAsChunks(splitBySentencesSeq(text), "", &chunkIndex, yield) {
-			return
-		}
-	}
-}
-
-// ChunkByParagraphs splits text into chunks at paragraph boundaries.
-func ChunkByParagraphs(text string, cfg ChunkConfig) []Chunk {
-	return slices.Collect(ChunkByParagraphsSeq(text, cfg))
-}
-
-// ChunkByParagraphsSeq returns an iterator that yields paragraph-based chunks.
-func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
-	cfg = normalizeChunkConfig(cfg)
-	return func(yield func(Chunk) bool) {
-		chunkIndex := 0
-		if !emitSegmentsAsChunks(splitParagraphSegmentsSeq(text, cfg.Size), "", &chunkIndex, yield) {
-			return
-		}
-	}
-}
-
-// ChunkMarkdownSeq returns an iterator that yields document chunks from markdown text.
-func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
-	cfg = normalizeChunkConfig(cfg)
+	text = normalizeLineEndings(text)
 
 	return func(yield func(Chunk) bool) {
 		chunkIndex := 0
+		currentParentSection := ""
 
 		// Split by ## headers
 		for section := range splitBySectionsSeq(text) {
-			section = strings.TrimSpace(section)
+			section = core.Trim(section)
 			if section == "" {
 				continue
 			}
 
-			// Extract section title
-			lines := strings.SplitN(section, "\n", 2)
-			title := ""
-			if strings.HasPrefix(lines[0], "#") {
-				title = strings.TrimLeft(lines[0], "#")
-				title = strings.TrimSpace(title)
+			// Extract section title and preserve parent heading context.
+			parentTitle, title := markdownSectionTitle(section)
+			if parentTitle != "" {
+				currentParentSection = parentTitle
+			}
+			if title == "" {
+				title = currentParentSection
+			} else if currentParentSection != "" && title != currentParentSection && parentTitle == "" {
+				title = currentParentSection + " / " + title
+			} else if currentParentSection != "" && title != currentParentSection && parentTitle != "" {
+				title = currentParentSection + " / " + title
 			}
 
 			// If section is small enough, yield as-is
@@ -117,102 +91,183 @@ func ChunkMarkdownSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
 			}
 
 			// Otherwise, chunk by paragraphs
-			segments := splitParagraphSegmentsSeq(section, cfg.Size)
-			if !emitChunksFromSegments(segments, cfg, title, &chunkIndex, yield) {
-				return
+			currentChunk := ""
+			for para := range splitByParagraphsSeq(section) {
+				para = core.Trim(para)
+				if para == "" {
+					continue
+				}
+
+				// If the paragraph itself exceeds Size, split at sentence
+				// boundaries and fall back to word-safe splitting when a
+				// sentence is still too long.
+				for sp := range yieldSizedPieces(para, cfg.Size) {
+					sp = core.Trim(sp)
+					if sp == "" {
+						continue
+					}
+
+					if runeLen(currentChunk)+runeLen(sp)+2 <= cfg.Size {
+						if currentChunk != "" {
+							currentChunk += "\n\n" + sp
+						} else {
+							currentChunk = sp
+						}
+					} else {
+						if currentChunk != "" {
+							if !yield(Chunk{
+								Text:    core.Trim(currentChunk),
+								Section: title,
+								Index:   chunkIndex,
+							}) {
+								return
+							}
+							chunkIndex++
+						}
+						// Start new chunk with overlap from previous,
+						// aligned to the nearest word boundary.
+						currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
+					}
+				}
+			}
+
+			// Don't forget the last chunk of the section
+			if core.Trim(currentChunk) != "" {
+				if !yield(Chunk{
+					Text:    core.Trim(currentChunk),
+					Section: title,
+					Index:   chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
 			}
 		}
 	}
 }
 
-// emitChunksFromSegments accumulates segments into chunks and yields them.
-func emitChunksFromSegments(segments iter.Seq[string], cfg ChunkConfig, section string, chunkIndex *int, yield func(Chunk) bool) bool {
-	currentChunk := ""
+func yieldSizedPieces(text string, size int) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		text = core.Trim(normalizeLineEndings(text))
+		if text == "" {
+			return
+		}
+		if runeLen(text) <= size {
+			yield(text)
+			return
+		}
 
-	flush := func() bool {
-		if strings.TrimSpace(currentChunk) == "" {
+		sentences := slices.Collect(splitBySentencesSeq(text))
+		if len(sentences) <= 1 {
+			for piece := range splitLongTextByWords(text, size) {
+				if !yield(piece) {
+					return
+				}
+			}
+			return
+		}
+
+		for _, sentence := range sentences {
+			sentence = core.Trim(sentence)
+			if sentence == "" {
+				continue
+			}
+			if runeLen(sentence) <= size {
+				if !yield(sentence) {
+					return
+				}
+				continue
+			}
+			for piece := range splitLongTextByWords(sentence, size) {
+				if !yield(piece) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// splitLongTextByWords breaks oversized text into chunks of whole words.
+// If a single word is still too long, it falls back to rune-safe slicing.
+func splitLongTextByWords(text string, size int) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		words := splitWords(text)
+		if len(words) == 0 {
+			return
+		}
+
+		current := ""
+		flush := func() bool {
+			if current == "" {
+				return true
+			}
+			if !yield(core.Trim(current)) {
+				return false
+			}
+			current = ""
 			return true
 		}
-		if !yield(Chunk{
-			Text:    strings.TrimSpace(currentChunk),
-			Section: section,
-			Index:   *chunkIndex,
-		}) {
-			return false
-		}
-		*chunkIndex = *chunkIndex + 1
-		return true
-	}
 
-	for seg := range segments {
-		seg = strings.TrimSpace(seg)
-		if seg == "" {
-			continue
-		}
-
-		if currentChunk == "" {
-			currentChunk = seg
-			continue
-		}
-
-		if runeLen(currentChunk)+runeLen(seg)+2 <= cfg.Size {
-			currentChunk += "\n\n" + seg
-			continue
-		}
-
-		if !flush() {
-			return false
-		}
-
-		// Start new chunk with overlap from previous chunk, aligned to the
-		// nearest word boundary.
-		currentChunk = overlapPrefix(currentChunk, cfg.Overlap, seg)
-	}
-
-	return flush()
-}
-
-// emitSegmentsAsChunks yields each segment as its own chunk.
-func emitSegmentsAsChunks(segments iter.Seq[string], section string, chunkIndex *int, yield func(Chunk) bool) bool {
-	for seg := range segments {
-		seg = strings.TrimSpace(seg)
-		if seg == "" {
-			continue
-		}
-		if !yield(Chunk{
-			Text:    seg,
-			Section: section,
-			Index:   *chunkIndex,
-		}) {
-			return false
-		}
-		*chunkIndex = *chunkIndex + 1
-	}
-	return true
-}
-
-// splitParagraphSegmentsSeq yields paragraph-sized segments, falling back to
-// sentence-sized segments for oversized paragraphs.
-func splitParagraphSegmentsSeq(text string, size int) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		for para := range splitByParagraphsSeq(text) {
-			para = strings.TrimSpace(para)
-			if para == "" {
-				continue
-			}
-			if runeLen(para) <= size {
-				if !yield(para) {
+		for _, word := range words {
+			for _, part := range splitOversizedWord(word, size) {
+				if current == "" {
+					current = part
+					continue
+				}
+				if runeLen(current)+1+runeLen(part) <= size {
+					current += " " + part
+					continue
+				}
+				if !flush() {
 					return
 				}
-				continue
-			}
-			for s := range splitBySentencesSeq(para) {
-				if !yield(s) {
-					return
-				}
+				current = part
 			}
 		}
+
+		_ = flush()
 	}
+}
+
+func splitWords(text string) []string {
+	var words []string
+	current := core.NewBuilder()
+
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		words = append(words, current.String())
+		current.Reset()
+	}
+
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			flush()
+			continue
+		}
+		current.WriteRune(r)
+	}
+	flush()
+
+	return words
+}
+
+func splitOversizedWord(word string, size int) []string {
+	if size <= 0 || runeLen(word) <= size {
+		return []string{word}
+	}
+
+	runes := []rune(word)
+	parts := make([]string, 0, (len(runes)/size)+1)
+	for start := 0; start < len(runes); start += size {
+		end := start + size
+		if end > len(runes) {
+			end = len(runes)
+		}
+		parts = append(parts, string(runes[start:end]))
+	}
+	return parts
 }
 
 // overlapPrefix builds the start of a new chunk by taking word-boundary-aligned
@@ -222,20 +277,17 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 		return newPara
 	}
 
-	runes := []rune(prevChunk)
-	if len(runes) <= overlap {
-		return newPara
+	runes := []rune(overlapSource(prevChunk))
+	start := len(runes) - overlap
+	if start < 0 {
+		start = 0
+	}
+	for start > 0 && !unicode.IsSpace(runes[start-1]) {
+		start--
 	}
 
-	// Slice from the end of the previous chunk
-	overlapRunes := runes[len(runes)-overlap:]
-
-	// Align to the nearest word boundary: find the first space within the
-	// overlap slice and start after it to avoid a partial leading word.
-	overlapText := string(overlapRunes)
-	if idx := strings.IndexByte(overlapText, ' '); idx >= 0 {
-		overlapText = overlapText[idx+1:]
-	}
+	overlapText := trimLeftSpace(string(runes[start:]))
+	overlapText = trimLeadingNonWordRunes(overlapText)
 
 	if overlapText == "" {
 		return newPara
@@ -244,62 +296,286 @@ func overlapPrefix(prevChunk string, overlap int, newPara string) string {
 	return overlapText + "\n\n" + newPara
 }
 
-// splitBySentences splits text at sentence boundaries and returns a slice.
+// ChunkBySentences splits text into chunks aligned to sentence boundaries.
+// Useful when strict size control matters more than section context: each
+// emitted chunk stays below cfg.Size, and overlap is aligned to word
+// boundaries to avoid splitting mid-word.
+//
+//	chunks := ChunkBySentences(text, DefaultChunkConfig())
+func ChunkBySentences(text string, cfg ChunkConfig) []Chunk {
+	return slices.Collect(ChunkBySentencesSeq(text, cfg))
+}
+
+// ChunkBySentencesSeq returns an iterator that yields sentence-aligned chunks.
+// for chunk := range ChunkBySentencesSeq(text, DefaultChunkConfig()) { _ = chunk }
+func ChunkBySentencesSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
+	if cfg.Size <= 0 {
+		cfg.Size = 500
+	}
+	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
+		cfg.Overlap = 0
+	}
+	text = normalizeLineEndings(text)
+
+	return func(yield func(Chunk) bool) {
+		chunkIndex := 0
+		currentParentSection := ""
+
+		for section := range splitBySectionsSeq(text) {
+			section = core.Trim(section)
+			if section == "" {
+				continue
+			}
+
+			parentTitle, title := markdownSectionTitle(section)
+			if parentTitle != "" {
+				currentParentSection = parentTitle
+			}
+			if title == "" {
+				title = currentParentSection
+			} else if currentParentSection != "" && title != currentParentSection {
+				title = currentParentSection + " / " + title
+			}
+
+			trimmed := core.Trim(section)
+			currentChunk := ""
+
+			for sentence := range splitBySentencesSeq(trimmed) {
+				sentence = core.Trim(sentence)
+				if sentence == "" {
+					continue
+				}
+
+				for piece := range yieldSizedPieces(sentence, cfg.Size) {
+					piece = core.Trim(piece)
+					if piece == "" {
+						continue
+					}
+
+					// Accumulate while within size budget.
+					sep := " "
+					if currentChunk == "" {
+						sep = ""
+					}
+					if runeLen(currentChunk)+runeLen(sep)+runeLen(piece) <= cfg.Size {
+						currentChunk = currentChunk + sep + piece
+						continue
+					}
+
+					// Emit current chunk if non-empty.
+					if currentChunk != "" {
+						if !yield(Chunk{
+							Text:    core.Trim(currentChunk),
+							Section: title,
+							Index:   chunkIndex,
+						}) {
+							return
+						}
+						chunkIndex++
+					}
+
+					// Start a new chunk with overlap carried from the previous chunk.
+					currentChunk = overlapPrefixInline(currentChunk, cfg.Overlap, piece)
+				}
+			}
+
+			if core.Trim(currentChunk) != "" {
+				if !yield(Chunk{
+					Text:    core.Trim(currentChunk),
+					Section: title,
+					Index:   chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
+			}
+		}
+	}
+}
+
+// ChunkByParagraphs splits text into chunks aligned to paragraph boundaries
+// (blank lines). Paragraphs that individually exceed cfg.Size are split at
+// sentence boundaries, then re-accumulated.
+//
+//	chunks := ChunkByParagraphs(text, DefaultChunkConfig())
+func ChunkByParagraphs(text string, cfg ChunkConfig) []Chunk {
+	return slices.Collect(ChunkByParagraphsSeq(text, cfg))
+}
+
+// ChunkByParagraphsSeq returns an iterator that yields paragraph-aligned chunks.
+// for chunk := range ChunkByParagraphsSeq(text, DefaultChunkConfig()) { _ = chunk }
+func ChunkByParagraphsSeq(text string, cfg ChunkConfig) iter.Seq[Chunk] {
+	if cfg.Size <= 0 {
+		cfg.Size = 500
+	}
+	if cfg.Overlap < 0 || cfg.Overlap >= cfg.Size {
+		cfg.Overlap = 0
+	}
+	text = normalizeLineEndings(text)
+
+	return func(yield func(Chunk) bool) {
+		chunkIndex := 0
+		currentParentSection := ""
+
+		for section := range splitBySectionsSeq(text) {
+			section = core.Trim(section)
+			if section == "" {
+				continue
+			}
+
+			parentTitle, title := markdownSectionTitle(section)
+			if parentTitle != "" {
+				currentParentSection = parentTitle
+			}
+			if title == "" {
+				title = currentParentSection
+			} else if currentParentSection != "" && title != currentParentSection {
+				title = currentParentSection + " / " + title
+			}
+
+			trimmed := core.Trim(section)
+			currentChunk := ""
+
+			for para := range splitByParagraphsSeq(trimmed) {
+				para = core.Trim(para)
+				if para == "" {
+					continue
+				}
+
+				for sp := range yieldSizedPieces(para, cfg.Size) {
+					sp = core.Trim(sp)
+					if sp == "" {
+						continue
+					}
+
+					if runeLen(currentChunk)+runeLen(sp)+2 <= cfg.Size {
+						if currentChunk != "" {
+							currentChunk += "\n\n" + sp
+						} else {
+							currentChunk = sp
+						}
+						continue
+					}
+
+					if currentChunk != "" {
+						if !yield(Chunk{
+							Text:    core.Trim(currentChunk),
+							Section: title,
+							Index:   chunkIndex,
+						}) {
+							return
+						}
+						chunkIndex++
+					}
+					currentChunk = overlapPrefix(currentChunk, cfg.Overlap, sp)
+				}
+			}
+
+			if core.Trim(currentChunk) != "" {
+				if !yield(Chunk{
+					Text:    core.Trim(currentChunk),
+					Section: title,
+					Index:   chunkIndex,
+				}) {
+					return
+				}
+				chunkIndex++
+			}
+		}
+	}
+}
+
+// overlapPrefixInline is the single-line variant of overlapPrefix used by
+// sentence chunking, where a space separator is more natural than "\n\n".
+func overlapPrefixInline(prevChunk string, overlap int, newSentence string) string {
+	if overlap <= 0 {
+		return newSentence
+	}
+	runes := []rune(overlapSource(prevChunk))
+	start := len(runes) - overlap
+	if start < 0 {
+		start = 0
+	}
+	for start > 0 && !unicode.IsSpace(runes[start-1]) {
+		start--
+	}
+	overlapText := trimLeftSpace(string(runes[start:]))
+	overlapText = trimLeadingNonWordRunes(overlapText)
+	if overlapText == "" {
+		return newSentence
+	}
+	return overlapText + " " + newSentence
+}
+
+// overlapSource strips leading markdown heading blocks so overlap is derived
+// from chunk content instead of section titles.
+func overlapSource(prevChunk string) string {
+	prevChunk = normalizeLineEndings(prevChunk)
+	lines := core.Split(prevChunk, "\n")
+
+	i := 0
+	for i < len(lines) {
+		trimmed := core.Trim(lines[i])
+		if trimmed == "" {
+			i++
+			continue
+		}
+		if core.HasPrefix(trimmed, "#") {
+			i++
+			continue
+		}
+		break
+	}
+
+	if i >= len(lines) {
+		return ""
+	}
+
+	return core.Join("\n", lines[i:]...)
+}
+
+// splitBySentences splits text at sentence boundaries (". ", "? ", "! ").
+// Returns the original text in a single-element slice when no boundaries are found.
 func splitBySentences(text string) []string {
 	return slices.Collect(splitBySentencesSeq(text))
 }
 
 // splitBySentencesSeq returns an iterator that yields sentences split at
-// sentence boundaries. Boundaries include punctuation marks and newlines.
+// boundaries (". ", "? ", "! ").
 func splitBySentencesSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		text = strings.ReplaceAll(text, "\r\n", "\n")
+		text = normalizeLineEndings(text)
+		remaining := text
 
-		start := 0
-		for i := 0; i < len(text); {
-			r, size := utf8.DecodeRuneInString(text[i:])
+		for len(remaining) > 0 {
+			boundary := -1
+			for i, r := range remaining {
+				switch r {
+				case '.', '!', '?', '\n':
+					boundary = i + len(string(r))
+					break
+				}
+				if boundary >= 0 {
+					break
+				}
+			}
 
-			if r == '\n' {
-				if s := strings.TrimSpace(text[start:i]); s != "" {
+			if boundary < 0 {
+				if s := core.Trim(remaining); s != "" {
 					if !yield(s) {
 						return
 					}
 				}
-				start = i + size
-				i = start
-				continue
+				break
 			}
 
-			if r == '.' || r == '!' || r == '?' {
-				end := i + size
-				j := end
-				for j < len(text) {
-					next, nextSize := utf8.DecodeRuneInString(text[j:])
-					if next == ' ' || next == '\t' || next == '\n' || next == '\r' {
-						j += nextSize
-						continue
-					}
-					break
-				}
-				if j == len(text) || j > end {
-					if s := strings.TrimSpace(text[start:end]); s != "" {
-						if !yield(s) {
-							return
-						}
-					}
-					start = j
-					i = j
-					continue
+			sentence := core.Trim(remaining[:boundary])
+			if sentence != "" {
+				if !yield(sentence) {
+					return
 				}
 			}
-
-			i += size
-		}
-
-		if s := strings.TrimSpace(text[start:]); s != "" {
-			if !yield(s) {
-				return
-			}
+			remaining = trimLeftSpace(remaining[boundary:])
 		}
 	}
 }
@@ -312,10 +588,10 @@ func splitBySections(text string) []string {
 // splitBySectionsSeq returns an iterator that yields text sections split by ## headers.
 func splitBySectionsSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		var currentSection strings.Builder
-		for line := range strings.SplitSeq(text, "\n") {
+		currentSection := core.NewBuilder()
+		for _, line := range core.Split(text, "\n") {
 			// Check if this line is a ## header
-			if strings.HasPrefix(line, "## ") {
+			if core.HasPrefix(line, "## ") {
 				// Yield previous section if exists
 				if currentSection.Len() > 0 {
 					if !yield(currentSection.String()) {
@@ -343,12 +619,13 @@ func splitByParagraphs(text string) []string {
 // splitByParagraphsSeq returns an iterator that yields paragraphs split by double newlines.
 func splitByParagraphsSeq(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
+		text = normalizeLineEndings(text)
 		// Replace multiple newlines with a marker, then split
-		normalized := text
-		for strings.Contains(normalized, "\n\n\n") {
-			normalized = strings.ReplaceAll(normalized, "\n\n\n", "\n\n")
+		normalised := text
+		for core.Contains(normalised, "\n\n\n") {
+			normalised = core.Replace(normalised, "\n\n\n", "\n\n")
 		}
-		for s := range strings.SplitSeq(normalized, "\n\n") {
+		for _, s := range core.Split(normalised, "\n\n") {
 			if !yield(s) {
 				return
 			}
@@ -356,26 +633,23 @@ func splitByParagraphsSeq(text string) iter.Seq[string] {
 	}
 }
 
-func runeLen(text string) int {
-	return utf8.RuneCountInString(text)
-}
-
 // Category determines the document category from file path.
+// category := Category("docs/architecture/guide.md")
 func Category(path string) string {
-	lower := strings.ToLower(path)
+	lower := core.Lower(path)
 
 	switch {
-	case strings.Contains(lower, "flux") || strings.Contains(lower, "ui/component"):
+	case core.Contains(lower, "flux") || core.Contains(lower, "ui/component"):
 		return "ui-component"
-	case strings.Contains(lower, "brand") || strings.Contains(lower, "mascot"):
+	case core.Contains(lower, "brand") || core.Contains(lower, "mascot"):
 		return "brand"
-	case strings.Contains(lower, "brief"):
+	case core.Contains(lower, "brief"):
 		return "product-brief"
-	case strings.Contains(lower, "help") || strings.Contains(lower, "draft"):
+	case core.Contains(lower, "help") || core.Contains(lower, "draft"):
 		return "help-doc"
-	case strings.Contains(lower, "task") || strings.Contains(lower, "plan"):
+	case core.Contains(lower, "task") || core.Contains(lower, "plan"):
 		return "task"
-	case strings.Contains(lower, "architecture") || strings.Contains(lower, "migration"):
+	case core.Contains(lower, "architecture") || core.Contains(lower, "migration"):
 		return "architecture"
 	default:
 		return "documentation"
@@ -383,6 +657,7 @@ func Category(path string) string {
 }
 
 // ChunkID generates a unique ID for a chunk.
+// id := ChunkID("docs/guide.md", 0, "Go uses goroutines.")
 func ChunkID(path string, index int, text string) string {
 	// Use first 100 runes of text for uniqueness (rune-safe for UTF-8)
 	runes := []rune(text)
@@ -390,18 +665,110 @@ func ChunkID(path string, index int, text string) string {
 		runes = runes[:100]
 	}
 	textPart := string(runes)
-	data := fmt.Sprintf("%s:%d:%s", path, index, textPart)
+	data := core.Sprintf("%s:%d:%s", path, index, textPart)
 	hash := md5.Sum([]byte(data))
-	return fmt.Sprintf("%x", hash)
+	return core.Sprintf("%x", hash)
 }
 
 // FileExtensions returns the file extensions to process.
+// exts := FileExtensions()
 func FileExtensions() []string {
 	return []string{".md", ".markdown", ".pdf", ".txt"}
 }
 
 // ShouldProcess checks if a file should be processed based on extension.
+// ok := ShouldProcess("docs/guide.md")
 func ShouldProcess(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
+	ext := core.Lower(core.PathExt(path))
 	return slices.Contains(FileExtensions(), ext)
+}
+
+func normalizeLineEndings(text string) string {
+	return core.Replace(text, "\r\n", "\n")
+}
+
+func trimHeadingPrefix(line string) string {
+	for core.HasPrefix(line, "#") {
+		line = core.TrimPrefix(line, "#")
+	}
+	return core.Trim(line)
+}
+
+func markdownSectionTitle(section string) (string, string) {
+	var parentTitle string
+	var title string
+
+	for _, line := range core.Split(section, "\n") {
+		trimmed := core.Trim(line)
+		if trimmed == "" || !core.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		level := 0
+		for level < len(trimmed) && trimmed[level] == '#' {
+			level++
+		}
+		if level == 0 || level > 6 {
+			continue
+		}
+		if level < len(trimmed) && trimmed[level] != ' ' {
+			continue
+		}
+
+		heading := trimHeadingPrefix(trimmed)
+		if heading == "" {
+			continue
+		}
+
+		switch level {
+		case 1:
+			parentTitle = heading
+			if title == "" {
+				title = heading
+			}
+		case 2:
+			title = heading
+			return parentTitle, title
+		default:
+			if title == "" {
+				title = heading
+			}
+		}
+	}
+
+	return parentTitle, title
+}
+
+func indexOf(s, substr string) int {
+	if substr == "" || len(substr) > len(s) {
+		return -1
+	}
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func runeLen(text string) int {
+	return len([]rune(text))
+}
+
+func trimLeadingNonWordRunes(text string) string {
+	for i, r := range text {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return text[i:]
+		}
+	}
+	return ""
+}
+
+func trimLeftSpace(text string) string {
+	for i, r := range text {
+		if !unicode.IsSpace(r) {
+			return text[i:]
+		}
+	}
+	return ""
 }

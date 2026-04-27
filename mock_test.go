@@ -2,9 +2,10 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
+
+	"dappco.re/go/core"
 )
 
 // mockEmbedder is a test-only Embedder that returns deterministic vectors.
@@ -203,19 +204,19 @@ func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*Col
 
 	vectorSize, exists := m.collections[name]
 	if !exists {
-		return nil, fmt.Errorf("collection %q not found", name)
+		return nil, core.E("mockVectorStore.CollectionInfo", core.Sprintf("collection %q not found", name), nil)
 	}
 
 	pointCount := uint64(len(m.points[name]))
 
 	return &CollectionInfo{
 		Name:       name,
-		PointCount: pointCount,
-		VectorSize: vectorSize,
-		Status:     "green",
 		Count:      pointCount,
 		Vectors:    pointCount,
+		PointCount: pointCount,
+		VectorSize: vectorSize,
 		Index:      "hnsw",
+		Status:     "green",
 	}, nil
 }
 
@@ -233,28 +234,15 @@ func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, p
 	return nil
 }
 
-func (m *mockVectorStore) Add(ctx context.Context, collection string, vectors []Vector) error {
-	points := make([]Point, len(vectors))
-	for i, v := range vectors {
-		points[i] = Point{
-			ID:      v.ID,
-			Vector:  v.Values,
-			Payload: v.Payload,
-		}
-	}
-	return m.UpsertPoints(ctx, collection, points)
-}
-
-func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter ...map[string]string) ([]SearchResult, error) {
+func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	mergedFilter := mergeStringFilters(filter...)
 	m.searchCalls = append(m.searchCalls, searchCall{
 		Collection: collection,
 		Vector:     vector,
 		Limit:      limit,
-		Filter:     mergedFilter,
+		Filter:     filter,
 	})
 
 	if m.searchErr != nil {
@@ -262,7 +250,7 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 	}
 
 	if m.searchFunc != nil {
-		return m.searchFunc(collection, vector, limit, mergedFilter)
+		return m.searchFunc(collection, vector, limit, filter)
 	}
 
 	// Default: return stored points as search results, sorted by a fake
@@ -272,10 +260,10 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 
 	for i, p := range stored {
 		// Apply filter if provided
-		if len(mergedFilter) > 0 {
+		if len(filter) > 0 {
 			match := true
-			for k, v := range mergedFilter {
-				if pv, ok := p.Payload[k]; !ok || fmt.Sprintf("%v", pv) != v {
+			for k, v := range filter {
+				if pv, ok := p.Payload[k]; !ok || core.Sprintf("%v", pv) != v {
 					match = false
 					break
 				}

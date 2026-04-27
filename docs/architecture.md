@@ -138,7 +138,9 @@ Each `Chunk` carries:
 
 ### Accepted File Types
 
-`ShouldProcess(path string) bool` accepts `.md`, `.markdown`, and `.txt` extensions.
+`FileExtensions() []string` returns the ingestible extension set: `.md`, `.markdown`, `.pdf`, and `.txt`.
+
+`ShouldProcess(path string) bool` checks a path against that list using its lowercased extension.
 
 ## Ingestion Pipeline
 
@@ -150,8 +152,8 @@ Each `Chunk` carries:
 2. Check whether the target collection exists. If `Recreate` is set and it exists, delete it first.
 3. Create the collection if it does not exist, using `embedder.EmbedDimension()` to set the vector size.
 4. Walk the directory recursively, collecting files that pass `ShouldProcess`.
-5. For each file: read content, call `ChunkMarkdown`, embed each chunk individually, and build `Point` structs.
-6. Batch-upsert all accumulated points in slices of `BatchSize` (default 100).
+5. For each file: read content, extracting text from PDFs when needed, call `ChunkMarkdown`, then process chunks in batches of up to `BatchSize` (default 100). Each batch is sent through `EmbedBatch`; when that batch API fails or returns the wrong shape, the fallback embeds the batch with a bounded worker pool while preserving chunk order so embeddings still map back to their source chunks before `Point` structs are built.
+6. Batch-upsert all accumulated points in slices of `BatchSize`.
 
 The optional `IngestProgress` callback is invoked after each file is processed.
 
@@ -251,7 +253,7 @@ Rate limiting is configured per-route using the throttle middleware...
 
 - **Connection**: HTTP on port 11434, 30-second timeout.
 - **Embedding**: Calls `/api/embed`. The Ollama API returns `float64` values; these are converted to `float32` for Qdrant compatibility.
-- **Batch embedding**: `EmbedBatch` is sequential -- it calls `Embed` in a loop. Ollama has no native batch endpoint.
+- **Batch embedding**: `EmbedBatch` calls `Embed` for each input in order and preserves input order in the response.
 - **Model verification**: `VerifyModel` sends a test embedding request to confirm the model is loaded.
 
 Supported models and their dimensions:

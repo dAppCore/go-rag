@@ -2,23 +2,21 @@ package rag
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
+
+	"dappco.re/go/core"
 )
 
 // generateMarkdownDoc creates a ~10KB markdown document for benchmarking.
 func generateMarkdownDoc() string {
-	var sb strings.Builder
+	sb := core.NewBuilder()
 	sb.WriteString("# Benchmark Document\n\n")
 	sb.WriteString("This document is generated for benchmarking the chunking pipeline.\n\n")
 
 	for i := range 20 {
-		sb.WriteString(fmt.Sprintf("## Section %d\n\n", i+1))
+		sb.WriteString(core.Sprintf("## Section %d\n\n", i+1))
 		for j := range 5 {
-			sb.WriteString(fmt.Sprintf(
+			sb.WriteString(core.Sprintf(
 				"Paragraph %d in section %d contains representative text for testing. "+
 					"It includes multiple sentences to exercise the sentence-aware splitter. "+
 					"The content is deliberately verbose to reach a realistic document size. "+
@@ -35,9 +33,9 @@ func generateQueryResults(n int) []QueryResult {
 	results := make([]QueryResult, n)
 	for i := range results {
 		results[i] = QueryResult{
-			Text:       fmt.Sprintf("This is result number %d with some representative text content for testing purposes.", i+1),
-			Source:     fmt.Sprintf("docs/section-%d/file-%d.md", i/5, i),
-			Section:    fmt.Sprintf("Section %d", i+1),
+			Text:       core.Sprintf("This is result number %d with some representative text content for testing purposes.", i+1),
+			Source:     core.Sprintf("docs/section-%d/file-%d.md", i/5, i),
+			Section:    core.Sprintf("Section %d", i+1),
 			Category:   "documentation",
 			ChunkIndex: i,
 			Score:      1.0 - float32(i)*0.01,
@@ -78,11 +76,11 @@ func BenchmarkQuery_Mock(b *testing.B) {
 	// Pre-populate with 50 points
 	for i := range 50 {
 		store.points["bench-col"] = append(store.points["bench-col"], Point{
-			ID:     fmt.Sprintf("p%d", i),
+			ID:     core.Sprintf("p%d", i),
 			Vector: make([]float32, 768),
 			Payload: map[string]any{
-				"text":        fmt.Sprintf("Benchmark document %d with relevant content.", i),
-				"source":      fmt.Sprintf("doc%d.md", i),
+				"text":        core.Sprintf("Benchmark document %d with relevant content.", i),
+				"source":      core.Sprintf("doc%d.md", i),
 				"section":     "Section",
 				"category":    "docs",
 				"chunk_index": i,
@@ -107,11 +105,9 @@ func BenchmarkIngest_Mock(b *testing.B) {
 	dir := b.TempDir()
 	// Create 10 markdown files
 	for i := range 10 {
-		content := fmt.Sprintf("## File %d\n\nThis is file number %d with some test content for benchmarking.\n", i, i)
-		path := filepath.Join(dir, fmt.Sprintf("doc%d.md", i))
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			b.Fatal(err)
-		}
+		content := core.Sprintf("## File %d\n\nThis is file number %d with some test content for benchmarking.\n", i, i)
+		path := core.JoinPath(dir, core.Sprintf("doc%d.md", i))
+		writeFile(b, path, content)
 	}
 
 	ctx := context.Background()

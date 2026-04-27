@@ -2,12 +2,12 @@ package rag
 
 import (
 	"context"
-	"fmt"
+	"io"
 
-	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/log"
-	"dappco.re/go/core/rag"
+	"dappco.re/go/core"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/i18n"
+	"dappco.re/go/rag"
 )
 
 var (
@@ -25,6 +25,7 @@ var collectionsCmd = &cli.Command{
 
 func runCollections(cmd *cli.Command, args []string) error {
 	ctx := context.Background()
+	out := cmd.OutOrStdout()
 
 	// Connect to Qdrant
 	qdrantClient, err := rag.NewQdrantClient(rag.QdrantConfig{
@@ -33,7 +34,7 @@ func runCollections(cmd *cli.Command, args []string) error {
 		UseTLS: false,
 	})
 	if err != nil {
-		return log.E("rag.cmd.collections", "failed to connect to Qdrant", err)
+		return core.E("rag.cmd.collections", "failed to connect to Qdrant", err)
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
@@ -44,12 +45,12 @@ func runCollections(cmd *cli.Command, args []string) error {
 			return err
 		}
 		if !exists {
-			return log.E("rag.cmd.collections", fmt.Sprintf("collection not found: %s", deleteCollection), nil)
+			return core.E("rag.cmd.collections", core.Sprintf("collection not found: %s", deleteCollection), nil)
 		}
 		if err := qdrantClient.DeleteCollection(ctx, deleteCollection); err != nil {
 			return err
 		}
-		fmt.Printf("Deleted collection: %s\n", deleteCollection)
+		core.Print(out, "Deleted collection: %s", deleteCollection)
 		return nil
 	}
 
@@ -60,25 +61,25 @@ func runCollections(cmd *cli.Command, args []string) error {
 	}
 
 	if len(collections) == 0 {
-		fmt.Println("No collections found.")
+		core.Print(out, "No collections found.")
 		return nil
 	}
 
-	fmt.Printf("%s\n\n", cli.TitleStyle.Render("Collections"))
+	_, _ = io.WriteString(out, core.Sprintf("%s\n\n", cli.TitleStyle.Render("Collections")))
 
 	for _, name := range collections {
 		if showStats {
 			info, err := qdrantClient.CollectionInfo(ctx, name)
 			if err != nil {
-				fmt.Printf("  %s (error: %v)\n", name, err)
+				core.Print(out, "  %s (error: %v)", name, err)
 				continue
 			}
-			fmt.Printf("  %s\n", cli.ValueStyle.Render(name))
-			fmt.Printf("    Points:  %d\n", info.PointCount)
-			fmt.Printf("    Status:  %s\n", info.Status)
-			fmt.Println()
+			core.Print(out, "  %s", cli.ValueStyle.Render(name))
+			core.Print(out, "    Points:  %d", info.PointCount)
+			core.Print(out, "    Status:  %s", info.Status)
+			_, _ = io.WriteString(out, "\n")
 		} else {
-			fmt.Printf("  %s\n", name)
+			core.Print(out, "  %s", name)
 		}
 	}
 

@@ -2,18 +2,14 @@ package rag
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/core"
 )
 
 // --- QueryWith tests ---
 
-func TestQueryWith(t *testing.T) {
+func TestHelpers_QueryWith_Good(t *testing.T) {
 	t.Run("returns results from store", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.points["my-docs"] = []Point{
@@ -25,19 +21,19 @@ func TestQueryWith(t *testing.T) {
 
 		results, err := QueryWith(context.Background(), store, embedder, "hello", "my-docs", 5)
 
-		require.NoError(t, err)
-		assert.Len(t, results, 1)
-		assert.Equal(t, "Hello from helper.", results[0].Text)
+		assertNoError(t, err)
+		assertLen(t, results, 1)
+		assertEqual(t, "Hello from helper.", results[0].Text)
 	})
 
 	t.Run("respects topK parameter", func(t *testing.T) {
 		store := newMockVectorStore()
 		for i := range 10 {
 			store.points["col"] = append(store.points["col"], Point{
-				ID:     fmt.Sprintf("p%d", i),
+				ID:     core.Sprintf("p%d", i),
 				Vector: []float32{0.1},
 				Payload: map[string]any{
-					"text": fmt.Sprintf("Doc %d", i), "source": "d.md", "section": "", "category": "docs", "chunk_index": i,
+					"text": core.Sprintf("Doc %d", i), "source": "d.md", "section": "", "category": "docs", "chunk_index": i,
 				},
 			})
 		}
@@ -45,34 +41,34 @@ func TestQueryWith(t *testing.T) {
 
 		results, err := QueryWith(context.Background(), store, embedder, "test", "col", 3)
 
-		require.NoError(t, err)
-		assert.Len(t, results, 3)
+		assertNoError(t, err)
+		assertLen(t, results, 3)
 	})
 
 	t.Run("embedder error propagates", func(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("embed failed")
+		embedder.embedErr = core.E("mock.embed", "embed failed", nil)
 
 		_, err := QueryWith(context.Background(), store, embedder, "test", "col", 5)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("search error propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.searchErr = fmt.Errorf("search failed")
+		store.searchErr = core.E("mock.search", "search failed", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := QueryWith(context.Background(), store, embedder, "test", "col", 5)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
 // --- QueryContextWith tests ---
 
-func TestQueryContextWith(t *testing.T) {
+func TestHelpers_QueryContextWith_Good(t *testing.T) {
 	t.Run("returns formatted context string", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.points["ctx-col"] = []Point{
@@ -84,10 +80,10 @@ func TestQueryContextWith(t *testing.T) {
 
 		result, err := QueryContextWith(context.Background(), store, embedder, "question", "ctx-col", 5)
 
-		require.NoError(t, err)
-		assert.Contains(t, result, "<retrieved_context>")
-		assert.Contains(t, result, "Context content.")
-		assert.Contains(t, result, "</retrieved_context>")
+		assertNoError(t, err)
+		assertContains(t, result, "<retrieved_context>")
+		assertContains(t, result, "Context content.")
+		assertContains(t, result, "</retrieved_context>")
 	})
 
 	t.Run("empty results return empty string", func(t *testing.T) {
@@ -96,42 +92,42 @@ func TestQueryContextWith(t *testing.T) {
 
 		result, err := QueryContextWith(context.Background(), store, embedder, "question", "empty", 5)
 
-		require.NoError(t, err)
-		assert.Equal(t, "", result)
+		assertNoError(t, err)
+		assertEqual(t, "", result)
 	})
 
 	t.Run("error from query propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.searchErr = fmt.Errorf("broken")
+		store.searchErr = core.E("mock.search", "broken", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := QueryContextWith(context.Background(), store, embedder, "question", "col", 5)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
 // --- IngestDirWith tests ---
 
-func TestIngestDirWith(t *testing.T) {
+func TestHelpers_IngestDirWith_Good(t *testing.T) {
 	t.Run("ingests directory into collection", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "readme.md"), "## README\n\nProject overview.\n")
-		writeFile(t, filepath.Join(dir, "guide.md"), "## Guide\n\nStep by step.\n")
+		writeFile(t, core.JoinPath(dir, "readme.md"), "## README\n\nProject overview.\n")
+		writeFile(t, core.JoinPath(dir, "guide.md"), "## Guide\n\nStep by step.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 
 		err := IngestDirWith(context.Background(), store, embedder, dir, "project-docs", false)
 
-		require.NoError(t, err)
+		assertNoError(t, err)
 		points := store.allPoints("project-docs")
-		assert.Len(t, points, 2)
+		assertLen(t, points, 2)
 	})
 
 	t.Run("recreate flag deletes existing collection", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "## Doc\n\nContent.\n")
+		writeFile(t, core.JoinPath(dir, "doc.md"), "## Doc\n\nContent.\n")
 
 		store := newMockVectorStore()
 		store.collections["col"] = 768
@@ -139,19 +135,19 @@ func TestIngestDirWith(t *testing.T) {
 
 		err := IngestDirWith(context.Background(), store, embedder, dir, "col", true)
 
-		require.NoError(t, err)
-		assert.Len(t, store.deleteCalls, 1)
-		assert.Equal(t, "col", store.deleteCalls[0])
+		assertNoError(t, err)
+		assertLen(t, store.deleteCalls, 1)
+		assertEqual(t, "col", store.deleteCalls[0])
 	})
 
 	t.Run("error from ingest propagates", func(t *testing.T) {
 		store := newMockVectorStore()
-		store.existsErr = fmt.Errorf("exists check failed")
+		store.existsErr = core.E("mock.collections.exists", "exists check failed", nil)
 		embedder := newMockEmbedder(768)
 
 		err := IngestDirWith(context.Background(), store, embedder, "/tmp", "col", false)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("nonexistent directory returns error", func(t *testing.T) {
@@ -160,16 +156,16 @@ func TestIngestDirWith(t *testing.T) {
 
 		err := IngestDirWith(context.Background(), store, embedder, "/tmp/nonexistent-go-rag-test-dir", "col", false)
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 }
 
 // --- IngestFileWith tests ---
 
-func TestIngestFileWith(t *testing.T) {
+func TestHelpers_IngestFileWith_Good(t *testing.T) {
 	t.Run("ingests a single file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "single.md")
+		path := core.JoinPath(dir, "single.md")
 		writeFile(t, path, "## Title\n\nFile content for testing.\n")
 
 		store := newMockVectorStore()
@@ -177,12 +173,12 @@ func TestIngestFileWith(t *testing.T) {
 
 		count, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		require.NoError(t, err)
-		assert.Equal(t, 1, count)
+		assertNoError(t, err)
+		assertEqual(t, 1, count)
 
 		points := store.allPoints("col")
-		require.Len(t, points, 1)
-		assert.Contains(t, points[0].Payload["text"], "File content for testing.")
+		assertLen(t, points, 1)
+		assertContains(t, points[0].Payload["text"], "File content for testing.")
 	})
 
 	t.Run("nonexistent file returns error", func(t *testing.T) {
@@ -191,48 +187,81 @@ func TestIngestFileWith(t *testing.T) {
 
 		_, err := IngestFileWith(context.Background(), store, embedder, "/tmp/nonexistent-test-file.md", "col")
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("empty file returns zero count", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "empty.md")
-		require.NoError(t, os.WriteFile(path, []byte("  \n  "), 0644))
+		path := core.JoinPath(dir, "empty.md")
+		writeFile(t, path, "  \n  ")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 
 		count, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		assertNoError(t, err)
+		assertEqual(t, 0, count)
 	})
 
 	t.Run("embedder error propagates", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "doc.md")
+		path := core.JoinPath(dir, "doc.md")
 		writeFile(t, path, "## Title\n\nContent.\n")
 
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
-		embedder.embedErr = fmt.Errorf("embed broken")
+		embedder.embedErr = core.E("mock.embed", "embed broken", nil)
 
 		_, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		assert.Error(t, err)
+		assertError(t, err)
 	})
 
 	t.Run("store error propagates", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "doc.md")
+		path := core.JoinPath(dir, "doc.md")
 		writeFile(t, path, "## Title\n\nContent.\n")
 
 		store := newMockVectorStore()
-		store.upsertErr = fmt.Errorf("upsert broken")
+		store.upsertErr = core.E("mock.upsert", "upsert broken", nil)
 		embedder := newMockEmbedder(768)
 
 		_, err := IngestFileWith(context.Background(), store, embedder, path, "col")
 
-		assert.Error(t, err)
+		assertError(t, err)
+	})
+}
+
+// --- JoinResults tests ---
+
+func TestHelpers_JoinResults_Good(t *testing.T) {
+	t.Run("joins non-empty result text with blank lines", func(t *testing.T) {
+		results := []QueryResult{
+			{Text: "First result."},
+			{Text: "   "},
+			{Text: "Second result."},
+		}
+
+		output := JoinResults(results)
+
+		assertEqual(t, "First result.\n\nSecond result.", output)
+	})
+
+	t.Run("works with SearchResult values", func(t *testing.T) {
+		results := []SearchResult{
+			{Payload: map[string]any{"text": "Alpha."}},
+			{},
+			{Payload: map[string]any{"text": "Beta."}},
+		}
+
+		output := JoinResults(results)
+
+		assertEqual(t, "Alpha.\n\nBeta.", output)
+	})
+
+	t.Run("empty input returns empty string", func(t *testing.T) {
+		assertEqual(t, "", JoinResults[QueryResult](nil))
+		assertEqual(t, "", JoinResults([]QueryResult{}))
 	})
 }

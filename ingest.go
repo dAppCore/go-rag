@@ -2,20 +2,16 @@ package rag
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 
-	coreio "dappco.re/go/core/io"
-	"dappco.re/go/core/log"
+	"dappco.re/go/core"
 	"github.com/ledongthuc/pdf"
 )
 
 // IngestConfig holds ingestion configuration.
+// cfg := IngestConfig{Directory: "./docs", Collection: "project-docs", BatchSize: 100}
 type IngestConfig struct {
 	Directory  string
 	Collection string
@@ -26,6 +22,7 @@ type IngestConfig struct {
 }
 
 // DefaultIngestConfig returns default ingestion configuration.
+// cfg := DefaultIngestConfig()
 func DefaultIngestConfig() IngestConfig {
 	return IngestConfig{
 		Collection: "hostuk-docs",
@@ -35,6 +32,7 @@ func DefaultIngestConfig() IngestConfig {
 }
 
 // IngestStats holds statistics from ingestion.
+// stats := IngestStats{Files: 12, Chunks: 84, Errors: 0}
 type IngestStats struct {
 	Files  int
 	Chunks int
@@ -42,40 +40,46 @@ type IngestStats struct {
 }
 
 // IngestProgress is called during ingestion to report progress.
+// progress := IngestProgress(func(file string, chunks int, total int) {})
 type IngestProgress func(file string, chunks int, total int)
 
 // Ingest processes a directory of documents and stores them in the vector store.
+// Ingest(ctx, store, embedder, cfg, progress)
 func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg IngestConfig, progress IngestProgress) (*IngestStats, error) {
 	stats := &IngestStats{}
+	localFS := (&core.Fs{}).NewUnrestricted()
 
 	// Validate batch size to prevent infinite loop
 	if cfg.BatchSize <= 0 {
 		cfg.BatchSize = 100 // Safe default
 	}
 
-	// Resolve directory
-	absDir, err := filepath.Abs(cfg.Directory)
-	if err != nil {
-		return nil, log.E("rag.Ingest", "error resolving directory", err)
+	scanRoot := cfg.Directory
+	if scanRoot == "" {
+		scanRoot = "."
 	}
 
-	info, err := os.Stat(absDir)
-	if err != nil {
-		return nil, log.E("rag.Ingest", "error accessing directory", err)
+	infoResult := localFS.Stat(scanRoot)
+	if !infoResult.OK {
+		return nil, core.Wrap(resultError(infoResult), "rag.Ingest", "error accessing directory")
+	}
+	info, ok := infoResult.Value.(fs.FileInfo)
+	if !ok {
+		return nil, core.E("rag.Ingest", core.Sprintf("unexpected stat result type: %T", infoResult.Value), nil)
 	}
 	if !info.IsDir() {
-		return nil, log.E("rag.Ingest", fmt.Sprintf("not a directory: %s", absDir), nil)
+		return nil, core.E("rag.Ingest", core.Sprintf("not a directory: %s", scanRoot), nil)
 	}
 
 	// Check/create collection
 	exists, err := store.CollectionExists(ctx, cfg.Collection)
 	if err != nil {
-		return nil, log.E("rag.Ingest", "error checking collection", err)
+		return nil, core.E("rag.Ingest", "error checking collection", err)
 	}
 
 	if cfg.Recreate && exists {
 		if err := store.DeleteCollection(ctx, cfg.Collection); err != nil {
-			return nil, log.E("rag.Ingest", "error deleting collection", err)
+			return nil, core.E("rag.Ingest", "error deleting collection", err)
 		}
 		exists = false
 	}
@@ -83,80 +87,62 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 	if !exists {
 		vectorDim := embedder.EmbedDimension()
 		if err := store.CreateCollection(ctx, cfg.Collection, vectorDim); err != nil {
-			return nil, log.E("rag.Ingest", "error creating collection", err)
+			return nil, core.E("rag.Ingest", "error creating collection", err)
 		}
 	}
 
-	// Find markdown files
+	// Find ingestible files.
 	var files []string
-	err = filepath.WalkDir(absDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && ShouldProcess(path) {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, log.E("rag.Ingest", "error walking directory", err)
+	if err := collectMarkdownFiles(localFS, scanRoot, "", &files); err != nil {
+		return nil, core.E("rag.Ingest", "error walking directory", err)
 	}
+	slices.Sort(files)
 
 	if len(files) == 0 {
-		return nil, log.E("rag.Ingest", fmt.Sprintf("no markdown files found in %s", absDir), nil)
+		return nil, core.E("rag.Ingest", core.Sprintf("no matching files found in %s", scanRoot), nil)
 	}
 
 	// Process files
 	var points []Point
-	for _, filePath := range files {
-		relPath, err := filepath.Rel(absDir, filePath)
-		if err != nil {
+	for _, relPath := range files {
+		filePath := relPath
+		if scanRoot != "." {
+			filePath = core.JoinPath(scanRoot, relPath)
+		}
+
+		content, readErr := readDocument(localFS, filePath)
+		if readErr != nil {
 			stats.Errors++
+			if cfg.Verbose {
+				core.Print(nil, "  Error reading %s: %v", relPath, readErr)
+			}
 			continue
 		}
 
-		content, err := readDocument(filePath)
-		if err != nil {
-			stats.Errors++
-			continue
-		}
-
-		if len(strings.TrimSpace(content)) == 0 {
+		if core.Trim(content) == "" {
 			continue
 		}
 
 		// Chunk the content
 		category := Category(relPath)
 		chunks := ChunkMarkdown(content, cfg.Chunk)
-		chunkTexts := make([]string, len(chunks))
-		for i, chunk := range chunks {
-			chunkTexts[i] = chunk.Text
-		}
 
-		embeddings, err := embedder.EmbedBatch(ctx, chunkTexts)
-		if err != nil {
-			stats.Errors++
-			if cfg.Verbose {
-				fmt.Printf("  Error embedding %s: %v\n", relPath, err)
+		for batch := range slices.Chunk(chunks, cfg.BatchSize) {
+			texts := make([]string, len(batch))
+			for i, chunk := range batch {
+				texts[i] = chunk.Text
 			}
-		} else if len(embeddings) != len(chunks) {
-			stats.Errors++
-			if cfg.Verbose {
-				fmt.Printf("  Error embedding %s: embedder returned %d vectors for %d chunks\n", relPath, len(embeddings), len(chunks))
-			}
-		} else {
-			for i, chunk := range chunks {
-				points = append(points, Point{
-					ID:     ChunkID(relPath, chunk.Index, chunk.Text),
-					Vector: embeddings[i],
-					Payload: map[string]any{
-						"text":        chunk.Text,
-						"source":      relPath,
-						"section":     chunk.Section,
-						"category":    category,
-						"chunk_index": chunk.Index,
-					},
-				})
+
+			embeddings, errs := embedChunkBatch(ctx, embedder, texts)
+			for i, chunk := range batch {
+				if errs[i] != nil {
+					stats.Errors++
+					if cfg.Verbose {
+						core.Print(nil, "  Error embedding %s chunk %d: %v", relPath, chunk.Index, errs[i])
+					}
+					continue
+				}
+				points = append(points, buildPoint(relPath, category, chunk, embeddings[i]))
 				stats.Chunks++
 			}
 		}
@@ -171,7 +157,7 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 	if len(points) > 0 {
 		for batch := range slices.Chunk(points, cfg.BatchSize) {
 			if err := store.UpsertPoints(ctx, cfg.Collection, batch); err != nil {
-				return stats, log.E("rag.Ingest", "error upserting batch", err)
+				return stats, core.E("rag.Ingest", "error upserting batch", err)
 			}
 		}
 	}
@@ -180,71 +166,171 @@ func Ingest(ctx context.Context, store VectorStore, embedder Embedder, cfg Inges
 }
 
 // IngestFile processes a single file and stores it in the vector store.
+// IngestFile(ctx, store, embedder, "project-docs", "./docs/guide.md", DefaultChunkConfig())
 func IngestFile(ctx context.Context, store VectorStore, embedder Embedder, collection string, filePath string, chunkCfg ChunkConfig) (int, error) {
-	content, err := readDocument(filePath)
-	if err != nil {
-		return 0, log.E("rag.IngestFile", "error reading file", err)
+	localFS := (&core.Fs{}).NewUnrestricted()
+
+	content, readErr := readDocument(localFS, filePath)
+	if readErr != nil {
+		return 0, core.Wrap(readErr, "rag.IngestFile", "error reading file")
 	}
 
-	if len(strings.TrimSpace(content)) == 0 {
+	if core.Trim(content) == "" {
 		return 0, nil
 	}
 
 	category := Category(filePath)
 	chunks := ChunkMarkdown(content, chunkCfg)
-	chunkTexts := make([]string, len(chunks))
-	for i, chunk := range chunks {
-		chunkTexts[i] = chunk.Text
-	}
-
-	embeddings, err := embedder.EmbedBatch(ctx, chunkTexts)
-	if err != nil {
-		return 0, log.E("rag.IngestFile", "error embedding chunks", err)
-	}
-	if len(embeddings) != len(chunks) {
-		return 0, log.E("rag.IngestFile", fmt.Sprintf("embedder returned %d vectors for %d chunks", len(embeddings), len(chunks)), nil)
-	}
 
 	var points []Point
-	for i, chunk := range chunks {
-		points = append(points, Point{
-			ID:     ChunkID(filePath, chunk.Index, chunk.Text),
-			Vector: embeddings[i],
-			Payload: map[string]any{
-				"text":        chunk.Text,
-				"source":      filePath,
-				"section":     chunk.Section,
-				"category":    category,
-				"chunk_index": chunk.Index,
-			},
-		})
+	for batch := range slices.Chunk(chunks, 100) {
+		texts := make([]string, len(batch))
+		for i, chunk := range batch {
+			texts[i] = chunk.Text
+		}
+
+		embeddings, errs := embedChunkBatch(ctx, embedder, texts)
+		for i, err := range errs {
+			if err != nil {
+				return 0, core.E("rag.IngestFile", core.Sprintf("error embedding chunk %d", i), err)
+			}
+		}
+
+		for i, chunk := range batch {
+			points = append(points, buildPoint(filePath, category, chunk, embeddings[i]))
+		}
 	}
 
 	if err := store.UpsertPoints(ctx, collection, points); err != nil {
-		return 0, log.E("rag.IngestFile", "error upserting points", err)
+		return 0, core.E("rag.IngestFile", "error upserting points", err)
 	}
 
 	return len(points), nil
 }
 
-func readDocument(filePath string) (string, error) {
-	if strings.EqualFold(filepath.Ext(filePath), ".pdf") {
+// embedChunkBatch prefers the batch embedding API and falls back to
+// per-item embedding so partial failures can still be reported.
+func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([][]float32, []error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+
+	embeddings, err := embedder.EmbedBatch(ctx, texts)
+	if err == nil && len(embeddings) == len(texts) {
+		return embeddings, make([]error, len(texts))
+	}
+
+	embeddings, errs := embedBatchConcurrent(ctx, texts, embedder.Embed)
+	for i, err := range errs {
+		if err != nil {
+			errs[i] = core.E("rag.embedChunkBatch", core.Sprintf("error embedding chunk %d", i), err)
+		}
+	}
+	return embeddings, errs
+}
+
+func buildPoint(source, category string, chunk Chunk, embedding []float32) Point {
+	return Point{
+		ID:     ChunkID(source, chunk.Index, chunk.Text),
+		Vector: embedding,
+		Payload: map[string]any{
+			"text":        chunk.Text,
+			"source":      source,
+			"section":     chunk.Section,
+			"category":    category,
+			"chunk_index": chunk.Index,
+		},
+	}
+}
+
+func collectMarkdownFiles(localFS *core.Fs, currentPath string, currentRel string, files *[]string) error {
+	listResult := localFS.List(currentPath)
+	if !listResult.OK {
+		return resultError(listResult)
+	}
+
+	entries, ok := listResult.Value.([]fs.DirEntry)
+	if !ok {
+		return core.E("rag.collectMarkdownFiles", core.Sprintf("unexpected list result type: %T", listResult.Value), nil)
+	}
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
+		switch {
+		case a.Name() < b.Name():
+			return -1
+		case a.Name() > b.Name():
+			return 1
+		}
+		return 0
+	})
+	for _, entry := range entries {
+		childPath := entry.Name()
+		if currentPath != "." && currentPath != "" {
+			childPath = core.JoinPath(currentPath, entry.Name())
+		}
+
+		childRel := entry.Name()
+		if currentRel != "" {
+			childRel = core.JoinPath(currentRel, entry.Name())
+		}
+
+		if entry.IsDir() {
+			if err := collectMarkdownFiles(localFS, childPath, childRel, files); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if ShouldProcess(childRel) {
+			*files = append(*files, childRel)
+		}
+	}
+
+	return nil
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.E("rag.result", "core operation failed", nil)
+}
+
+// readDocument reads a file as text, with PDF extraction for .pdf extensions.
+// Non-PDF files are read via the supplied Fs.
+// PDFs that fail extraction fall back to reading as plain text when the error
+// indicates a malformed/non-PDF file.
+//
+//	text, err := readDocument(fs, "./docs/guide.pdf")
+func readDocument(fs *core.Fs, filePath string) (string, error) {
+	if core.Lower(core.PathExt(filePath)) == ".pdf" {
 		content, err := readPDFDocument(filePath)
-		if err == nil && strings.TrimSpace(content) != "" {
+		if err == nil && core.Trim(content) != "" {
 			return content, nil
 		}
 		if err != nil && shouldFallbackToPlainText(err) {
-			return coreio.Local.Read(filePath)
+			return readAsText(fs, filePath)
 		}
 		if err == nil {
 			return content, nil
 		}
 		return "", err
 	}
-
-	return coreio.Local.Read(filePath)
+	return readAsText(fs, filePath)
 }
 
+func readAsText(fs *core.Fs, filePath string) (string, error) {
+	result := fs.Read(filePath)
+	if !result.OK {
+		return "", resultError(result)
+	}
+	text, ok := result.Value.(string)
+	if !ok {
+		return "", core.E("rag.readDocument", "unexpected read result type", nil)
+	}
+	return text, nil
+}
+
+// readPDFDocument extracts plaintext from a PDF file.
 func readPDFDocument(filePath string) (string, error) {
 	file, reader, err := pdf.Open(filePath)
 	if err != nil {
@@ -265,11 +351,22 @@ func readPDFDocument(filePath string) (string, error) {
 	return string(data), nil
 }
 
+// shouldFallbackToPlainText returns true when a PDF parse error indicates
+// the file is actually plain text with a .pdf extension.
 func shouldFallbackToPlainText(err error) bool {
 	if err == nil {
 		return false
 	}
+	msg := core.Lower(err.Error())
+	if !core.Contains(msg, "pdf") {
+		return false
+	}
 
-	msg := err.Error()
-	return strings.Contains(msg, "not a PDF file") || strings.Contains(msg, "missing %%EOF")
+	return core.Contains(msg, "not a pdf file") ||
+		core.Contains(msg, "missing %%eof") ||
+		core.Contains(msg, "unexpected eof") ||
+		core.Contains(msg, "invalid pdf") ||
+		core.Contains(msg, "malformed pdf") ||
+		core.Contains(msg, "no pdf header") ||
+		core.Contains(msg, "header")
 }

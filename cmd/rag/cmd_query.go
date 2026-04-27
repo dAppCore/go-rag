@@ -2,12 +2,12 @@ package rag
 
 import (
 	"context"
-	"fmt"
+	"io"
 
-	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/log"
-	"dappco.re/go/core/rag"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/core"
+	"dappco.re/go/i18n"
+	"dappco.re/go/rag"
 )
 
 var (
@@ -15,6 +15,7 @@ var (
 	limit           int
 	threshold       float32
 	category        string
+	keywords        bool
 	format          string
 )
 
@@ -37,7 +38,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		UseTLS: false,
 	})
 	if err != nil {
-		return log.E("rag.cmd.query", "failed to connect to Qdrant", err)
+		return core.E("rag.cmd.query", "failed to connect to Qdrant", err)
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
@@ -48,7 +49,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		Model: model,
 	})
 	if err != nil {
-		return log.E("rag.cmd.query", "failed to connect to Ollama", err)
+		return core.E("rag.cmd.query", "failed to connect to Ollama", err)
 	}
 
 	// Configure query
@@ -60,6 +61,7 @@ func runQuery(cmd *cli.Command, args []string) error {
 		Limit:      uint64(limit),
 		Threshold:  threshold,
 		Category:   category,
+		Keywords:   keywords,
 	}
 
 	// Run query
@@ -69,13 +71,14 @@ func runQuery(cmd *cli.Command, args []string) error {
 	}
 
 	// Format output
+	out := cmd.OutOrStdout()
 	switch format {
 	case "json":
-		fmt.Println(rag.FormatResultsJSON(results))
+		_, _ = io.WriteString(out, rag.FormatResultsJSON(results)+"\n")
 	case "context":
-		fmt.Println(rag.FormatResultsContext(results))
+		_, _ = io.WriteString(out, rag.FormatResultsContext(results)+"\n")
 	default:
-		fmt.Println(rag.FormatResultsText(results))
+		_, _ = io.WriteString(out, rag.FormatResultsText(results)+"\n")
 	}
 
 	return nil
