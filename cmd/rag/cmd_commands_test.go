@@ -3,7 +3,7 @@ package rag
 import (
 	"testing"
 
-	"dappco.re/go/core/cli/pkg/cli"
+	"forge.lthn.ai/core/cli/pkg/cli"
 	"github.com/stretchr/testify/assert"
 )
 

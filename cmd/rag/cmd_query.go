@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/rag"
+	"forge.lthn.ai/core/cli/pkg/cli"
+	"forge.lthn.ai/core/go-i18n"
+	"forge.lthn.ai/core/go-rag"
 )
 
 var (

@@ -9,7 +9,7 @@ package rag
 import (
 	"sync"
 
-	"dappco.re/go/core/cli/pkg/cli"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 var addCommandsOnce sync.Once

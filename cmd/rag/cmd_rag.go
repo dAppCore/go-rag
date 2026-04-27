@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
-	"dappco.re/go/core/i18n"
+	"forge.lthn.ai/core/cli/pkg/cli"
+	"forge.lthn.ai/core/go-i18n"
 )
 
 // Shared flags
