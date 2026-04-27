@@ -3,8 +3,7 @@ package rag
 import (
 	"testing"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
-	"github.com/stretchr/testify/assert"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 func TestAddRAGSubcommands_Idempotent(t *testing.T) {
@@ -14,8 +13,13 @@ func TestAddRAGSubcommands_Idempotent(t *testing.T) {
 	AddRAGSubcommands(parent)
 
 	children := parent.Commands()
-	if assert.Len(t, children, 1) {
-		assert.Equal(t, "rag", children[0].Name())
-		assert.Len(t, children[0].Commands(), 3)
+	if len(children) != 1 {
+		t.Fatalf("want length %d, got %d", 1, len(children))
+	}
+	if children[0].Name() != "rag" {
+		t.Fatalf("want %v, got %v", "rag", children[0].Name())
+	}
+	if got := len(children[0].Commands()); got != 3 {
+		t.Fatalf("want length %d, got %d", 3, got)
 	}
 }

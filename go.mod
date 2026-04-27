@@ -1,21 +1,20 @@
-module forge.lthn.ai/core/go-rag
+module dappco.re/go/rag
 
 go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	forge.lthn.ai/core/cli v0.3.7
-	forge.lthn.ai/core/go-i18n v0.1.7
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/ollama/ollama v0.18.1
-	github.com/qdrant/go-client v1.17.1
-	github.com/stretchr/testify v1.11.1
+	dappco.re/go/cli v0.8.0-alpha.1 // Note: CLI command framework for rag ingest, query, and collection commands.
+	dappco.re/go/i18n v0.8.0-alpha.1 // Note: localized CLI labels and messages for the rag command surface.
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // Note: PDF text extraction lets .pdf documents enter the chunking pipeline.
+	github.com/ollama/ollama v0.18.1 // Note: Ollama embeddings client backing the repository's Embedder implementation.
+	github.com/qdrant/go-client v1.17.1 // Note: Qdrant vector database client backing the repository's VectorStore implementation.
 )
 
 require (
-	forge.lthn.ai/core/go v0.3.3 // indirect
-	forge.lthn.ai/core/go-inference v0.1.6 // indirect
-	forge.lthn.ai/core/go-log v0.0.4 // indirect
+	dappco.re/go/core v0.8.0-alpha.1 // indirect
+	dappco.re/go/inference v0.8.0-alpha.1 // indirect
+	dappco.re/go/log v0.8.0-alpha.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -27,7 +26,6 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -39,7 +37,6 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect

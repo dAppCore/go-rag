@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestChunk_ChunkMarkdown_Good_SmallSection(t *testing.T) {
@@ -15,8 +13,8 @@ This is a small section that fits in one chunk.
 `
 	chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-	assert.Len(t, chunks, 1)
-	assert.Contains(t, chunks[0].Text, "small section")
+	assertLen(t, chunks, 1)
+	assertContains(t, chunks[0].Text, "small section")
 }
 
 func TestChunk_ChunkMarkdown_Good_MultipleSections(t *testing.T) {
@@ -34,7 +32,7 @@ Content for section two.
 `
 	chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-	assert.GreaterOrEqual(t, len(chunks), 2)
+	assertGreaterOrEqual(t, len(chunks), 2)
 }
 
 func TestChunk_ChunkMarkdown_Good_LargeSection(t *testing.T) {
@@ -46,10 +44,10 @@ func TestChunk_ChunkMarkdown_Good_LargeSection(t *testing.T) {
 	cfg := ChunkConfig{Size: 200, Overlap: 20}
 	chunks := ChunkMarkdown(text, cfg)
 
-	assert.Greater(t, len(chunks), 1)
+	assertGreater(t, len(chunks), 1)
 	for _, chunk := range chunks {
-		assert.NotEmpty(t, chunk.Text)
-		assert.Equal(t, "Large Section", chunk.Section)
+		assertNotEmpty(t, chunk.Text)
+		assertEqual(t, "Large Section", chunk.Section)
 	}
 }
 
@@ -60,8 +58,8 @@ Some content here.
 `
 	chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-	assert.Len(t, chunks, 1)
-	assert.Equal(t, "My Section Title", chunks[0].Section)
+	assertLen(t, chunks, 1)
+	assertEqual(t, "My Section Title", chunks[0].Section)
 }
 
 func TestChunk_ChunkMarkdown_Good_PreservesHierarchy(t *testing.T) {
@@ -75,9 +73,9 @@ Child content.
 `
 	chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-	require.Len(t, chunks, 2)
-	assert.Equal(t, "Parent Title", chunks[0].Section)
-	assert.Equal(t, "Parent Title / Child Section", chunks[1].Section)
+	assertLen(t, chunks, 2)
+	assertEqual(t, "Parent Title", chunks[0].Section)
+	assertEqual(t, "Parent Title / Child Section", chunks[1].Section)
 }
 
 func TestChunk_ChunkMarkdown_Good_OverlapUsesEntireShortChunk(t *testing.T) {
@@ -87,19 +85,19 @@ beta.
 `
 	chunks := ChunkMarkdown(text, ChunkConfig{Size: 8, Overlap: 6})
 
-	require.Len(t, chunks, 2)
-	assert.Equal(t, "alpha.", core.Trim(chunks[0].Text))
-	assert.Contains(t, chunks[1].Text, "alpha.")
-	assert.Contains(t, chunks[1].Text, "beta.")
+	assertLen(t, chunks, 2)
+	assertEqual(t, "alpha.", core.Trim(chunks[0].Text))
+	assertContains(t, chunks[1].Text, "alpha.")
+	assertContains(t, chunks[1].Text, "beta.")
 }
 
 func TestChunk_ChunkBySentences_Good_OverlapUsesEntireShortChunk(t *testing.T) {
 	text := `alpha. beta.`
 	chunks := ChunkBySentences(text, ChunkConfig{Size: 8, Overlap: 6})
 
-	require.Len(t, chunks, 2)
-	assert.Contains(t, chunks[1].Text, "alpha.")
-	assert.Contains(t, chunks[1].Text, "beta.")
+	assertLen(t, chunks, 2)
+	assertContains(t, chunks[1].Text, "alpha.")
+	assertContains(t, chunks[1].Text, "beta.")
 }
 
 func TestChunk_Category_Good_UIComponent(t *testing.T) {
@@ -120,7 +118,7 @@ func TestChunk_Category_Good_UIComponent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.path, func(t *testing.T) {
-			assert.Equal(t, tc.expected, Category(tc.path))
+			assertEqual(t, tc.expected, Category(tc.path))
 		})
 	}
 }
@@ -129,7 +127,7 @@ func TestChunk_ChunkID_Good_Deterministic(t *testing.T) {
 	id1 := ChunkID("test.md", 0, "hello world")
 	id2 := ChunkID("test.md", 0, "hello world")
 
-	assert.Equal(t, id1, id2)
+	assertEqual(t, id1, id2)
 }
 
 func TestChunk_ChunkID_Good_DifferentForDifferentInputs(t *testing.T) {
@@ -137,18 +135,18 @@ func TestChunk_ChunkID_Good_DifferentForDifferentInputs(t *testing.T) {
 	id2 := ChunkID("test.md", 1, "hello world")
 	id3 := ChunkID("other.md", 0, "hello world")
 
-	assert.NotEqual(t, id1, id2)
-	assert.NotEqual(t, id1, id3)
+	assertNotEqual(t, id1, id2)
+	assertNotEqual(t, id1, id3)
 }
 
 func TestChunk_ShouldProcess_Good_MarkdownFiles(t *testing.T) {
-	assert.True(t, ShouldProcess("doc.md"))
-	assert.True(t, ShouldProcess("doc.markdown"))
-	assert.True(t, ShouldProcess("doc.pdf"))
-	assert.True(t, ShouldProcess("doc.txt"))
-	assert.False(t, ShouldProcess("doc.go"))
-	assert.False(t, ShouldProcess("doc.py"))
-	assert.False(t, ShouldProcess("doc"))
+	assertTrue(t, ShouldProcess("doc.md"))
+	assertTrue(t, ShouldProcess("doc.markdown"))
+	assertTrue(t, ShouldProcess("doc.pdf"))
+	assertTrue(t, ShouldProcess("doc.txt"))
+	assertFalse(t, ShouldProcess("doc.go"))
+	assertFalse(t, ShouldProcess("doc.py"))
+	assertFalse(t, ShouldProcess("doc"))
 }
 
 // --- Additional chunk edge cases ---
@@ -156,17 +154,17 @@ func TestChunk_ShouldProcess_Good_MarkdownFiles(t *testing.T) {
 func TestChunk_ChunkMarkdown_Ugly_EmptyInput(t *testing.T) {
 	t.Run("empty string returns no chunks", func(t *testing.T) {
 		chunks := ChunkMarkdown("", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 
 	t.Run("whitespace only returns no chunks", func(t *testing.T) {
 		chunks := ChunkMarkdown("   \n\n  \t  \n  ", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 
 	t.Run("single newline returns no chunks", func(t *testing.T) {
 		chunks := ChunkMarkdown("\n", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 }
 
@@ -175,9 +173,9 @@ func TestChunk_ChunkMarkdown_Ugly_OnlyHeadersNoContent(t *testing.T) {
 		text := "## Just a Header\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-		assert.Len(t, chunks, 1)
-		assert.Equal(t, "Just a Header", chunks[0].Section)
-		assert.Contains(t, chunks[0].Text, "Just a Header")
+		assertLen(t, chunks, 1)
+		assertEqual(t, "Just a Header", chunks[0].Section)
+		assertContains(t, chunks[0].Text, "Just a Header")
 	})
 
 	t.Run("multiple headers with no body content", func(t *testing.T) {
@@ -185,14 +183,14 @@ func TestChunk_ChunkMarkdown_Ugly_OnlyHeadersNoContent(t *testing.T) {
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
 		// Each header becomes its own section
-		assert.GreaterOrEqual(t, len(chunks), 2, "should produce at least two chunks for separate sections")
+		assertGreaterOrEqual(t, len(chunks), 2, "should produce at least two chunks for separate sections")
 	})
 
 	t.Run("header hierarchy with minimal content", func(t *testing.T) {
 		text := "# Top Level\n\n## Sub Section\n\n### Sub Sub\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-		assert.NotEmpty(t, chunks, "should produce at least one chunk")
+		assertNotEmpty(t, chunks, "should produce at least one chunk")
 	})
 }
 
@@ -201,19 +199,19 @@ func TestChunk_ChunkMarkdown_Ugly_UnicodeAndEmoji(t *testing.T) {
 		text := "## Unicode Section\n\nThis section has unicode: \u00e9\u00e0\u00fc\u00f1\u00f6\u00e4\u00df \u4e16\u754c \u041f\u0440\u0438\u0432\u0435\u0442 \u0645\u0631\u062d\u0628\u0627\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-		assert.Len(t, chunks, 1)
-		assert.Contains(t, chunks[0].Text, "\u00e9\u00e0\u00fc")
-		assert.Contains(t, chunks[0].Text, "\u4e16\u754c")
-		assert.Equal(t, "Unicode Section", chunks[0].Section)
+		assertLen(t, chunks, 1)
+		assertContains(t, chunks[0].Text, "\u00e9\u00e0\u00fc")
+		assertContains(t, chunks[0].Text, "\u4e16\u754c")
+		assertEqual(t, "Unicode Section", chunks[0].Section)
 	})
 
 	t.Run("emoji text chunked correctly", func(t *testing.T) {
 		text := "## Emoji Section\n\nHello world! \U0001f600\U0001f680\U0001f30d\U0001f4da\n\nMore text with \u2764\ufe0f and \U0001f525 emojis.\n"
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
-		assert.NotEmpty(t, chunks)
-		assert.Contains(t, chunks[0].Text, "\U0001f600")
-		assert.Equal(t, "Emoji Section", chunks[0].Section)
+		assertNotEmpty(t, chunks)
+		assertContains(t, chunks[0].Text, "\U0001f600")
+		assertEqual(t, "Emoji Section", chunks[0].Section)
 	})
 
 	t.Run("rune-safe overlap with multibyte characters", func(t *testing.T) {
@@ -227,12 +225,12 @@ func TestChunk_ChunkMarkdown_Ugly_UnicodeAndEmoji(t *testing.T) {
 		chunks := ChunkMarkdown(text, cfg)
 
 		// Should not panic or produce corrupt text
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 		for _, chunk := range chunks {
-			assert.NotEmpty(t, chunk.Text)
+			assertNotEmpty(t, chunk.Text)
 			// Verify no partial rune corruption by round-tripping through []rune
 			runes := []rune(chunk.Text)
-			assert.Equal(t, chunk.Text, string(runes), "text should survive rune round-trip without corruption")
+			assertEqual(t, chunk.Text, string(runes), "text should survive rune round-trip without corruption")
 		}
 	})
 }
@@ -248,9 +246,9 @@ func TestChunk_ChunkMarkdown_Ugly_VeryLongSingleParagraph(t *testing.T) {
 		// The paragraph is one big block — chunking depends on paragraph splitting
 		// Since there are no double newlines, the whole thing is one paragraph
 		// The chunker should still produce at least one chunk
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 		for _, chunk := range chunks {
-			assert.NotEmpty(t, chunk.Text)
+			assertNotEmpty(t, chunk.Text)
 		}
 	})
 
@@ -265,10 +263,10 @@ func TestChunk_ChunkMarkdown_Ugly_VeryLongSingleParagraph(t *testing.T) {
 		cfg := ChunkConfig{Size: 300, Overlap: 30}
 		chunks := ChunkMarkdown(longText, cfg)
 
-		assert.Greater(t, len(chunks), 1, "long text should produce multiple chunks")
+		assertGreater(t, len(chunks), 1, "long text should produce multiple chunks")
 		for _, chunk := range chunks {
-			assert.NotEmpty(t, chunk.Text)
-			assert.Equal(t, "Long Content", chunk.Section)
+			assertNotEmpty(t, chunk.Text)
+			assertEqual(t, "Long Content", chunk.Section)
 		}
 	})
 }
@@ -279,7 +277,7 @@ func TestChunk_ChunkMarkdown_Ugly_ConfigBoundaries(t *testing.T) {
 		cfg := ChunkConfig{Size: 0, Overlap: 0}
 		chunks := ChunkMarkdown(text, cfg)
 
-		assert.NotEmpty(t, chunks, "should still produce chunks with zero size (uses default)")
+		assertNotEmpty(t, chunks, "should still produce chunks with zero size (uses default)")
 	})
 
 	t.Run("negative chunk size uses default 500", func(t *testing.T) {
@@ -287,7 +285,7 @@ func TestChunk_ChunkMarkdown_Ugly_ConfigBoundaries(t *testing.T) {
 		cfg := ChunkConfig{Size: -1, Overlap: 0}
 		chunks := ChunkMarkdown(text, cfg)
 
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 
 	t.Run("overlap equal to size resets to zero", func(t *testing.T) {
@@ -296,7 +294,7 @@ func TestChunk_ChunkMarkdown_Ugly_ConfigBoundaries(t *testing.T) {
 		cfg := ChunkConfig{Size: 100, Overlap: 100}
 		chunks := ChunkMarkdown(text, cfg)
 
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 
 	t.Run("negative overlap resets to zero", func(t *testing.T) {
@@ -304,7 +302,7 @@ func TestChunk_ChunkMarkdown_Ugly_ConfigBoundaries(t *testing.T) {
 		cfg := ChunkConfig{Size: 100, Overlap: -5}
 		chunks := ChunkMarkdown(text, cfg)
 
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 }
 
@@ -314,7 +312,7 @@ func TestChunk_ChunkMarkdown_Ugly_ChunkIndexing(t *testing.T) {
 		chunks := ChunkMarkdown(text, DefaultChunkConfig())
 
 		for i, chunk := range chunks {
-			assert.Equal(t, i, chunk.Index, "chunk index should be sequential")
+			assertEqual(t, i, chunk.Index, "chunk index should be sequential")
 		}
 	})
 }
@@ -328,7 +326,7 @@ func TestChunk_ChunkID_Ugly_LongText(t *testing.T) {
 		longText2 := repeatString("a", 100) + repeatString("b", 400)
 		id2 := ChunkID("test.md", 0, longText2)
 
-		assert.Equal(t, id1, id2, "IDs should match when first 100 runes are identical")
+		assertEqual(t, id1, id2, "IDs should match when first 100 runes are identical")
 	})
 
 	t.Run("unicode text uses rune count not byte count", func(t *testing.T) {
@@ -340,7 +338,7 @@ func TestChunk_ChunkID_Ugly_LongText(t *testing.T) {
 		longerText := repeatString("\u4e16", 100) + repeatString("\u754c", 50)
 		id2 := ChunkID("test.md", 0, longerText)
 
-		assert.Equal(t, id1, id2, "IDs should match when first 100 runes are identical (CJK)")
+		assertEqual(t, id1, id2, "IDs should match when first 100 runes are identical (CJK)")
 	})
 }
 
@@ -348,28 +346,28 @@ func TestChunk_DefaultChunkConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultChunkConfig()
 
-		assert.Equal(t, 500, cfg.Size, "default chunk size should be 500")
-		assert.Equal(t, 50, cfg.Overlap, "default chunk overlap should be 50")
+		assertEqual(t, 500, cfg.Size, "default chunk size should be 500")
+		assertEqual(t, 50, cfg.Overlap, "default chunk overlap should be 50")
 	})
 }
 
 func TestChunk_FileExtensions_Good(t *testing.T) {
-	assert.Equal(t, []string{".md", ".markdown", ".pdf", ".txt"}, FileExtensions())
+	assertEqual(t, []string{".md", ".markdown", ".pdf", ".txt"}, FileExtensions())
 }
 
 func TestChunk_DefaultIngestConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultIngestConfig()
 
-		assert.Equal(t, "hostuk-docs", cfg.Collection, "default collection should be hostuk-docs")
-		assert.Equal(t, 100, cfg.BatchSize, "default batch size should be 100")
-		assert.False(t, cfg.Recreate, "recreate should be false by default")
-		assert.False(t, cfg.Verbose, "verbose should be false by default")
-		assert.Empty(t, cfg.Directory, "directory should be empty by default")
+		assertEqual(t, "hostuk-docs", cfg.Collection, "default collection should be hostuk-docs")
+		assertEqual(t, 100, cfg.BatchSize, "default batch size should be 100")
+		assertFalse(t, cfg.Recreate, "recreate should be false by default")
+		assertFalse(t, cfg.Verbose, "verbose should be false by default")
+		assertEmpty(t, cfg.Directory, "directory should be empty by default")
 
 		// Nested ChunkConfig should match defaults
-		assert.Equal(t, DefaultChunkConfig().Size, cfg.Chunk.Size)
-		assert.Equal(t, DefaultChunkConfig().Overlap, cfg.Chunk.Overlap)
+		assertEqual(t, DefaultChunkConfig().Size, cfg.Chunk.Size)
+		assertEqual(t, DefaultChunkConfig().Overlap, cfg.Chunk.Overlap)
 	})
 }
 
@@ -407,20 +405,20 @@ func TestChunk_ChunkMarkdown_Ugly_SentenceSplitting(t *testing.T) {
 		chunks := ChunkMarkdown(text, cfg)
 
 		// Should produce more than one chunk because sentences are split
-		assert.Greater(t, len(chunks), 1, "oversized paragraph should be split into multiple chunks")
+		assertGreater(t, len(chunks), 1, "oversized paragraph should be split into multiple chunks")
 
 		// Verify all original text appears across the chunks
 		combined := ""
 		for _, c := range chunks {
 			combined += c.Text + " "
 		}
-		assert.Contains(t, combined, "quick brown fox")
-		assert.Contains(t, combined, "second sentence")
-		assert.Contains(t, combined, "third sentence")
+		assertContains(t, combined, "quick brown fox")
+		assertContains(t, combined, "second sentence")
+		assertContains(t, combined, "third sentence")
 
 		// Each chunk should have the correct section
 		for _, c := range chunks {
-			assert.Equal(t, "Section", c.Section)
+			assertEqual(t, "Section", c.Section)
 		}
 	})
 
@@ -432,7 +430,7 @@ func TestChunk_ChunkMarkdown_Ugly_SentenceSplitting(t *testing.T) {
 		chunks := ChunkMarkdown(text, cfg)
 
 		// Should still produce at least one chunk (fallback behaviour)
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 
 	t.Run("sentence boundaries preserve punctuation", func(t *testing.T) {
@@ -448,7 +446,7 @@ func TestChunk_ChunkMarkdown_Ugly_SentenceSplitting(t *testing.T) {
 				break
 			}
 		}
-		assert.True(t, foundPeriod, "at least one chunk should end with a period")
+		assertTrue(t, foundPeriod, "at least one chunk should end with a period")
 	})
 }
 
@@ -475,7 +473,7 @@ func TestChunk_ChunkMarkdown_Ugly_OverlapWordBoundary(t *testing.T) {
 				// of a longer word. We can verify there is no leading lowercase
 				// fragment by checking the original text contains this word.
 				firstWord := words[0]
-				assert.True(t,
+				assertTruef(t,
 					core.Contains(para1, firstWord) || core.Contains(para2, firstWord),
 					"overlap should start at a word boundary, got leading word: %q", firstWord)
 			}
@@ -491,50 +489,50 @@ func TestChunk_ChunkMarkdown_Ugly_OverlapWordBoundary(t *testing.T) {
 
 		// With zero overlap, the second chunk should not contain text from
 		// the end of the previous chunk
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 }
 
 func TestChunk_SplitBySentences_Good(t *testing.T) {
 	t.Run("splits on period-space", func(t *testing.T) {
 		result := splitBySentences("First. Second. Third.")
-		assert.Len(t, result, 3)
-		assert.Equal(t, "First.", result[0])
-		assert.Equal(t, "Second.", result[1])
-		assert.Equal(t, "Third.", result[2])
+		assertLen(t, result, 3)
+		assertEqual(t, "First.", result[0])
+		assertEqual(t, "Second.", result[1])
+		assertEqual(t, "Third.", result[2])
 	})
 
 	t.Run("splits on question mark", func(t *testing.T) {
 		result := splitBySentences("What is this? It is a test.")
-		assert.Len(t, result, 2)
-		assert.Equal(t, "What is this?", result[0])
-		assert.Equal(t, "It is a test.", result[1])
+		assertLen(t, result, 2)
+		assertEqual(t, "What is this?", result[0])
+		assertEqual(t, "It is a test.", result[1])
 	})
 
 	t.Run("splits on exclamation mark", func(t *testing.T) {
 		result := splitBySentences("Wow! That is amazing.")
-		assert.Len(t, result, 2)
-		assert.Equal(t, "Wow!", result[0])
-		assert.Equal(t, "That is amazing.", result[1])
+		assertLen(t, result, 2)
+		assertEqual(t, "Wow!", result[0])
+		assertEqual(t, "That is amazing.", result[1])
 	})
 
 	t.Run("splits on newline boundaries", func(t *testing.T) {
 		result := splitBySentences("First line\nSecond line\nThird line")
-		assert.Len(t, result, 3)
-		assert.Equal(t, "First line", result[0])
-		assert.Equal(t, "Second line", result[1])
-		assert.Equal(t, "Third line", result[2])
+		assertLen(t, result, 3)
+		assertEqual(t, "First line", result[0])
+		assertEqual(t, "Second line", result[1])
+		assertEqual(t, "Third line", result[2])
 	})
 
 	t.Run("no boundaries returns single element", func(t *testing.T) {
 		result := splitBySentences("just a plain string with no ending")
-		assert.Len(t, result, 1)
-		assert.Equal(t, "just a plain string with no ending", result[0])
+		assertLen(t, result, 1)
+		assertEqual(t, "just a plain string with no ending", result[0])
 	})
 
 	t.Run("empty string returns empty", func(t *testing.T) {
 		result := splitBySentences("")
-		assert.Empty(t, result)
+		assertEmpty(t, result)
 	})
 }
 
@@ -545,10 +543,10 @@ func TestChunk_ChunkBySentences_Good(t *testing.T) {
 		text := "First sentence. Second sentence. Third sentence."
 		chunks := ChunkBySentences(text, ChunkConfig{Size: 200, Overlap: 0})
 
-		assert.Len(t, chunks, 1)
-		assert.Contains(t, chunks[0].Text, "First sentence")
-		assert.Contains(t, chunks[0].Text, "Third sentence")
-		assert.Equal(t, 0, chunks[0].Index)
+		assertLen(t, chunks, 1)
+		assertContains(t, chunks[0].Text, "First sentence")
+		assertContains(t, chunks[0].Text, "Third sentence")
+		assertEqual(t, 0, chunks[0].Index)
 	})
 
 	t.Run("long text splits at sentence boundaries", func(t *testing.T) {
@@ -558,11 +556,11 @@ func TestChunk_ChunkBySentences_Good(t *testing.T) {
 			"Gamma sentence explains gamma concept clearly."
 		chunks := ChunkBySentences(text, ChunkConfig{Size: 60, Overlap: 0})
 
-		assert.GreaterOrEqual(t, len(chunks), 3)
+		assertGreaterOrEqual(t, len(chunks), 3)
 		// Chunk indices must be sequential.
 		for i, chunk := range chunks {
-			assert.Equal(t, i, chunk.Index)
-			assert.NotEmpty(t, chunk.Text)
+			assertEqual(t, i, chunk.Index)
+			assertNotEmpty(t, chunk.Text)
 		}
 	})
 
@@ -570,45 +568,45 @@ func TestChunk_ChunkBySentences_Good(t *testing.T) {
 		text := "What is Go? It is a language! I love it."
 		chunks := ChunkBySentences(text, ChunkConfig{Size: 25, Overlap: 0})
 
-		require.GreaterOrEqual(t, len(chunks), 2)
+		assertGreaterOrEqual(t, len(chunks), 2)
 		allText := ""
 		for _, c := range chunks {
 			allText += c.Text + " "
 		}
-		assert.Contains(t, allText, "What is Go?")
-		assert.Contains(t, allText, "It is a language!")
+		assertContains(t, allText, "What is Go?")
+		assertContains(t, allText, "It is a language!")
 	})
 }
 
 func TestChunk_ChunkBySentences_Bad(t *testing.T) {
 	t.Run("negative size falls back to default", func(t *testing.T) {
 		chunks := ChunkBySentences("A sentence here.", ChunkConfig{Size: -1, Overlap: 0})
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 
 	t.Run("overlap >= size falls back to zero", func(t *testing.T) {
 		text := "First. Second. Third."
 		chunks := ChunkBySentences(text, ChunkConfig{Size: 10, Overlap: 50})
 		// Must not panic or loop; overlap becomes 0.
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 }
 
 func TestChunk_ChunkBySentences_Ugly(t *testing.T) {
 	t.Run("empty input yields no chunks", func(t *testing.T) {
 		chunks := ChunkBySentences("", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 
 	t.Run("whitespace-only input yields no chunks", func(t *testing.T) {
 		chunks := ChunkBySentences("   \n\t  ", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 
 	t.Run("single unterminated sentence emits one chunk", func(t *testing.T) {
 		chunks := ChunkBySentences("no ending punctuation here", DefaultChunkConfig())
-		require.Len(t, chunks, 1)
-		assert.Contains(t, chunks[0].Text, "no ending punctuation")
+		assertLen(t, chunks, 1)
+		assertContains(t, chunks[0].Text, "no ending punctuation")
 	})
 }
 
@@ -619,19 +617,19 @@ func TestChunk_ChunkByParagraphs_Good(t *testing.T) {
 		text := "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
 		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 500, Overlap: 0})
 
-		assert.Len(t, chunks, 1)
-		assert.Contains(t, chunks[0].Text, "First paragraph")
-		assert.Contains(t, chunks[0].Text, "Third paragraph")
+		assertLen(t, chunks, 1)
+		assertContains(t, chunks[0].Text, "First paragraph")
+		assertContains(t, chunks[0].Text, "Third paragraph")
 	})
 
 	t.Run("long paragraphs split into multiple chunks", func(t *testing.T) {
 		text := "Paragraph A here.\n\nParagraph B here.\n\nParagraph C here."
 		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 25, Overlap: 0})
 
-		assert.GreaterOrEqual(t, len(chunks), 2)
+		assertGreaterOrEqual(t, len(chunks), 2)
 		for i, c := range chunks {
-			assert.Equal(t, i, c.Index)
-			assert.NotEmpty(t, c.Text)
+			assertEqual(t, i, c.Index)
+			assertNotEmpty(t, c.Text)
 		}
 	})
 
@@ -640,37 +638,37 @@ func TestChunk_ChunkByParagraphs_Good(t *testing.T) {
 		text := "Sentence one is here. Sentence two is here. Sentence three is here."
 		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 30, Overlap: 0})
 
-		assert.GreaterOrEqual(t, len(chunks), 2)
+		assertGreaterOrEqual(t, len(chunks), 2)
 	})
 }
 
 func TestChunk_ChunkByParagraphs_Bad(t *testing.T) {
 	t.Run("zero size falls back to default", func(t *testing.T) {
 		chunks := ChunkByParagraphs("A paragraph.", ChunkConfig{Size: 0, Overlap: 0})
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 
 	t.Run("overlap >= size falls back to zero", func(t *testing.T) {
 		text := "First paragraph.\n\nSecond paragraph."
 		chunks := ChunkByParagraphs(text, ChunkConfig{Size: 20, Overlap: 100})
-		assert.NotEmpty(t, chunks)
+		assertNotEmpty(t, chunks)
 	})
 }
 
 func TestChunk_ChunkByParagraphs_Ugly(t *testing.T) {
 	t.Run("empty input yields no chunks", func(t *testing.T) {
 		chunks := ChunkByParagraphs("", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 
 	t.Run("whitespace-only input yields no chunks", func(t *testing.T) {
 		chunks := ChunkByParagraphs("\n\n\t\t  \n\n", DefaultChunkConfig())
-		assert.Empty(t, chunks)
+		assertEmpty(t, chunks)
 	})
 
 	t.Run("single paragraph without blank lines emits one chunk", func(t *testing.T) {
 		chunks := ChunkByParagraphs("one line of text", DefaultChunkConfig())
-		require.Len(t, chunks, 1)
-		assert.Equal(t, "one line of text", chunks[0].Text)
+		assertLen(t, chunks, 1)
+		assertEqual(t, "one line of text", chunks[0].Text)
 	})
 }

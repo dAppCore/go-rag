@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"github.com/stretchr/testify/require"
 )
 
 // --- Embedding benchmarks (Ollama on ROCm GPU) ---
@@ -19,13 +18,13 @@ func BenchmarkEmbedSingle(b *testing.B) {
 
 	cfg := DefaultOllamaConfig()
 	client, err := NewOllamaClient(cfg)
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	ctx := context.Background()
 
 	// Warm up — first call loads model into GPU memory.
 	_, err = client.Embed(ctx, "warmup")
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	b.ResetTimer()
 	for range b.N {
@@ -41,7 +40,7 @@ func BenchmarkEmbedBatch(b *testing.B) {
 
 	cfg := DefaultOllamaConfig()
 	client, err := NewOllamaClient(cfg)
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	ctx := context.Background()
 
@@ -60,7 +59,7 @@ func BenchmarkEmbedBatch(b *testing.B) {
 
 	// Warm up.
 	_, err = client.Embed(ctx, "warmup")
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	b.ResetTimer()
 	for range b.N {
@@ -77,11 +76,11 @@ func BenchmarkEmbedVaryingLength(b *testing.B) {
 
 	cfg := DefaultOllamaConfig()
 	client, err := NewOllamaClient(cfg)
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	ctx := context.Background()
 	_, err = client.Embed(ctx, "warmup")
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	for _, size := range []int{50, 200, 500, 1000, 2000} {
 		text := repeatString("word ", size/5)
@@ -148,11 +147,11 @@ func BenchmarkQdrantSearch(b *testing.B) {
 
 	// Set up Qdrant with test data.
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
-	require.NoError(b, err)
+	assertNoError(b, err)
 	defer func() { _ = qdrantClient.Close() }()
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	collection := "bench-search"
 	dim := ollamaClient.EmbedDimension()
@@ -160,7 +159,7 @@ func BenchmarkQdrantSearch(b *testing.B) {
 	// Clean up from previous runs.
 	_ = qdrantClient.DeleteCollection(ctx, collection)
 	err = qdrantClient.CreateCollection(ctx, collection, dim)
-	require.NoError(b, err)
+	assertNoError(b, err)
 	defer func() { _ = qdrantClient.DeleteCollection(ctx, collection) }()
 
 	// Seed with 100 points.
@@ -172,7 +171,7 @@ func BenchmarkQdrantSearch(b *testing.B) {
 	var points []Point
 	for i, text := range texts {
 		vec, err := ollamaClient.Embed(ctx, text)
-		require.NoError(b, err)
+		assertNoError(b, err)
 		points = append(points, Point{
 			ID:     core.Sprintf("%x", md5.Sum([]byte(core.Sprintf("bench-%d", i)))),
 			Vector: vec,
@@ -184,11 +183,11 @@ func BenchmarkQdrantSearch(b *testing.B) {
 		})
 	}
 	err = qdrantClient.UpsertPoints(ctx, collection, points)
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	// Generate a query vector.
 	queryVec, err := ollamaClient.Embed(ctx, "software engineering best practices")
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	b.ResetTimer()
 	for range b.N {
@@ -215,11 +214,11 @@ func BenchmarkFullPipeline(b *testing.B) {
 	}
 
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
-	require.NoError(b, err)
+	assertNoError(b, err)
 	defer func() { _ = qdrantClient.Close() }()
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
-	require.NoError(b, err)
+	assertNoError(b, err)
 
 	collection := "bench-pipeline"
 
@@ -257,13 +256,13 @@ func TestBenchmarkGPU_EmbeddingThroughput_Ugly(t *testing.T) {
 
 	cfg := DefaultOllamaConfig()
 	client, err := NewOllamaClient(cfg)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	ctx := context.Background()
 
 	// Warm up.
 	_, err = client.Embed(ctx, "warmup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	// Single embedding latency (10 samples).
 	var singleTotal time.Duration
@@ -271,7 +270,7 @@ func TestBenchmarkGPU_EmbeddingThroughput_Ugly(t *testing.T) {
 	for i := 0; i < singleN; i++ {
 		start := time.Now()
 		_, err := client.Embed(ctx, "Measure single embedding latency on ROCm GPU.")
-		require.NoError(t, err)
+		assertNoError(t, err)
 		singleTotal += time.Since(start)
 	}
 	singleAvg := singleTotal / singleN
@@ -286,7 +285,7 @@ func TestBenchmarkGPU_EmbeddingThroughput_Ugly(t *testing.T) {
 	for i := 0; i < batchN; i++ {
 		start := time.Now()
 		_, err := client.EmbedBatch(ctx, texts)
-		require.NoError(t, err)
+		assertNoError(t, err)
 		batchTotal += time.Since(start)
 	}
 	batchAvg := batchTotal / batchN
@@ -308,25 +307,25 @@ func TestBenchmarkGPU_SearchLatency_Ugly(t *testing.T) {
 	ctx := context.Background()
 
 	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer func() { _ = qdrantClient.Close() }()
 
 	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	collection := "latency-test"
 	dim := ollamaClient.EmbedDimension()
 
 	_ = qdrantClient.DeleteCollection(ctx, collection)
 	err = qdrantClient.CreateCollection(ctx, collection, dim)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer func() { _ = qdrantClient.DeleteCollection(ctx, collection) }()
 
 	// Seed 200 points.
 	var points []Point
 	for i := 0; i < 200; i++ {
 		vec, err := ollamaClient.Embed(ctx, core.Sprintf("Document %d covers topic %d.", i, i%20))
-		require.NoError(t, err)
+		assertNoError(t, err)
 		points = append(points, Point{
 			ID:     core.Sprintf("%x", md5.Sum([]byte(core.Sprintf("lat-%d", i)))),
 			Vector: vec,
@@ -337,10 +336,10 @@ func TestBenchmarkGPU_SearchLatency_Ugly(t *testing.T) {
 		})
 	}
 	err = qdrantClient.UpsertPoints(ctx, collection, points)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	queryVec, err := ollamaClient.Embed(ctx, "software engineering patterns")
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	// Measure search latency (50 queries).
 	var searchTotal time.Duration
@@ -348,7 +347,7 @@ func TestBenchmarkGPU_SearchLatency_Ugly(t *testing.T) {
 	for i := 0; i < searchN; i++ {
 		start := time.Now()
 		_, err := qdrantClient.Search(ctx, collection, queryVec, 5, nil)
-		require.NoError(t, err)
+		assertNoError(t, err)
 		searchTotal += time.Since(start)
 	}
 	searchAvg := searchTotal / searchN

@@ -10,8 +10,6 @@ import (
 	"testing"
 
 	"github.com/ollama/ollama/api"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // --- DefaultOllamaConfig tests ---
@@ -20,9 +18,9 @@ func TestOllama_DefaultOllamaConfig_Good(t *testing.T) {
 	t.Run("returns expected default values", func(t *testing.T) {
 		cfg := DefaultOllamaConfig()
 
-		assert.Equal(t, "localhost", cfg.Host, "default host should be localhost")
-		assert.Equal(t, 11434, cfg.Port, "default port should be 11434")
-		assert.Equal(t, "nomic-embed-text", cfg.Model, "default model should be nomic-embed-text")
+		assertEqual(t, "localhost", cfg.Host, "default host should be localhost")
+		assertEqual(t, 11434, cfg.Port, "default port should be 11434")
+		assertEqual(t, "nomic-embed-text", cfg.Model, "default model should be nomic-embed-text")
 	})
 }
 
@@ -32,10 +30,10 @@ func TestOllama_NewOllamaClient_Good(t *testing.T) {
 	t.Run("constructs client with default config", func(t *testing.T) {
 		client, err := NewOllamaClient(DefaultOllamaConfig())
 
-		require.NoError(t, err)
-		require.NotNil(t, client)
-		assert.Equal(t, "nomic-embed-text", client.Model())
-		assert.Equal(t, uint64(768), client.EmbedDimension())
+		assertNoError(t, err)
+		assertNotNil(t, client)
+		assertEqual(t, "nomic-embed-text", client.Model())
+		assertEqual(t, uint64(768), client.EmbedDimension())
 	})
 
 	t.Run("constructs client with custom config", func(t *testing.T) {
@@ -46,10 +44,10 @@ func TestOllama_NewOllamaClient_Good(t *testing.T) {
 		}
 		client, err := NewOllamaClient(cfg)
 
-		require.NoError(t, err)
-		require.NotNil(t, client)
-		assert.Equal(t, "mxbai-embed-large", client.Model())
-		assert.Equal(t, uint64(1024), client.EmbedDimension())
+		assertNoError(t, err)
+		assertNotNil(t, client)
+		assertEqual(t, "mxbai-embed-large", client.Model())
+		assertEqual(t, uint64(1024), client.EmbedDimension())
 	})
 }
 
@@ -97,7 +95,7 @@ func TestOllama_EmbedDimension_Good(t *testing.T) {
 			}
 
 			dim := client.EmbedDimension()
-			assert.Equal(t, tc.expected, dim)
+			assertEqual(t, tc.expected, dim)
 		})
 	}
 }
@@ -110,7 +108,7 @@ func TestOllama_Model_Good(t *testing.T) {
 			config: OllamaConfig{Model: "nomic-embed-text"},
 		}
 
-		assert.Equal(t, "nomic-embed-text", client.Model())
+		assertEqual(t, "nomic-embed-text", client.Model())
 	})
 
 	t.Run("returns custom model name", func(t *testing.T) {
@@ -118,7 +116,7 @@ func TestOllama_Model_Good(t *testing.T) {
 			config: OllamaConfig{Model: "custom-model"},
 		}
 
-		assert.Equal(t, "custom-model", client.Model())
+		assertEqual(t, "custom-model", client.Model())
 	})
 }
 
@@ -132,12 +130,12 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 		requestCount++
 
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		var req struct {
 			Input string `json:"input"`
 		}
-		require.NoError(t, json.Unmarshal(body, &req))
+		assertNoError(t, json.Unmarshal(body, &req))
 		capturedInput = append(capturedInput, req.Input)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -150,7 +148,7 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 	defer server.Close()
 
 	baseURL, err := url.Parse(server.URL)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	client := &OllamaClient{
 		client: api.NewClient(baseURL, server.Client()),
@@ -158,12 +156,12 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 	}
 
 	vectors, err := client.EmbedBatch(context.Background(), []string{"first", "second"})
-	require.NoError(t, err)
-	require.Len(t, vectors, 2)
-	assert.Equal(t, []float32{0.1, 0.2}, vectors[0])
-	assert.Equal(t, []float32{0.3, 0.4}, vectors[1])
-	assert.Equal(t, 2, requestCount, "batch embedding should call Embed once per input")
-	assert.Equal(t, []string{"first", "second"}, capturedInput)
+	assertNoError(t, err)
+	assertLen(t, vectors, 2)
+	assertEqual(t, []float32{0.1, 0.2}, vectors[0])
+	assertEqual(t, []float32{0.3, 0.4}, vectors[1])
+	assertEqual(t, 2, requestCount, "batch embedding should call Embed once per input")
+	assertEqual(t, []string{"first", "second"}, capturedInput)
 }
 
 func TestOllama_EmbedBatch_Bad(t *testing.T) {
@@ -181,7 +179,7 @@ func TestOllama_EmbedBatch_Bad(t *testing.T) {
 	defer server.Close()
 
 	baseURL, err := url.Parse(server.URL)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	client := &OllamaClient{
 		client: api.NewClient(baseURL, server.Client()),
@@ -189,7 +187,7 @@ func TestOllama_EmbedBatch_Bad(t *testing.T) {
 	}
 
 	_, err = client.EmbedBatch(context.Background(), []string{"first", "second"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "item 1")
-	assert.Equal(t, 2, requestCount)
+	assertError(t, err)
+	assertContains(t, err.Error(), "item 1")
+	assertEqual(t, 2, requestCount)
 }

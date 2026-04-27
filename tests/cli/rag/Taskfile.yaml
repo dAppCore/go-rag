@@ -1,0 +1,15 @@
+version: "3"
+
+tasks:
+  default:
+    desc: Validate the rag CLI artifact.
+    dir: ../../..
+    cmds:
+      - |
+        export GOCACHE="${GOCACHE:-/tmp/go-rag-gocache}"
+        export GOMODCACHE="${GOMODCACHE:-/tmp/go-rag-gomodcache}"
+        mkdir -p "$GOCACHE" "$GOMODCACHE"
+        bin="$(mktemp -t core-rag.XXXXXX)"
+        trap 'rm -f "$bin"' EXIT
+        go build -o "$bin" ./tests/cli/rag
+        "$bin" rag --help >/dev/null

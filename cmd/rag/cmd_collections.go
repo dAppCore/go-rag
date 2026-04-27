@@ -5,9 +5,9 @@ import (
 	"io"
 
 	"dappco.re/go/core"
-	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-i18n"
-	"forge.lthn.ai/core/go-rag"
+	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/i18n"
+	"dappco.re/go/rag"
 )
 
 var (

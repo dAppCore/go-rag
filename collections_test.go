@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // --- ListCollections tests ---
@@ -19,10 +17,10 @@ func TestCollections_ListCollections_Good(t *testing.T) {
 
 		names, err := ListCollections(context.Background(), store)
 
-		require.NoError(t, err)
-		assert.Len(t, names, 2)
-		assert.Contains(t, names, "alpha")
-		assert.Contains(t, names, "bravo")
+		assertNoError(t, err)
+		assertLen(t, names, 2)
+		assertContains(t, names, "alpha")
+		assertContains(t, names, "bravo")
 	})
 
 	t.Run("empty store returns empty list", func(t *testing.T) {
@@ -30,8 +28,8 @@ func TestCollections_ListCollections_Good(t *testing.T) {
 
 		names, err := ListCollections(context.Background(), store)
 
-		require.NoError(t, err)
-		assert.Empty(t, names)
+		assertNoError(t, err)
+		assertEmpty(t, names)
 	})
 
 	t.Run("error from store propagates", func(t *testing.T) {
@@ -40,8 +38,8 @@ func TestCollections_ListCollections_Good(t *testing.T) {
 
 		_, err := ListCollections(context.Background(), store)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "connection lost")
+		assertError(t, err)
+		assertContains(t, err.Error(), "connection lost")
 	})
 }
 
@@ -55,16 +53,16 @@ func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 
 		it, err := ListCollectionsSeq(context.Background(), store)
 
-		require.NoError(t, err)
-		require.NotNil(t, it)
+		assertNoError(t, err)
+		assertNotNil(t, it)
 
 		var names []string
 		for name := range it {
 			names = append(names, name)
 		}
-		assert.Len(t, names, 2)
-		assert.Contains(t, names, "alpha")
-		assert.Contains(t, names, "bravo")
+		assertLen(t, names, 2)
+		assertContains(t, names, "alpha")
+		assertContains(t, names, "bravo")
 	})
 
 	t.Run("empty store yields nothing", func(t *testing.T) {
@@ -72,13 +70,13 @@ func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 
 		it, err := ListCollectionsSeq(context.Background(), store)
 
-		require.NoError(t, err)
+		assertNoError(t, err)
 
 		count := 0
 		for range it {
 			count++
 		}
-		assert.Equal(t, 0, count)
+		assertEqual(t, 0, count)
 	})
 
 	t.Run("error from store returns nil iterator", func(t *testing.T) {
@@ -87,8 +85,8 @@ func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 
 		it, err := ListCollectionsSeq(context.Background(), store)
 
-		assert.Error(t, err)
-		assert.Nil(t, it)
+		assertError(t, err)
+		assertNil(t, it)
 	})
 }
 
@@ -102,10 +100,10 @@ func TestCollections_DeleteCollection_Good(t *testing.T) {
 
 		err := DeleteCollection(context.Background(), store, "to-delete")
 
-		require.NoError(t, err)
+		assertNoError(t, err)
 		_, exists := store.collections["to-delete"]
-		assert.False(t, exists)
-		assert.Empty(t, store.points["to-delete"])
+		assertFalse(t, exists)
+		assertEmpty(t, store.points["to-delete"])
 	})
 
 	t.Run("error from store propagates", func(t *testing.T) {
@@ -114,8 +112,8 @@ func TestCollections_DeleteCollection_Good(t *testing.T) {
 
 		err := DeleteCollection(context.Background(), store, "any")
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "permission denied")
+		assertError(t, err)
+		assertContains(t, err.Error(), "permission denied")
 	})
 }
 
@@ -133,15 +131,15 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 
 		info, err := CollectionStats(context.Background(), store, "my-col")
 
-		require.NoError(t, err)
-		require.NotNil(t, info)
-		assert.Equal(t, "my-col", info.Name)
-		assert.Equal(t, uint64(3), info.Count)
-		assert.Equal(t, uint64(3), info.Vectors)
-		assert.Equal(t, uint64(3), info.PointCount)
-		assert.Equal(t, uint64(768), info.VectorSize)
-		assert.Equal(t, "hnsw", info.Index)
-		assert.Equal(t, "green", info.Status)
+		assertNoError(t, err)
+		assertNotNil(t, info)
+		assertEqual(t, "my-col", info.Name)
+		assertEqual(t, uint64(3), info.Count)
+		assertEqual(t, uint64(3), info.Vectors)
+		assertEqual(t, uint64(3), info.PointCount)
+		assertEqual(t, uint64(768), info.VectorSize)
+		assertEqual(t, "hnsw", info.Index)
+		assertEqual(t, "green", info.Status)
 	})
 
 	t.Run("nonexistent collection returns error", func(t *testing.T) {
@@ -149,8 +147,8 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 
 		_, err := CollectionStats(context.Background(), store, "missing")
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
+		assertError(t, err)
+		assertContains(t, err.Error(), "not found")
 	})
 
 	t.Run("error from store propagates", func(t *testing.T) {
@@ -160,8 +158,8 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 
 		_, err := CollectionStats(context.Background(), store, "err-col")
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "internal error")
+		assertError(t, err)
+		assertContains(t, err.Error(), "internal error")
 	})
 
 	t.Run("empty collection has zero point count", func(t *testing.T) {
@@ -170,11 +168,11 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 
 		info, err := CollectionStats(context.Background(), store, "empty-col")
 
-		require.NoError(t, err)
-		assert.Equal(t, uint64(0), info.Count)
-		assert.Equal(t, uint64(0), info.Vectors)
-		assert.Equal(t, uint64(0), info.PointCount)
-		assert.Equal(t, uint64(384), info.VectorSize)
-		assert.Equal(t, "hnsw", info.Index)
+		assertNoError(t, err)
+		assertEqual(t, uint64(0), info.Count)
+		assertEqual(t, uint64(0), info.Vectors)
+		assertEqual(t, uint64(0), info.PointCount)
+		assertEqual(t, uint64(384), info.VectorSize)
+		assertEqual(t, "hnsw", info.Index)
 	})
 }
