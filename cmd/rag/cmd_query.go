@@ -27,6 +27,7 @@ var queryCmd = &cli.Command{
 	RunE:  runQuery,
 }
 
+// runQuery embeds a question, searches Qdrant, and writes formatted results.
 func runQuery(cmd *cli.Command, args []string) error {
 	question := args[0]
 	ctx := context.Background()

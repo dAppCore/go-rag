@@ -12,8 +12,10 @@ import (
 // ChunkConfig holds chunking configuration.
 // cfg := ChunkConfig{Size: 500, Overlap: 50}
 type ChunkConfig struct {
-	Size    int // Characters per chunk
-	Overlap int // Overlap between chunks
+	// Size is the target maximum number of characters per chunk.
+	Size int
+	// Overlap is the number of characters carried from one chunk into the next.
+	Overlap int
 }
 
 // DefaultChunkConfig returns default chunking configuration.
@@ -28,9 +30,12 @@ func DefaultChunkConfig() ChunkConfig {
 // Chunk represents a text chunk with metadata.
 // chunk := Chunk{Text: "Go uses goroutines.", Section: "Concurrency", Index: 0}
 type Chunk struct {
-	Text    string
+	// Text is the chunk body sent to embedding and search.
+	Text string
+	// Section is the Markdown heading path associated with the chunk.
 	Section string
-	Index   int
+	// Index is the chunk's zero-based position within the source document.
+	Index int
 }
 
 // ChunkMarkdown splits markdown text into chunks by sections and paragraphs.

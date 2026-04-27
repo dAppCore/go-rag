@@ -12,9 +12,13 @@ import (
 // QdrantConfig holds Qdrant connection configuration.
 // cfg := QdrantConfig{Host: "localhost", Port: 6334, UseTLS: false}
 type QdrantConfig struct {
-	Host   string
-	Port   int
+	// Host is the Qdrant server hostname.
+	Host string
+	// Port is the Qdrant gRPC port.
+	Port int
+	// APIKey is the optional Qdrant API key.
 	APIKey string
+	// UseTLS enables TLS when connecting to Qdrant.
 	UseTLS bool
 }
 
@@ -42,6 +46,7 @@ func NewQdrantStore(endpoint string) (*QdrantClient, error) {
 	return NewQdrantClient(cfg)
 }
 
+// normalizeQdrantGRPCPort maps Qdrant's common REST port to its gRPC port.
 func normalizeQdrantGRPCPort(port int) int {
 	if port == 6333 {
 		return 6334
@@ -49,6 +54,7 @@ func normalizeQdrantGRPCPort(port int) int {
 	return port
 }
 
+// qdrantConfigFromEndpoint parses a host or URL into Qdrant connection settings.
 func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
 	cfg := DefaultQdrantConfig()
 	parsed, err := parseEndpointURL(endpoint)
@@ -209,8 +215,11 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 // Point represents a vector point with payload.
 // point := Point{ID: "chunk-1", Vector: []float32{0.1, 0.2}, Payload: map[string]any{"source": "docs/go.md"}}
 type Point struct {
-	ID      string
-	Vector  []float32
+	// ID is the stable vector-store identifier for the point.
+	ID string
+	// Vector is the embedding stored in the collection.
+	Vector []float32
+	// Payload stores source text and metadata alongside the vector.
 	Payload map[string]any
 }
 
@@ -240,17 +249,28 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 // SearchResult represents a low-level vector search hit.
 // result := SearchResult{ID: "chunk-1", Score: 0.92, Text: "...", Source: "docs.md"}
 type SearchResult struct {
-	ID                string
-	Score             float32
-	Text              string
-	Source            string
-	Section           string
-	Category          string
-	ChunkIndex        int
-	Index             int
+	// ID is the vector-store point identifier.
+	ID string
+	// Score is the similarity score returned by the vector store.
+	Score float32
+	// Text is the denormalised chunk text, when present.
+	Text string
+	// Source is the denormalised source path, when present.
+	Source string
+	// Section is the denormalised Markdown section, when present.
+	Section string
+	// Category is the denormalised document category, when present.
+	Category string
+	// ChunkIndex is the denormalised source chunk index.
+	ChunkIndex int
+	// Index is a compatibility alias for ChunkIndex.
+	Index int
+	// ChunkIndexPresent distinguishes an explicit zero chunk index from missing metadata.
 	ChunkIndexPresent bool
-	IndexPresent      bool
-	Payload           map[string]any
+	// IndexPresent distinguishes an explicit zero index from missing metadata.
+	IndexPresent bool
+	// Payload is the decoded raw vector-store payload.
+	Payload map[string]any
 }
 
 // GetText returns the text field from Payload (satisfies textResult / rankedResult).
@@ -392,6 +412,7 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 	return results, nil
 }
 
+// payloadChunkIndex extracts chunk_index from decoded Qdrant payload values.
 func payloadChunkIndex(payload map[string]any) (int, bool) {
 	if payload == nil {
 		return 0, false

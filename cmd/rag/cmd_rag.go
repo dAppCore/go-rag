@@ -27,6 +27,7 @@ var ragCmd = &cli.Command{
 	Long:  i18n.T("cmd.rag.long"),
 }
 
+// initFlags initialises persistent and subcommand flags once.
 func initFlags() {
 	initFlagsOnce.Do(func() {
 		// Qdrant connection flags (persistent) - defaults to localhost for local development
@@ -79,6 +80,7 @@ func initFlags() {
 	})
 }
 
+// envPortOrDefault returns an environment port override or the fallback port.
 func envPortOrDefault(name string, fallback int) int {
 	value := core.Env(name)
 	if value == "" {

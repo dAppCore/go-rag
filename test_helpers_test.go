@@ -12,111 +12,133 @@ type assertionHelper struct{}
 
 var testAssert assertionHelper
 
+// assertNoError fails the test when err is non-nil.
 func assertNoError(t testing.TB, err error, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.NoError(t, err, msgAndArgs...)
 }
 
+// assertError fails the test when err is nil.
 func assertError(t testing.TB, err error, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Error(t, err, msgAndArgs...)
 }
 
+// assertEqual fails the test when want and got differ.
 func assertEqual(t testing.TB, want any, got any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Equal(t, want, got, msgAndArgs...)
 }
 
+// assertNotEqual fails the test when want and got match.
 func assertNotEqual(t testing.TB, want any, got any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.NotEqual(t, want, got, msgAndArgs...)
 }
 
+// assertTrue fails the test when value is false.
 func assertTrue(t testing.TB, value bool, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.True(t, value, msgAndArgs...)
 }
 
+// assertTruef fails the test when value is false and formats the supplied message.
 func assertTruef(t testing.TB, value bool, msg string, args ...any) bool {
 	t.Helper()
 	return testAssert.Truef(t, value, msg, args...)
 }
 
+// assertFalse fails the test when value is true.
 func assertFalse(t testing.TB, value bool, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.False(t, value, msgAndArgs...)
 }
 
+// assertNil fails the test when value is not nil.
 func assertNil(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Nil(t, value, msgAndArgs...)
 }
 
+// assertNotNil fails the test when value is nil.
 func assertNotNil(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.NotNil(t, value, msgAndArgs...)
 }
 
+// assertLen fails the test when value does not expose the expected length.
 func assertLen(t testing.TB, value any, want int, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Len(t, value, want, msgAndArgs...)
 }
 
+// assertContains fails the test when value does not contain element.
 func assertContains(t testing.TB, value any, element any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Contains(t, value, element, msgAndArgs...)
 }
 
+// assertNotContains fails the test when value contains element.
 func assertNotContains(t testing.TB, value any, element any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.NotContains(t, value, element, msgAndArgs...)
 }
 
+// assertEmpty fails the test when value is not empty.
 func assertEmpty(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Empty(t, value, msgAndArgs...)
 }
 
+// assertNotEmpty fails the test when value is empty.
 func assertNotEmpty(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.NotEmpty(t, value, msgAndArgs...)
 }
 
+// assertNotEmptyf fails the test when value is empty and formats the supplied message.
 func assertNotEmptyf(t testing.TB, value any, msg string, args ...any) bool {
 	t.Helper()
 	return testAssert.NotEmptyf(t, value, msg, args...)
 }
 
+// assertGreater fails the test when got is not greater than want.
 func assertGreater(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Greater(t, got, want, msgAndArgs...)
 }
 
+// assertGreaterf fails the test when got is not greater than want and formats the supplied message.
 func assertGreaterf(t testing.TB, got any, want any, msg string, args ...any) bool {
 	t.Helper()
 	return testAssert.Greaterf(t, got, want, msg, args...)
 }
 
+// assertGreaterOrEqual fails the test when got is less than want.
 func assertGreaterOrEqual(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.GreaterOrEqual(t, got, want, msgAndArgs...)
 }
 
+// assertLess fails the test when got is not less than want.
 func assertLess(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.Less(t, got, want, msgAndArgs...)
 }
 
+// assertLessOrEqual fails the test when got is greater than want.
 func assertLessOrEqual(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.LessOrEqual(t, got, want, msgAndArgs...)
 }
 
+// assertInDelta fails the test when got is outside delta from want.
 func assertInDelta(t testing.TB, want any, got any, delta any, msgAndArgs ...any) bool {
 	t.Helper()
 	return testAssert.InDelta(t, want, got, delta, msgAndArgs...)
 }
 
+// NoError reports whether err is nil.
 func (assertionHelper) NoError(t testing.TB, err error, msgAndArgs ...any) bool {
 	t.Helper()
 	if err != nil {
@@ -125,6 +147,7 @@ func (assertionHelper) NoError(t testing.TB, err error, msgAndArgs ...any) bool 
 	return true
 }
 
+// Error reports whether err is non-nil.
 func (assertionHelper) Error(t testing.TB, err error, msgAndArgs ...any) bool {
 	t.Helper()
 	if err == nil {
@@ -133,6 +156,7 @@ func (assertionHelper) Error(t testing.TB, err error, msgAndArgs ...any) bool {
 	return true
 }
 
+// Equal reports whether want and got are deeply equal.
 func (assertionHelper) Equal(t testing.TB, want any, got any, msgAndArgs ...any) bool {
 	t.Helper()
 	if !reflect.DeepEqual(want, got) {
@@ -141,6 +165,7 @@ func (assertionHelper) Equal(t testing.TB, want any, got any, msgAndArgs ...any)
 	return true
 }
 
+// NotEqual reports whether want and got differ.
 func (assertionHelper) NotEqual(t testing.TB, want any, got any, msgAndArgs ...any) bool {
 	t.Helper()
 	if reflect.DeepEqual(want, got) {
@@ -149,6 +174,7 @@ func (assertionHelper) NotEqual(t testing.TB, want any, got any, msgAndArgs ...a
 	return true
 }
 
+// True reports whether value is true.
 func (assertionHelper) True(t testing.TB, value bool, msgAndArgs ...any) bool {
 	t.Helper()
 	if !value {
@@ -157,11 +183,13 @@ func (assertionHelper) True(t testing.TB, value bool, msgAndArgs ...any) bool {
 	return true
 }
 
+// Truef reports whether value is true and formats the supplied message on failure.
 func (h assertionHelper) Truef(t testing.TB, value bool, msg string, args ...any) bool {
 	t.Helper()
 	return h.True(t, value, append([]any{msg}, args...)...)
 }
 
+// False reports whether value is false.
 func (assertionHelper) False(t testing.TB, value bool, msgAndArgs ...any) bool {
 	t.Helper()
 	if value {
@@ -170,6 +198,7 @@ func (assertionHelper) False(t testing.TB, value bool, msgAndArgs ...any) bool {
 	return true
 }
 
+// Nil reports whether value is nil, including typed nils.
 func (assertionHelper) Nil(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	if !isNil(value) {
@@ -178,6 +207,7 @@ func (assertionHelper) Nil(t testing.TB, value any, msgAndArgs ...any) bool {
 	return true
 }
 
+// NotNil reports whether value is not nil, including typed nils.
 func (assertionHelper) NotNil(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	if isNil(value) {
@@ -186,6 +216,7 @@ func (assertionHelper) NotNil(t testing.TB, value any, msgAndArgs ...any) bool {
 	return true
 }
 
+// Len reports whether value has the expected length.
 func (assertionHelper) Len(t testing.TB, value any, want int, msgAndArgs ...any) bool {
 	t.Helper()
 	got, ok := lengthOf(value)
@@ -198,6 +229,7 @@ func (assertionHelper) Len(t testing.TB, value any, want int, msgAndArgs ...any)
 	return true
 }
 
+// Contains reports whether value contains element.
 func (assertionHelper) Contains(t testing.TB, value any, element any, msgAndArgs ...any) bool {
 	t.Helper()
 	found, ok := contains(value, element)
@@ -210,6 +242,7 @@ func (assertionHelper) Contains(t testing.TB, value any, element any, msgAndArgs
 	return true
 }
 
+// NotContains reports whether value does not contain element.
 func (assertionHelper) NotContains(t testing.TB, value any, element any, msgAndArgs ...any) bool {
 	t.Helper()
 	found, ok := contains(value, element)
@@ -222,6 +255,7 @@ func (assertionHelper) NotContains(t testing.TB, value any, element any, msgAndA
 	return true
 }
 
+// Empty reports whether value is empty.
 func (assertionHelper) Empty(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	if !isEmpty(value) {
@@ -230,6 +264,7 @@ func (assertionHelper) Empty(t testing.TB, value any, msgAndArgs ...any) bool {
 	return true
 }
 
+// NotEmpty reports whether value is not empty.
 func (assertionHelper) NotEmpty(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
 	if isEmpty(value) {
@@ -238,11 +273,13 @@ func (assertionHelper) NotEmpty(t testing.TB, value any, msgAndArgs ...any) bool
 	return true
 }
 
+// NotEmptyf reports whether value is not empty and formats the supplied message on failure.
 func (h assertionHelper) NotEmptyf(t testing.TB, value any, msg string, args ...any) bool {
 	t.Helper()
 	return h.NotEmpty(t, value, append([]any{msg}, args...)...)
 }
 
+// Greater reports whether got is greater than want.
 func (assertionHelper) Greater(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	cmp, ok := compareOrdered(got, want)
@@ -255,11 +292,13 @@ func (assertionHelper) Greater(t testing.TB, got any, want any, msgAndArgs ...an
 	return true
 }
 
+// Greaterf reports whether got is greater than want and formats the supplied message on failure.
 func (h assertionHelper) Greaterf(t testing.TB, got any, want any, msg string, args ...any) bool {
 	t.Helper()
 	return h.Greater(t, got, want, append([]any{msg}, args...)...)
 }
 
+// GreaterOrEqual reports whether got is greater than or equal to want.
 func (assertionHelper) GreaterOrEqual(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	cmp, ok := compareOrdered(got, want)
@@ -272,6 +311,7 @@ func (assertionHelper) GreaterOrEqual(t testing.TB, got any, want any, msgAndArg
 	return true
 }
 
+// Less reports whether got is less than want.
 func (assertionHelper) Less(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	cmp, ok := compareOrdered(got, want)
@@ -284,6 +324,7 @@ func (assertionHelper) Less(t testing.TB, got any, want any, msgAndArgs ...any) 
 	return true
 }
 
+// LessOrEqual reports whether got is less than or equal to want.
 func (assertionHelper) LessOrEqual(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
 	cmp, ok := compareOrdered(got, want)
@@ -296,6 +337,7 @@ func (assertionHelper) LessOrEqual(t testing.TB, got any, want any, msgAndArgs .
 	return true
 }
 
+// InDelta reports whether got is within delta of want.
 func (assertionHelper) InDelta(t testing.TB, want any, got any, delta any, msgAndArgs ...any) bool {
 	t.Helper()
 	wantNumber, wantOK := number(want)
@@ -310,6 +352,7 @@ func (assertionHelper) InDelta(t testing.TB, want any, got any, delta any, msgAn
 	return true
 }
 
+// failf records a fatal assertion failure with optional caller context.
 func failf(t testing.TB, format string, args []any, msgAndArgs ...any) bool {
 	t.Helper()
 	detail := format
@@ -323,6 +366,7 @@ func failf(t testing.TB, format string, args []any, msgAndArgs ...any) bool {
 	return false
 }
 
+// assertionMessage formats optional assertion context.
 func assertionMessage(msgAndArgs ...any) string {
 	if len(msgAndArgs) == 0 {
 		return ""
@@ -337,6 +381,7 @@ func assertionMessage(msgAndArgs ...any) string {
 	return fmt.Sprintf(format, msgAndArgs[1:]...)
 }
 
+// isNil reports whether value is nil, including typed nil values.
 func isNil(value any) bool {
 	if value == nil {
 		return true
@@ -350,6 +395,7 @@ func isNil(value any) bool {
 	}
 }
 
+// isEmpty reports whether value is the zero or empty form of its type.
 func isEmpty(value any) bool {
 	if isNil(value) {
 		return true
@@ -363,6 +409,7 @@ func isEmpty(value any) bool {
 	}
 }
 
+// lengthOf returns the length of supported collection-like values.
 func lengthOf(value any) (int, bool) {
 	if value == nil {
 		return 0, false
@@ -386,6 +433,7 @@ func lengthOf(value any) (int, bool) {
 	}
 }
 
+// contains reports whether a string, slice, array, or map contains element.
 func contains(value any, element any) (bool, bool) {
 	if value == nil {
 		return false, true
@@ -425,6 +473,7 @@ func contains(value any, element any) (bool, bool) {
 	}
 }
 
+// compareOrdered compares strings and numeric values.
 func compareOrdered(left any, right any) (int, bool) {
 	if leftString, ok := left.(string); ok {
 		rightString, ok := right.(string)
@@ -449,6 +498,7 @@ func compareOrdered(left any, right any) (int, bool) {
 	}
 }
 
+// number converts supported numeric values to float64 for comparisons.
 func number(value any) (float64, bool) {
 	if value == nil {
 		return 0, false

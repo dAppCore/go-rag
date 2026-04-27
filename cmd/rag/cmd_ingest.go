@@ -25,6 +25,7 @@ var ingestCmd = &cli.Command{
 	RunE:  runIngest,
 }
 
+// runIngest validates local flags, connects clients, and ingests documents.
 func runIngest(cmd *cli.Command, args []string) error {
 	directory := "."
 	if len(args) > 0 {

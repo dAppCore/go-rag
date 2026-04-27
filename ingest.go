@@ -13,12 +13,18 @@ import (
 // IngestConfig holds ingestion configuration.
 // cfg := IngestConfig{Directory: "./docs", Collection: "project-docs", BatchSize: 100}
 type IngestConfig struct {
-	Directory  string
+	// Directory is the root directory scanned for ingestible files.
+	Directory string
+	// Collection is the vector-store collection that receives ingested points.
 	Collection string
-	Recreate   bool
-	Verbose    bool
-	BatchSize  int
-	Chunk      ChunkConfig
+	// Recreate deletes and recreates Collection before ingestion when true.
+	Recreate bool
+	// Verbose enables per-file progress output.
+	Verbose bool
+	// BatchSize controls embedding and upsert batch sizes.
+	BatchSize int
+	// Chunk configures Markdown chunking before embedding.
+	Chunk ChunkConfig
 }
 
 // DefaultIngestConfig returns default ingestion configuration.
@@ -34,8 +40,11 @@ func DefaultIngestConfig() IngestConfig {
 // IngestStats holds statistics from ingestion.
 // stats := IngestStats{Files: 12, Chunks: 84, Errors: 0}
 type IngestStats struct {
-	Files  int
+	// Files counts non-empty files processed by ingestion.
+	Files int
+	// Chunks counts chunks successfully embedded and queued for upsert.
 	Chunks int
+	// Errors counts read and embedding failures that ingestion skipped.
 	Errors int
 }
 
@@ -229,6 +238,7 @@ func embedChunkBatch(ctx context.Context, embedder Embedder, texts []string) ([]
 	return embeddings, errs
 }
 
+// buildPoint converts a chunk and embedding into vector-store payload form.
 func buildPoint(source, category string, chunk Chunk, embedding []float32) Point {
 	return Point{
 		ID:     ChunkID(source, chunk.Index, chunk.Text),
@@ -243,6 +253,7 @@ func buildPoint(source, category string, chunk Chunk, embedding []float32) Point
 	}
 }
 
+// collectMarkdownFiles appends ingestible file paths below currentPath.
 func collectMarkdownFiles(localFS *core.Fs, currentPath string, currentRel string, files *[]string) error {
 	listResult := localFS.List(currentPath)
 	if !listResult.OK {
@@ -288,6 +299,7 @@ func collectMarkdownFiles(localFS *core.Fs, currentPath string, currentRel strin
 	return nil
 }
 
+// resultError extracts an error from a core.Result or creates a generic one.
 func resultError(result core.Result) error {
 	if err, ok := result.Value.(error); ok {
 		return err
@@ -318,6 +330,7 @@ func readDocument(fs *core.Fs, filePath string) (string, error) {
 	return readAsText(fs, filePath)
 }
 
+// readAsText reads a file through core.Fs and validates the string payload.
 func readAsText(fs *core.Fs, filePath string) (string, error) {
 	result := fs.Read(filePath)
 	if !result.OK {

@@ -45,12 +45,20 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.42.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/term v0.41.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/term v0.42.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace dappco.re/go/cli => ./internal/compat/cli
+
+replace dappco.re/go/i18n => github.com/dappcore/go-i18n v0.8.0-alpha.1
+
+replace dappco.re/go/inference => github.com/dappcore/go-inference v0.8.0-alpha.1
+
+replace dappco.re/go/log => github.com/dappcore/go-log v0.8.0-alpha.1

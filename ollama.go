@@ -17,10 +17,14 @@ import (
 // OllamaConfig holds Ollama connection configuration.
 // cfg := OllamaConfig{Host: "localhost", Port: 11434, Model: "nomic-embed-text"}
 type OllamaConfig struct {
+	// Scheme is the HTTP scheme used for the Ollama endpoint.
 	Scheme string
-	Host   string
-	Port   int
-	Model  string
+	// Host is the Ollama server hostname.
+	Host string
+	// Port is the Ollama server HTTP port.
+	Port int
+	// Model is the embedding model name used for requests.
+	Model string
 }
 
 // DefaultOllamaConfig returns default Ollama configuration.

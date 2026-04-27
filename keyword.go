@@ -13,11 +13,16 @@ import (
 //
 //	result := KeywordResult{Source: "docs/guide.md", Score: 0.42, Text: "..."}
 type KeywordResult struct {
-	Text       string
-	Source     string
-	Section    string
+	// Text is the chunk text that matched the query terms.
+	Text string
+	// Source is the source document path when available.
+	Source string
+	// Section is the Markdown section attached to the chunk.
+	Section string
+	// ChunkIndex is the chunk's zero-based source position.
 	ChunkIndex int
-	Score      float32
+	// Score is the TF-IDF relevance score.
+	Score float32
 }
 
 // GetText returns the result text (satisfies textResult / rankedResult).

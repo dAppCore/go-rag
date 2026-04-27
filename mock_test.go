@@ -23,10 +23,12 @@ type mockEmbedder struct {
 	embedFunc func(text string) ([]float32, error)
 }
 
+// newMockEmbedder creates a mock embedder with deterministic vector length.
 func newMockEmbedder(dimension uint64) *mockEmbedder {
 	return &mockEmbedder{dimension: dimension}
 }
 
+// Embed records text and returns either injected errors or deterministic vectors.
 func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
 	m.mu.Lock()
 	m.embedCalls = append(m.embedCalls, text)
@@ -47,6 +49,7 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 	return vec, nil
 }
 
+// EmbedBatch records a batch call and embeds each text in input order.
 func (m *mockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
 	m.mu.Lock()
 	m.batchCalls = append(m.batchCalls, texts)
@@ -67,6 +70,7 @@ func (m *mockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 	return results, nil
 }
 
+// EmbedDimension returns the configured mock vector dimension.
 func (m *mockEmbedder) EmbedDimension() uint64 {
 	return m.dimension
 }
@@ -124,6 +128,7 @@ type searchCall struct {
 	Filter     map[string]string
 }
 
+// newMockVectorStore creates an empty in-memory vector store for tests.
 func newMockVectorStore() *mockVectorStore {
 	return &mockVectorStore{
 		collections: make(map[string]uint64),
@@ -131,6 +136,7 @@ func newMockVectorStore() *mockVectorStore {
 	}
 }
 
+// CreateCollection records collection creation and stores the requested vector size.
 func (m *mockVectorStore) CreateCollection(ctx context.Context, name string, vectorSize uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -145,6 +151,7 @@ func (m *mockVectorStore) CreateCollection(ctx context.Context, name string, vec
 	return nil
 }
 
+// CollectionExists records existence checks and reports whether the collection exists.
 func (m *mockVectorStore) CollectionExists(ctx context.Context, name string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -159,6 +166,7 @@ func (m *mockVectorStore) CollectionExists(ctx context.Context, name string) (bo
 	return exists, nil
 }
 
+// DeleteCollection records deletion and removes the collection from memory.
 func (m *mockVectorStore) DeleteCollection(ctx context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -174,6 +182,7 @@ func (m *mockVectorStore) DeleteCollection(ctx context.Context, name string) err
 	return nil
 }
 
+// ListCollections records listing and returns collection names in stable order.
 func (m *mockVectorStore) ListCollections(ctx context.Context) ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -192,6 +201,7 @@ func (m *mockVectorStore) ListCollections(ctx context.Context) ([]string, error)
 	return names, nil
 }
 
+// CollectionInfo records metadata lookup and returns in-memory collection statistics.
 func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -220,6 +230,7 @@ func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*Col
 	}, nil
 }
 
+// UpsertPoints records upserts and appends points to the named collection.
 func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, points []Point) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -234,6 +245,7 @@ func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, p
 	return nil
 }
 
+// Search records vector searches and returns either custom or stored mock results.
 func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -34,19 +34,29 @@ type VectorStore interface {
 // Vector represents an RFC-compatible vector payload for storage.
 // It is equivalent to Point, but uses the Values field name from the spec.
 type Vector struct {
-	ID      string
-	Values  []float32
+	// ID is the stable vector identifier.
+	ID string
+	// Values is the embedding vector payload.
+	Values []float32
+	// Payload stores arbitrary metadata alongside the vector.
 	Payload map[string]any
 }
 
 // CollectionInfo holds backend-agnostic metadata about a collection.
 // info := CollectionInfo{Name: "project-docs", Count: 42, Vectors: 42, PointCount: 42, VectorSize: 768, Status: "green"}
 type CollectionInfo struct {
-	Name       string
-	Count      uint64
-	Vectors    uint64
-	Index      string
+	// Name is the collection name.
+	Name string
+	// Count is the backend-reported point count.
+	Count uint64
+	// Vectors is the backend-reported vector count.
+	Vectors uint64
+	// Index names the index implementation when known.
+	Index string
+	// PointCount is the number of stored points.
 	PointCount uint64
+	// VectorSize is the configured embedding dimension.
 	VectorSize uint64
-	Status     string // e.g. "green", "yellow", "red", "unknown"
+	// Status is the backend health state, e.g. "green", "yellow", "red", or "unknown".
+	Status string
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
+	"dappco.re/go/core"
 	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )
@@ -23,6 +23,7 @@ var collectionsCmd = &cli.Command{
 	RunE:  runCollections,
 }
 
+// runCollections handles list, stats, and delete collection operations.
 func runCollections(cmd *cli.Command, args []string) error {
 	ctx := context.Background()
 	out := cmd.OutOrStdout()

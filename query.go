@@ -15,11 +15,16 @@ const missingChunkIndex = -1
 // QueryConfig holds query configuration.
 // cfg := QueryConfig{Collection: "project-docs", Limit: 5, Threshold: 0.6}
 type QueryConfig struct {
+	// Collection is the vector-store collection to search.
 	Collection string
-	Limit      uint64
-	Threshold  float32 // Minimum similarity score (0-1)
-	Category   string  // Filter by category
-	Keywords   bool    // When true, extract keywords from query and boost matching results
+	// Limit is the maximum number of ranked results returned.
+	Limit uint64
+	// Threshold is the minimum similarity score from 0 to 1.
+	Threshold float32
+	// Category filters search results by document category when set.
+	Category string
+	// Keywords enables keyword extraction and boosting when true.
+	Keywords bool
 }
 
 // DefaultQueryConfig returns default query configuration.
@@ -35,15 +40,24 @@ func DefaultQueryConfig() QueryConfig {
 // QueryResult represents a query result with metadata.
 // result := QueryResult{Source: "docs/go.md", Section: "Concurrency", Score: 0.92}
 type QueryResult struct {
-	Text              string
-	Source            string
-	Section           string
-	Category          string
-	ChunkIndex        int
-	Index             int
+	// Text is the matched chunk text.
+	Text string
+	// Source is the source document path.
+	Source string
+	// Section is the source Markdown section.
+	Section string
+	// Category is the inferred document category.
+	Category string
+	// ChunkIndex is the chunk's zero-based source position.
+	ChunkIndex int
+	// Index is a compatibility alias for ChunkIndex.
+	Index int
+	// ChunkIndexPresent distinguishes explicit zero from missing chunk metadata.
 	ChunkIndexPresent bool
-	IndexPresent      bool
-	Score             float32
+	// IndexPresent distinguishes explicit zero from missing index metadata.
+	IndexPresent bool
+	// Score is the vector or boosted relevance score.
+	Score float32
 }
 
 // GetText returns the result text (satisfies the rankedResult interface).
@@ -159,6 +173,7 @@ func rankKey[T rankedResult](result T) string {
 	return core.Sprintf("score:%f", result.GetScore())
 }
 
+// resultHasChunkIndex reports whether a ranked result carries explicit chunk metadata.
 func resultHasChunkIndex[T rankedResult](result T) bool {
 	if indexed, ok := any(result).(chunkIndexedResult); ok {
 		return indexed.HasChunkIndex()

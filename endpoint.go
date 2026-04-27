@@ -20,6 +20,7 @@ func parseEndpointURL(endpoint string) (*url.URL, error) {
 	return url.Parse(endpoint)
 }
 
+// parseEndpointPort converts and validates a TCP port parsed from an endpoint.
 func parseEndpointPort(scope string, portText string) (int, error) {
 	port, err := strconv.Atoi(portText)
 	if err != nil {
