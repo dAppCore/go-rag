@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"slices"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"github.com/ledongthuc/pdf"
 )
 

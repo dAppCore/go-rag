@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // testCollectionName returns a unique collection name for the current test run

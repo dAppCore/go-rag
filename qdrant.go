@@ -5,7 +5,7 @@ package rag
 import (
 	"context"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -89,20 +89,43 @@ func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
 // QdrantClient wraps the Qdrant Go client with convenience methods.
 // client, _ := NewQdrantClient(DefaultQdrantConfig())
 type QdrantClient struct {
-	client *qdrant.Client
+	client qdrantClientAPI
 	config QdrantConfig
+}
+
+type qdrantClientAPI interface {
+	Close() error
+	HealthCheck(ctx context.Context) (*qdrant.HealthCheckReply, error)
+	ListCollections(ctx context.Context) ([]string, error)
+	CollectionExists(ctx context.Context, name string) (bool, error)
+	CreateCollection(ctx context.Context, request *qdrant.CreateCollection) error
+	DeleteCollection(ctx context.Context, name string) error
+	GetCollectionInfo(ctx context.Context, name string) (*qdrant.CollectionInfo, error)
+	Upsert(ctx context.Context, request *qdrant.UpsertPoints) (*qdrant.UpdateResult, error)
+	Query(ctx context.Context, request *qdrant.QueryPoints) ([]*qdrant.ScoredPoint, error)
+}
+
+func (q *QdrantClient) api() (qdrantClientAPI, error) {
+	if q == nil || q.client == nil {
+		return nil, core.E("rag.Qdrant", "client is not initialized", nil)
+	}
+	return q.client, nil
 }
 
 // NewQdrantClient creates a new Qdrant client.
 // client, err := NewQdrantClient(DefaultQdrantConfig())
 func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		return nil, core.E("rag.Qdrant", core.Sprintf("port out of range: %d", cfg.Port), nil)
+	}
 	addr := core.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:   cfg.Host,
-		Port:   cfg.Port,
-		APIKey: cfg.APIKey,
-		UseTLS: cfg.UseTLS,
+		Host:                   cfg.Host,
+		Port:                   cfg.Port,
+		APIKey:                 cfg.APIKey,
+		UseTLS:                 cfg.UseTLS,
+		SkipCompatibilityCheck: true,
 	})
 	if err != nil {
 		return nil, core.E("rag.Qdrant", core.Sprintf("failed to connect to Qdrant at %s", addr), err)
@@ -117,20 +140,32 @@ func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
 // Close closes the Qdrant client connection.
 // defer client.Close()
 func (q *QdrantClient) Close() error {
-	return q.client.Close()
+	client, err := q.api()
+	if err != nil {
+		return err
+	}
+	return client.Close()
 }
 
 // HealthCheck verifies the connection to Qdrant.
 // client.HealthCheck(ctx)
 func (q *QdrantClient) HealthCheck(ctx context.Context) error {
-	_, err := q.client.HealthCheck(ctx)
+	client, err := q.api()
+	if err != nil {
+		return err
+	}
+	_, err = client.HealthCheck(ctx)
 	return err
 }
 
 // ListCollections returns all collection names.
 // names, _ := client.ListCollections(ctx)
 func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
-	resp, err := q.client.ListCollections(ctx)
+	client, err := q.api()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.ListCollections(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -142,13 +177,21 @@ func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
 // CollectionExists checks if a collection exists.
 // exists, _ := client.CollectionExists(ctx, "project-docs")
 func (q *QdrantClient) CollectionExists(ctx context.Context, name string) (bool, error) {
-	return q.client.CollectionExists(ctx, name)
+	client, err := q.api()
+	if err != nil {
+		return false, err
+	}
+	return client.CollectionExists(ctx, name)
 }
 
 // CreateCollection creates a new collection with cosine distance.
 // client.CreateCollection(ctx, "project-docs", 768)
 func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vectorSize uint64) error {
-	return q.client.CreateCollection(ctx, &qdrant.CreateCollection{
+	client, err := q.api()
+	if err != nil {
+		return err
+	}
+	return client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: name,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
 			Size:     vectorSize,
@@ -160,13 +203,21 @@ func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vector
 // DeleteCollection deletes a collection.
 // client.DeleteCollection(ctx, "project-docs")
 func (q *QdrantClient) DeleteCollection(ctx context.Context, name string) error {
-	return q.client.DeleteCollection(ctx, name)
+	client, err := q.api()
+	if err != nil {
+		return err
+	}
+	return client.DeleteCollection(ctx, name)
 }
 
 // CollectionInfo returns backend-agnostic metadata about a collection.
 // info, _ := client.CollectionInfo(ctx, "project-docs")
 func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
-	info, err := q.client.GetCollectionInfo(ctx, name)
+	client, err := q.api()
+	if err != nil {
+		return nil, err
+	}
+	info, err := client.GetCollectionInfo(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -229,6 +280,10 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 	if len(points) == 0 {
 		return nil
 	}
+	client, err := q.api()
+	if err != nil {
+		return err
+	}
 
 	qdrantPoints := make([]*qdrant.PointStruct, len(points))
 	for i, p := range points {
@@ -239,7 +294,7 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 		}
 	}
 
-	_, err := q.client.Upsert(ctx, &qdrant.UpsertPoints{
+	_, err = client.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: collection,
 		Points:         qdrantPoints,
 	})
@@ -362,6 +417,10 @@ func (r SearchResult) GetCategory() string {
 // results, _ := client.Search(ctx, "project-docs", vector, 5, nil)
 // results, _ := client.Search(ctx, "project-docs", vector, 5, map[string]string{"source": "docs"})
 func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
+	client, err := q.api()
+	if err != nil {
+		return nil, err
+	}
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
@@ -379,7 +438,7 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		}
 	}
 
-	resp, err := q.client.Query(ctx, query)
+	resp, err := client.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}

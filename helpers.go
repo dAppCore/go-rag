@@ -4,10 +4,29 @@ import (
 	"context"
 	"sync"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 const maxConcurrentEmbeddings = 8
+
+type defaultQdrantClient interface {
+	VectorStore
+	Close() error
+	HealthCheck(context.Context) error
+}
+
+type defaultOllamaClient interface {
+	Embedder
+	VerifyModel(context.Context) error
+}
+
+var newDefaultQdrantClient = func() (defaultQdrantClient, error) {
+	return NewQdrantClient(DefaultQdrantConfig())
+}
+
+var newDefaultOllamaClient = func() (defaultOllamaClient, error) {
+	return NewOllamaClient(DefaultOllamaConfig())
+}
 
 // QueryWith queries the vector store using the provided embedder and store.
 // QueryWith(ctx, store, embedder, "how do goroutines work?", "project-docs", 5)
@@ -55,13 +74,13 @@ func IngestFileWith(ctx context.Context, store VectorStore, embedder Embedder, f
 // QueryDocs queries the RAG database with default clients.
 // QueryDocs(ctx, "how do goroutines work?", "project-docs", 5)
 func QueryDocs(ctx context.Context, question, collectionName string, topK int) ([]QueryResult, error) {
-	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
+	qdrantClient, err := newDefaultQdrantClient()
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = qdrantClient.Close() }()
 
-	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
+	ollamaClient, err := newDefaultOllamaClient()
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +101,7 @@ func QueryDocsContext(ctx context.Context, question, collectionName string, topK
 // IngestDirectory ingests all documents in a directory with default clients.
 // IngestDirectory(ctx, "./docs", "project-docs", true)
 func IngestDirectory(ctx context.Context, directory, collectionName string, recreateCollection bool) error {
-	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
+	qdrantClient, err := newDefaultQdrantClient()
 	if err != nil {
 		return err
 	}
@@ -92,7 +111,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 		return core.E("rag.IngestDirectory", "qdrant health check failed", err)
 	}
 
-	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
+	ollamaClient, err := newDefaultOllamaClient()
 	if err != nil {
 		return err
 	}
@@ -107,7 +126,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 // IngestSingleFile ingests a single file with default clients.
 // IngestSingleFile(ctx, "./docs/guide.md", "project-docs")
 func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int, error) {
-	qdrantClient, err := NewQdrantClient(DefaultQdrantConfig())
+	qdrantClient, err := newDefaultQdrantClient()
 	if err != nil {
 		return 0, err
 	}
@@ -117,7 +136,7 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) (int
 		return 0, core.E("rag.IngestSingleFile", "qdrant health check failed", err)
 	}
 
-	ollamaClient, err := NewOllamaClient(DefaultOllamaConfig())
+	ollamaClient, err := newDefaultOllamaClient()
 	if err != nil {
 		return 0, err
 	}

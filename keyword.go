@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // KeywordResult represents a keyword-search hit with TF-IDF score and

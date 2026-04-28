@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
+	"dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/core"
 	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"unicode"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // ChunkConfig holds chunking configuration.
@@ -230,7 +230,9 @@ func splitLongTextByWords(text string, size int) iter.Seq[string] {
 			}
 		}
 
-		_ = flush()
+		if !flush() {
+			return
+		}
 	}
 }
 

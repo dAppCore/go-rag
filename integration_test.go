@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // skipIfServicesUnavailable skips the test if either Qdrant or Ollama is not

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // --- Ingest (directory) tests with mocks ---

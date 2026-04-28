@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // --- Embedding benchmarks (Ollama on ROCm GPU) ---

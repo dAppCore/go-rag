@@ -7,7 +7,7 @@ import (
 	"math"
 	"slices"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 const missingChunkIndex = -1

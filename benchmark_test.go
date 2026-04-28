@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // generateMarkdownDoc creates a ~10KB markdown document for benchmarking.

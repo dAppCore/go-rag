@@ -3,7 +3,7 @@ package rag
 import (
 	"testing"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 func TestChunk_ChunkMarkdown_Good_SmallSection(t *testing.T) {
@@ -352,7 +352,10 @@ func TestChunk_DefaultChunkConfig_Good(t *testing.T) {
 }
 
 func TestChunk_FileExtensions_Good(t *testing.T) {
-	assertEqual(t, []string{".md", ".markdown", ".pdf", ".txt"}, FileExtensions())
+	extensions := FileExtensions()
+
+	assertEqual(t, []string{".md", ".markdown", ".pdf", ".txt"}, extensions)
+	assertLen(t, extensions, 4)
 }
 
 func TestChunk_DefaultIngestConfig_Good(t *testing.T) {

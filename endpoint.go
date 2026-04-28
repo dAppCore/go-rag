@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // parseEndpointURL normalises host-style endpoints into a parsed URL.

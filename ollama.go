@@ -10,7 +10,7 @@ import (
 	// Note: AX-6 - http.Client timeout is expressed as time.Duration; core has no duration primitive.
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"github.com/ollama/ollama/api"
 )
 
@@ -62,6 +62,9 @@ type OllamaClient struct {
 // NewOllamaClient creates a new Ollama client.
 // client, err := NewOllamaClient(DefaultOllamaConfig())
 func NewOllamaClient(cfg OllamaConfig) (*OllamaClient, error) {
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		return nil, core.E("rag.Ollama", core.Sprintf("port out of range: %d", cfg.Port), nil)
+	}
 	scheme := cfg.Scheme
 	if scheme == "" {
 		scheme = "http"

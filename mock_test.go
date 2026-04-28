@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // mockEmbedder is a test-only Embedder that returns deterministic vectors.
