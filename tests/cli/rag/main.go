@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
+	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
 	ragcmd "dappco.re/go/rag/cmd/rag"
 )
@@ -13,10 +11,10 @@ func main() {
 	ai := cli.NewGroup("ai", "", "")
 	root.AddCommand(ai)
 	ragcmd.AddRAGSubcommands(ai)
-	root.SetArgs(os.Args[1:])
+	root.SetArgs(core.Args()[1:])
 
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		core.Print(core.Stderr(), "%v", err)
+		core.Exit(1)
 	}
 }

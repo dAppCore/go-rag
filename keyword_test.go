@@ -3,6 +3,8 @@ package rag
 import (
 	"context"
 	"testing"
+
+	"dappco.re/go"
 )
 
 // --- KeywordFilter tests ---
@@ -178,7 +180,7 @@ func TestKeyword_KeywordFilterSeq_Good(t *testing.T) {
 
 // --- extractKeywords tests ---
 
-func TestKeyword_ExtractKeywords_Good(t *testing.T) {
+func TestKeyword_extractKeywords_Good(t *testing.T) {
 	t.Run("extracts words 3+ characters", func(t *testing.T) {
 		keywords := extractKeywords("how do I use Go modules")
 		assertContains(t, keywords, "how")
@@ -216,6 +218,8 @@ func TestKeyword_ExtractKeywords_Good(t *testing.T) {
 // --- KeywordIndex tests ---
 
 func TestKeyword_KeywordIndex_Good(t *testing.T) {
+	var _ *KeywordIndex
+
 	t.Run("indexes chunks and reports length", func(t *testing.T) {
 		chunks := []Chunk{
 			{Text: "authentication guide for setup", Section: "Auth", Index: 0},
@@ -328,6 +332,8 @@ func TestKeyword_KeywordIndex_Bad(t *testing.T) {
 }
 
 func TestKeyword_KeywordIndex_Ugly(t *testing.T) {
+	var _ *KeywordIndex
+
 	t.Run("empty query returns nil", func(t *testing.T) {
 		chunks := []Chunk{{Text: "some chunk text", Index: 0}}
 		idx := NewKeywordIndex(chunks)
@@ -407,7 +413,7 @@ func TestKeyword_SearchKeywords_Good(t *testing.T) {
 
 // --- Query with Keywords integration ---
 
-func TestKeyword_QueryKeywords_Good(t *testing.T) {
+func TestKeywordQueryKeywordsBoosting(t *testing.T) {
 	t.Run("keywords flag enables keyword boosting", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.points["test-col"] = []Point{
@@ -464,4 +470,260 @@ func TestKeyword_QueryKeywords_Good(t *testing.T) {
 		// Without keywords, original order preserved (first has higher score)
 		assertEqual(t, "First result text.", results[0].Text)
 	})
+}
+
+func TestKeyword_KeywordResult_GetText_Good(t *core.T) {
+	result := KeywordResult{Text: "kubernetes deployment"}
+
+	core.AssertEqual(t, "kubernetes deployment", result.GetText())
+	core.AssertNotEmpty(t, result.GetText())
+}
+
+func TestKeyword_KeywordResult_GetText_Bad(t *core.T) {
+	result := KeywordResult{}
+
+	core.AssertEqual(t, "", result.GetText())
+	core.AssertEmpty(t, result.GetText())
+}
+
+func TestKeyword_KeywordResult_GetText_Ugly(t *core.T) {
+	result := KeywordResult{Text: "emoji 😀 deployment"}
+
+	core.AssertContains(t, result.GetText(), "😀")
+	core.AssertEqual(t, "emoji 😀 deployment", result.GetText())
+}
+
+func TestKeyword_KeywordResult_GetScore_Good(t *core.T) {
+	result := KeywordResult{Score: 0.75}
+
+	core.AssertEqual(t, float32(0.75), result.GetScore())
+	core.AssertGreater(t, result.GetScore(), float32(0))
+}
+
+func TestKeyword_KeywordResult_GetScore_Bad(t *core.T) {
+	result := KeywordResult{}
+
+	core.AssertEqual(t, float32(0), result.GetScore())
+	core.AssertFalse(t, result.GetScore() > 0)
+}
+
+func TestKeyword_KeywordResult_GetScore_Ugly(t *core.T) {
+	result := KeywordResult{Score: -1}
+
+	core.AssertEqual(t, float32(-1), result.GetScore())
+	core.AssertLess(t, result.GetScore(), float32(0))
+}
+
+func TestKeyword_KeywordResult_GetSource_Good(t *core.T) {
+	result := KeywordResult{Source: "docs/search.md"}
+
+	core.AssertEqual(t, "docs/search.md", result.GetSource())
+	core.AssertContains(t, result.GetSource(), "docs")
+}
+
+func TestKeyword_KeywordResult_GetSource_Bad(t *core.T) {
+	result := KeywordResult{}
+
+	core.AssertEqual(t, "", result.GetSource())
+	core.AssertEmpty(t, result.GetSource())
+}
+
+func TestKeyword_KeywordResult_GetSource_Ugly(t *core.T) {
+	result := KeywordResult{Source: "docs/space name.md"}
+
+	core.AssertContains(t, result.GetSource(), "space name")
+	core.AssertEqual(t, "docs/space name.md", result.GetSource())
+}
+
+func TestKeyword_KeywordResult_HasChunkIndex_Good(t *core.T) {
+	result := KeywordResult{ChunkIndex: 3}
+
+	core.AssertTrue(t, result.HasChunkIndex())
+	core.AssertEqual(t, 3, result.GetChunkIndex())
+}
+
+func TestKeyword_KeywordResult_HasChunkIndex_Bad(t *core.T) {
+	result := KeywordResult{}
+
+	core.AssertTrue(t, result.HasChunkIndex())
+	core.AssertEqual(t, 0, result.GetChunkIndex())
+}
+
+func TestKeyword_KeywordResult_HasChunkIndex_Ugly(t *core.T) {
+	result := KeywordResult{ChunkIndex: -9}
+
+	core.AssertTrue(t, result.HasChunkIndex())
+	core.AssertEqual(t, -9, result.GetChunkIndex())
+}
+
+func TestKeyword_KeywordResult_GetChunkIndex_Good(t *core.T) {
+	result := KeywordResult{ChunkIndex: 7}
+
+	core.AssertEqual(t, 7, result.GetChunkIndex())
+	core.AssertGreater(t, result.GetChunkIndex(), 0)
+}
+
+func TestKeyword_KeywordResult_GetChunkIndex_Bad(t *core.T) {
+	result := KeywordResult{}
+
+	core.AssertEqual(t, 0, result.GetChunkIndex())
+	core.AssertFalse(t, result.GetChunkIndex() > 0)
+}
+
+func TestKeyword_KeywordResult_GetChunkIndex_Ugly(t *core.T) {
+	result := KeywordResult{ChunkIndex: -1}
+
+	core.AssertEqual(t, -1, result.GetChunkIndex())
+	core.AssertLess(t, result.GetChunkIndex(), 0)
+}
+
+func TestKeyword_NewKeywordIndex_Good(t *core.T) {
+	idx := NewKeywordIndex([]Chunk{{Text: "Kubernetes deployment guide", Index: 0}})
+
+	core.AssertNotNil(t, idx)
+	core.AssertEqual(t, 1, idx.Len())
+}
+
+func TestKeyword_NewKeywordIndex_Bad(t *core.T) {
+	idx := NewKeywordIndex(nil)
+
+	core.AssertNotNil(t, idx)
+	core.AssertEqual(t, 0, idx.Len())
+}
+
+func TestKeyword_NewKeywordIndex_Ugly(t *core.T) {
+	source := []Chunk{{Text: "Mutable text", Index: 0}}
+	idx := NewKeywordIndex(source)
+	source[0].Text = "Changed"
+
+	core.AssertEqual(t, 1, idx.Len())
+	core.AssertEqual(t, "Mutable text", idx.Search("mutable", 1)[0].Text)
+}
+
+func TestKeyword_KeywordIndex_Len_Good(t *core.T) {
+	idx := NewKeywordIndex([]Chunk{{Text: "alpha"}, {Text: "beta"}})
+
+	core.AssertEqual(t, 2, idx.Len())
+	core.AssertGreater(t, idx.Len(), 1)
+}
+
+func TestKeyword_KeywordIndex_Len_Bad(t *core.T) {
+	var idx *KeywordIndex
+
+	core.AssertEqual(t, 0, idx.Len())
+	core.AssertFalse(t, idx.Len() > 0)
+}
+
+func TestKeyword_KeywordIndex_Len_Ugly(t *core.T) {
+	idx := NewKeywordIndex([]Chunk{{Text: ""}})
+
+	core.AssertEqual(t, 1, idx.Len())
+	core.AssertEmpty(t, idx.Search("missing", 5))
+}
+
+func TestKeyword_KeywordIndex_Search_Good(t *core.T) {
+	idx := NewKeywordIndex([]Chunk{{Text: "Kubernetes deployment", Section: "Ops", Index: 4}})
+	results := idx.Search("kubernetes", 5)
+
+	core.AssertLen(t, results, 1)
+	core.AssertEqual(t, 4, results[0].ChunkIndex)
+}
+
+func TestKeyword_KeywordIndex_Search_Bad(t *core.T) {
+	idx := NewKeywordIndex([]Chunk{{Text: "Kubernetes deployment"}})
+	results := idx.Search("zzzz", 5)
+
+	core.AssertEmpty(t, results)
+	core.AssertEqual(t, 0, len(results))
+}
+
+func TestKeyword_KeywordIndex_Search_Ugly(t *core.T) {
+	idx := NewKeywordIndex([]Chunk{{Text: "golang golang golang"}, {Text: "golang deployment"}})
+	results := idx.Search("golang golang", 1)
+
+	core.AssertLen(t, results, 1)
+	core.AssertContains(t, results[0].Text, "golang")
+}
+
+func TestKeyword_SearchKeywords_Bad(t *core.T) {
+	results := SearchKeywords(nil, "kubernetes", 5)
+
+	core.AssertEmpty(t, results)
+	core.AssertEqual(t, 0, len(results))
+}
+
+func TestKeyword_SearchKeywords_Ugly(t *core.T) {
+	chunks := []Chunk{{Text: "alpha beta", Index: 0}, {Text: "alpha gamma", Index: 1}}
+	results := SearchKeywords(chunks, "alpha alpha", 10)
+
+	core.AssertLen(t, results, 2)
+	core.AssertGreaterOrEqual(t, results[0].Score, results[1].Score)
+}
+
+func TestKeyword_SearchKeywordsSeq_Good(t *core.T) {
+	var results []KeywordResult
+	for result := range SearchKeywordsSeq([]Chunk{{Text: "searchable deployment", Index: 0}}, "deployment", 3) {
+		results = append(results, result)
+	}
+
+	core.AssertLen(t, results, 1)
+	core.AssertEqual(t, 0, results[0].ChunkIndex)
+}
+
+func TestKeyword_SearchKeywordsSeq_Bad(t *core.T) {
+	var results []KeywordResult
+	for result := range SearchKeywordsSeq(nil, "deployment", 3) {
+		results = append(results, result)
+	}
+
+	core.AssertEmpty(t, results)
+	core.AssertEqual(t, 0, len(results))
+}
+
+func TestKeyword_SearchKeywordsSeq_Ugly(t *core.T) {
+	count := 0
+	for range SearchKeywordsSeq([]Chunk{{Text: "alpha beta"}, {Text: "alpha gamma"}}, "alpha", 2) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+	core.AssertTrue(t, count < 2)
+}
+
+func TestKeyword_KeywordFilter_Bad(t *core.T) {
+	results := []QueryResult{{Text: "alpha", Score: 0.5}}
+	filtered := KeywordFilter(results, nil)
+
+	core.AssertEqual(t, results, filtered)
+	core.AssertEqual(t, float32(0.5), filtered[0].Score)
+}
+
+func TestKeyword_KeywordFilter_Ugly(t *core.T) {
+	results := []QueryResult{{Text: "Kubernetes deployment", Score: 1}, {Text: "Other", Score: 1}}
+	filtered := KeywordFilter(results, []string{"kubernetes", "kubernetes", ""})
+
+	core.AssertEqual(t, "Kubernetes deployment", filtered[0].Text)
+	core.AssertGreater(t, filtered[0].Score, filtered[1].Score)
+}
+
+func TestKeyword_KeywordFilterSeq_Bad(t *core.T) {
+	var results []QueryResult
+	for result := range KeywordFilterSeq(nil, []string{"alpha"}) {
+		results = append(results, result)
+	}
+
+	core.AssertEmpty(t, results)
+	core.AssertEqual(t, 0, len(results))
+}
+
+func TestKeyword_KeywordFilterSeq_Ugly(t *core.T) {
+	var results []QueryResult
+	input := []QueryResult{{Text: "alpha match", Score: 0.5}, {Text: "beta", Score: 0.6}}
+	for result := range KeywordFilterSeq(input, []string{"alpha"}) {
+		results = append(results, result)
+	}
+
+	core.AssertLen(t, results, 2)
+	core.AssertGreater(t, results[0].Score, float32(0.5))
 }

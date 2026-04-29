@@ -265,3 +265,248 @@ func TestHelpers_JoinResults_Good(t *testing.T) {
 		assertEqual(t, "", JoinResults([]QueryResult{}))
 	})
 }
+
+type testDefaultQdrant struct {
+	*mockVectorStore
+	healthErr error
+	closeErr  error
+}
+
+func (s *testDefaultQdrant) HealthCheck(core.Context) error {
+	return s.healthErr
+}
+
+func (s *testDefaultQdrant) Close() error {
+	return s.closeErr
+}
+
+type testDefaultOllama struct {
+	*mockEmbedder
+	verifyErr error
+}
+
+func (e *testDefaultOllama) VerifyModel(core.Context) error {
+	return e.verifyErr
+}
+
+func installDefaultClients(t *core.T, store defaultQdrantClient, embedder defaultOllamaClient) {
+	t.Helper()
+	oldQdrant := newDefaultQdrantClient
+	oldOllama := newDefaultOllamaClient
+	newDefaultQdrantClient = func() (defaultQdrantClient, error) { return store, nil }
+	newDefaultOllamaClient = func() (defaultOllamaClient, error) { return embedder, nil }
+	t.Cleanup(func() {
+		newDefaultQdrantClient = oldQdrant
+		newDefaultOllamaClient = oldOllama
+	})
+}
+
+func TestHelpers_IngestDirWith_Bad(t *core.T) {
+	err := IngestDirWith(core.Background(), newMockVectorStore(), newMockEmbedder(2), core.PathJoin(t.TempDir(), "missing"), "docs", false)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "accessing directory")
+}
+
+func TestHelpers_IngestDirWith_Ugly(t *core.T) {
+	dir := t.TempDir()
+	err := IngestDirWith(core.Background(), newMockVectorStore(), newMockEmbedder(2), dir, "docs", true)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "no matching files")
+}
+
+func TestHelpers_IngestFileWith_Bad(t *core.T) {
+	count, err := IngestFileWith(core.Background(), newMockVectorStore(), newMockEmbedder(2), core.PathJoin(t.TempDir(), "missing.md"), "docs")
+
+	core.AssertError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestHelpers_IngestFileWith_Ugly(t *core.T) {
+	path := core.PathJoin(t.TempDir(), "empty.md")
+	writeFile(t, path, "")
+	count, err := IngestFileWith(core.Background(), newMockVectorStore(), newMockEmbedder(2), path, "docs")
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestHelpers_QueryDocs_Good(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return []SearchResult{{Score: 1, Payload: map[string]any{"text": "answer", "source": "a.md", "chunk_index": 0}}}, nil
+	}
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	results, err := QueryDocs(core.Background(), "question", "docs", 3)
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "answer", results[0].Text)
+}
+
+func TestHelpers_QueryDocs_Bad(t *core.T) {
+	oldQdrant := newDefaultQdrantClient
+	newDefaultQdrantClient = func() (defaultQdrantClient, error) { return nil, core.NewError("factory failed") }
+	t.Cleanup(func() { newDefaultQdrantClient = oldQdrant })
+	results, err := QueryDocs(core.Background(), "question", "docs", 3)
+
+	core.AssertError(t, err)
+	core.AssertNil(t, results)
+}
+
+func TestHelpers_QueryDocs_Ugly(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore(), closeErr: core.NewError("close ignored")}
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) { return nil, nil }
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	results, err := QueryDocs(core.Background(), "question", "docs", -1)
+
+	core.AssertNoError(t, err)
+	core.AssertEmpty(t, results)
+}
+
+func TestHelpers_QueryDocsContext_Good(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return []SearchResult{{Score: 1, Payload: map[string]any{"text": "context answer", "source": "a.md", "chunk_index": 0}}}, nil
+	}
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	text, err := QueryDocsContext(core.Background(), "question", "docs", 3)
+
+	core.AssertNoError(t, err)
+	core.AssertContains(t, text, "context answer")
+}
+
+func TestHelpers_QueryDocsContext_Bad(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	embedder := &testDefaultOllama{mockEmbedder: newMockEmbedder(2)}
+	embedder.embedErr = core.NewError("embed failed")
+	installDefaultClients(t, store, embedder)
+	text, err := QueryDocsContext(core.Background(), "question", "docs", 3)
+
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", text)
+}
+
+func TestHelpers_QueryDocsContext_Ugly(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) { return nil, nil }
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	text, err := QueryDocsContext(core.Background(), "question", "docs", 3)
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "", text)
+}
+
+func TestHelpers_IngestDirectory_Good(t *core.T) {
+	dir := t.TempDir()
+	writeFile(t, core.PathJoin(dir, "guide.md"), "# Guide\n\nHello world.")
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	err := IngestDirectory(core.Background(), dir, "docs", false)
+
+	core.AssertNoError(t, err)
+	core.AssertLen(t, store.points["docs"], 1)
+}
+
+func TestHelpers_IngestDirectory_Bad(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore(), healthErr: core.NewError("health failed")}
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	err := IngestDirectory(core.Background(), t.TempDir(), "docs", false)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "health check")
+}
+
+func TestHelpers_IngestDirectory_Ugly(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	embedder := &testDefaultOllama{mockEmbedder: newMockEmbedder(2), verifyErr: core.NewError("model missing")}
+	installDefaultClients(t, store, embedder)
+	err := IngestDirectory(core.Background(), t.TempDir(), "docs", false)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "model missing")
+}
+
+func TestHelpers_IngestSingleFile_Good(t *core.T) {
+	path := core.PathJoin(t.TempDir(), "guide.md")
+	writeFile(t, path, "# Guide\n\nHello world.")
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	count, err := IngestSingleFile(core.Background(), path, "docs")
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 1, count)
+}
+
+func TestHelpers_IngestSingleFile_Bad(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore(), healthErr: core.NewError("health failed")}
+	installDefaultClients(t, store, &testDefaultOllama{mockEmbedder: newMockEmbedder(2)})
+	count, err := IngestSingleFile(core.Background(), core.PathJoin(t.TempDir(), "guide.md"), "docs")
+
+	core.AssertError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestHelpers_IngestSingleFile_Ugly(t *core.T) {
+	store := &testDefaultQdrant{mockVectorStore: newMockVectorStore()}
+	embedder := &testDefaultOllama{mockEmbedder: newMockEmbedder(2), verifyErr: core.NewError("model missing")}
+	installDefaultClients(t, store, embedder)
+	count, err := IngestSingleFile(core.Background(), core.PathJoin(t.TempDir(), "guide.md"), "docs")
+
+	core.AssertError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestHelpers_QueryWith_Bad(t *core.T) {
+	embedder := newMockEmbedder(2)
+	embedder.embedErr = core.NewError("embed failed")
+	_, err := QueryWith(core.Background(), newMockVectorStore(), embedder, "query", "docs", 3)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "embedding")
+}
+
+func TestHelpers_QueryWith_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return []SearchResult{{Score: 1, Payload: map[string]any{"text": "hit"}}}, nil
+	}
+	results, err := QueryWith(core.Background(), store, newMockEmbedder(2), "query", "docs", -1)
+
+	core.AssertNoError(t, err)
+	core.AssertEmpty(t, results)
+}
+
+func TestHelpers_QueryContextWith_Bad(t *core.T) {
+	embedder := newMockEmbedder(2)
+	embedder.embedErr = core.NewError("embed failed")
+	text, err := QueryContextWith(core.Background(), newMockVectorStore(), embedder, "query", "docs", 3)
+
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", text)
+}
+
+func TestHelpers_QueryContextWith_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return nil, nil
+	}
+	text, err := QueryContextWith(core.Background(), store, newMockEmbedder(2), "query", "docs", 3)
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "", text)
+}
+
+func TestHelpers_JoinResults_Bad(t *core.T) {
+	output := JoinResults[QueryResult](nil)
+
+	core.AssertEqual(t, "", output)
+	core.AssertEmpty(t, output)
+}
+
+func TestHelpers_JoinResults_Ugly(t *core.T) {
+	output := JoinResults([]QueryResult{{Text: "  Alpha  "}, {Text: ""}, {Text: "\nBeta\n"}})
+
+	core.AssertEqual(t, "Alpha\n\nBeta", output)
+	core.AssertNotContains(t, output, "\n\n\n")
+}

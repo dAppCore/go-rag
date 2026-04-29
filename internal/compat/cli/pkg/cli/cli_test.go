@@ -2,7 +2,7 @@ package cli
 
 import "testing"
 
-func TestAX7_ExactArgs_Good(t *testing.T) {
+func TestCli_ExactArgs_Good(t *testing.T) {
 	validator := ExactArgs(2)
 	err := validator(&Command{}, []string{"one", "two"})
 
@@ -11,7 +11,7 @@ func TestAX7_ExactArgs_Good(t *testing.T) {
 	}
 }
 
-func TestAX7_ExactArgs_Bad(t *testing.T) {
+func TestCli_ExactArgs_Bad(t *testing.T) {
 	validator := ExactArgs(2)
 	err := validator(&Command{}, []string{"one"})
 
@@ -20,7 +20,7 @@ func TestAX7_ExactArgs_Bad(t *testing.T) {
 	}
 }
 
-func TestAX7_ExactArgs_Ugly(t *testing.T) {
+func TestCli_ExactArgs_Ugly(t *testing.T) {
 	validator := ExactArgs(0)
 	err := validator(&Command{}, nil)
 
@@ -29,7 +29,7 @@ func TestAX7_ExactArgs_Ugly(t *testing.T) {
 	}
 }
 
-func TestAX7_MaximumNArgs_Good(t *testing.T) {
+func TestCli_MaximumNArgs_Good(t *testing.T) {
 	validator := MaximumNArgs(2)
 	err := validator(&Command{}, []string{"one"})
 
@@ -38,7 +38,7 @@ func TestAX7_MaximumNArgs_Good(t *testing.T) {
 	}
 }
 
-func TestAX7_MaximumNArgs_Bad(t *testing.T) {
+func TestCli_MaximumNArgs_Bad(t *testing.T) {
 	validator := MaximumNArgs(1)
 	err := validator(&Command{}, []string{"one", "two"})
 
@@ -47,7 +47,7 @@ func TestAX7_MaximumNArgs_Bad(t *testing.T) {
 	}
 }
 
-func TestAX7_MaximumNArgs_Ugly(t *testing.T) {
+func TestCli_MaximumNArgs_Ugly(t *testing.T) {
 	validator := MaximumNArgs(0)
 	err := validator(&Command{}, nil)
 
@@ -56,7 +56,7 @@ func TestAX7_MaximumNArgs_Ugly(t *testing.T) {
 	}
 }
 
-func TestAX7_NewGroup_Good(t *testing.T) {
+func TestCli_NewGroup_Good(t *testing.T) {
 	cmd := NewGroup("rag", "short", "long")
 
 	if cmd.Use != "rag" {
@@ -67,7 +67,7 @@ func TestAX7_NewGroup_Good(t *testing.T) {
 	}
 }
 
-func TestAX7_NewGroup_Bad(t *testing.T) {
+func TestCli_NewGroup_Bad(t *testing.T) {
 	cmd := NewGroup("", "", "")
 
 	if cmd.Use != "" {
@@ -78,7 +78,7 @@ func TestAX7_NewGroup_Bad(t *testing.T) {
 	}
 }
 
-func TestAX7_NewGroup_Ugly(t *testing.T) {
+func TestCli_NewGroup_Ugly(t *testing.T) {
 	cmd := NewGroup("rag", "", "")
 
 	if cmd.Short != "" {
@@ -89,7 +89,7 @@ func TestAX7_NewGroup_Ugly(t *testing.T) {
 	}
 }
 
-func TestAX7_Style_Render_Good(t *testing.T) {
+func TestCli_Style_Render_Good(t *testing.T) {
 	style := Style{}
 	got := style.Render("Collections")
 
@@ -98,7 +98,7 @@ func TestAX7_Style_Render_Good(t *testing.T) {
 	}
 }
 
-func TestAX7_Style_Render_Bad(t *testing.T) {
+func TestCli_Style_Render_Bad(t *testing.T) {
 	style := Style{}
 	got := style.Render("")
 
@@ -107,7 +107,7 @@ func TestAX7_Style_Render_Bad(t *testing.T) {
 	}
 }
 
-func TestAX7_Style_Render_Ugly(t *testing.T) {
+func TestCli_Style_Render_Ugly(t *testing.T) {
 	style := Style{}
 	got := style.Render("emoji 😀")
 

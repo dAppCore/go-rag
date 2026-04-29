@@ -176,3 +176,76 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 		assertEqual(t, "hnsw", info.Index)
 	})
 }
+
+func TestCollections_ListCollections_Bad(t *core.T) {
+	store := newMockVectorStore()
+	store.listErr = core.NewError("list failed")
+	names, err := ListCollections(core.Background(), store)
+
+	core.AssertError(t, err)
+	core.AssertNil(t, names)
+}
+
+func TestCollections_ListCollections_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	names, err := ListCollections(core.Background(), store)
+
+	core.AssertNoError(t, err)
+	core.AssertEmpty(t, names)
+}
+
+func TestCollections_ListCollectionsSeq_Bad(t *core.T) {
+	store := newMockVectorStore()
+	store.listErr = core.NewError("list failed")
+	seq, err := ListCollectionsSeq(core.Background(), store)
+
+	core.AssertError(t, err)
+	core.AssertNil(t, seq)
+}
+
+func TestCollections_ListCollectionsSeq_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	seq, err := ListCollectionsSeq(core.Background(), store)
+	count := 0
+	for range seq {
+		count++
+	}
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestCollections_DeleteCollection_Bad(t *core.T) {
+	store := newMockVectorStore()
+	store.deleteErr = core.NewError("delete failed")
+	err := DeleteCollection(core.Background(), store, "docs")
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "delete failed")
+}
+
+func TestCollections_DeleteCollection_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	err := DeleteCollection(core.Background(), store, "")
+
+	core.AssertNoError(t, err)
+	core.AssertLen(t, store.deleteCalls, 1)
+}
+
+func TestCollections_CollectionStats_Bad(t *core.T) {
+	store := newMockVectorStore()
+	store.infoErr = core.NewError("info failed")
+	info, err := CollectionStats(core.Background(), store, "docs")
+
+	core.AssertError(t, err)
+	core.AssertNil(t, info)
+}
+
+func TestCollections_CollectionStats_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	store.collections["empty"] = 384
+	info, err := CollectionStats(core.Background(), store, "empty")
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, uint64(0), info.PointCount)
+}

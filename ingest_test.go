@@ -518,3 +518,60 @@ func writeFile(t testing.TB, path string, content string) {
 	result := (&core.Fs{}).NewUnrestricted().Write(path, content)
 	assertTruef(t, result.OK, "write %s: %v", path, result.Value)
 }
+
+func TestIngest_DefaultIngestConfig_Good(t *core.T) {
+	cfg := DefaultIngestConfig()
+
+	core.AssertEqual(t, "hostuk-docs", cfg.Collection)
+	core.AssertEqual(t, 100, cfg.BatchSize)
+	core.AssertEqual(t, DefaultChunkConfig(), cfg.Chunk)
+}
+
+func TestIngest_DefaultIngestConfig_Bad(t *core.T) {
+	cfg := DefaultIngestConfig()
+
+	core.AssertNotEqual(t, "", cfg.Collection)
+	core.AssertNotEqual(t, 0, cfg.BatchSize)
+}
+
+func TestIngest_DefaultIngestConfig_Ugly(t *core.T) {
+	cfg := DefaultIngestConfig()
+	cfg.Collection = "mutated"
+
+	core.AssertEqual(t, "hostuk-docs", DefaultIngestConfig().Collection)
+	core.AssertEqual(t, "mutated", cfg.Collection)
+}
+
+func TestIngest_Ingest_Bad(t *core.T) {
+	dir := t.TempDir()
+	path := core.PathJoin(dir, "not-dir.md")
+	writeFile(t, path, "content")
+	_, err := Ingest(core.Background(), newMockVectorStore(), newMockEmbedder(2), IngestConfig{Directory: path, Collection: "docs", Chunk: DefaultChunkConfig()}, nil)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "not a directory")
+}
+
+func TestIngest_Ingest_Ugly(t *core.T) {
+	dir := t.TempDir()
+	_, err := Ingest(core.Background(), newMockVectorStore(), newMockEmbedder(2), IngestConfig{Directory: dir, Collection: "docs", Chunk: DefaultChunkConfig()}, nil)
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "no matching files")
+}
+
+func TestIngest_IngestFile_Bad(t *core.T) {
+	count, err := IngestFile(core.Background(), newMockVectorStore(), newMockEmbedder(2), "docs", core.PathJoin(t.TempDir(), "missing.md"), DefaultChunkConfig())
+
+	core.AssertError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestIngest_IngestFile_Ugly(t *core.T) {
+	path := core.PathJoin(t.TempDir(), "empty.md")
+	writeFile(t, path, " \n\t")
+	count, err := IngestFile(core.Background(), newMockVectorStore(), newMockEmbedder(2), "docs", path, DefaultChunkConfig())
+
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 0, count)
+}

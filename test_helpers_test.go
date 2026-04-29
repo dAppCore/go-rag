@@ -1,11 +1,11 @@
 package rag
 
 import (
-	"fmt"
 	"math"
 	"reflect"
-	"strings"
 	"testing"
+
+	core "dappco.re/go"
 )
 
 type assertionHelper struct{}
@@ -357,7 +357,7 @@ func failf(t testing.TB, format string, args []any, msgAndArgs ...any) bool {
 	t.Helper()
 	detail := format
 	if len(args) > 0 {
-		detail = fmt.Sprintf(format, args...)
+		detail = core.Sprintf(format, args...)
 	}
 	if msg := assertionMessage(msgAndArgs...); msg != "" {
 		t.Fatalf("%s: %s", msg, detail)
@@ -373,12 +373,12 @@ func assertionMessage(msgAndArgs ...any) string {
 	}
 	format, ok := msgAndArgs[0].(string)
 	if !ok {
-		return fmt.Sprint(msgAndArgs...)
+		return core.Sprint(msgAndArgs...)
 	}
 	if len(msgAndArgs) == 1 {
 		return format
 	}
-	return fmt.Sprintf(format, msgAndArgs[1:]...)
+	return core.Sprintf(format, msgAndArgs[1:]...)
 }
 
 // isNil reports whether value is nil, including typed nil values.
@@ -440,14 +440,14 @@ func contains(value any, element any) (bool, bool) {
 	}
 	if s, ok := value.(string); ok {
 		sub, ok := element.(string)
-		return ok && strings.Contains(s, sub), ok
+		return ok && core.Contains(s, sub), ok
 	}
 
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
 	case reflect.String:
 		sub, ok := element.(string)
-		return ok && strings.Contains(v.String(), sub), ok
+		return ok && core.Contains(v.String(), sub), ok
 	case reflect.Array, reflect.Slice:
 		for i := 0; i < v.Len(); i++ {
 			if reflect.DeepEqual(v.Index(i).Interface(), element) {
@@ -480,7 +480,7 @@ func compareOrdered(left any, right any) (int, bool) {
 		if !ok {
 			return 0, false
 		}
-		return strings.Compare(leftString, rightString), true
+		return core.Compare(leftString, rightString), true
 	}
 
 	leftNumber, leftOK := number(left)

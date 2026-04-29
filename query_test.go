@@ -529,3 +529,247 @@ func TestQuery_Rank_Good_ChunklessSourceKeepsDistinctText(t *testing.T) {
 	assertEqual(t, "first chunkless hit", ranked[0].Text)
 	assertEqual(t, "second chunkless hit", ranked[1].Text)
 }
+
+func TestQuery_QueryResult_GetText_Good(t *core.T) {
+	result := QueryResult{Text: "answer text"}
+
+	core.AssertEqual(t, "answer text", result.GetText())
+	core.AssertNotEmpty(t, result.GetText())
+}
+
+func TestQuery_QueryResult_GetText_Bad(t *core.T) {
+	result := QueryResult{}
+
+	core.AssertEqual(t, "", result.GetText())
+	core.AssertEmpty(t, result.GetText())
+}
+
+func TestQuery_QueryResult_GetText_Ugly(t *core.T) {
+	result := QueryResult{Text: "<xml>&text"}
+
+	core.AssertContains(t, result.GetText(), "&")
+	core.AssertEqual(t, "<xml>&text", result.GetText())
+}
+
+func TestQuery_QueryResult_GetScore_Good(t *core.T) {
+	result := QueryResult{Score: 0.8}
+
+	core.AssertEqual(t, float32(0.8), result.GetScore())
+	core.AssertGreater(t, result.GetScore(), float32(0))
+}
+
+func TestQuery_QueryResult_GetScore_Bad(t *core.T) {
+	result := QueryResult{}
+
+	core.AssertEqual(t, float32(0), result.GetScore())
+	core.AssertFalse(t, result.GetScore() > 0)
+}
+
+func TestQuery_QueryResult_GetScore_Ugly(t *core.T) {
+	result := QueryResult{Score: -0.2}
+
+	core.AssertEqual(t, float32(-0.2), result.GetScore())
+	core.AssertLess(t, result.GetScore(), float32(0))
+}
+
+func TestQuery_QueryResult_GetSource_Good(t *core.T) {
+	result := QueryResult{Source: "docs/source.md"}
+
+	core.AssertEqual(t, "docs/source.md", result.GetSource())
+	core.AssertContains(t, result.GetSource(), "source")
+}
+
+func TestQuery_QueryResult_GetSource_Bad(t *core.T) {
+	result := QueryResult{}
+
+	core.AssertEqual(t, "", result.GetSource())
+	core.AssertEmpty(t, result.GetSource())
+}
+
+func TestQuery_QueryResult_GetSource_Ugly(t *core.T) {
+	result := QueryResult{Source: "docs/source with spaces.md"}
+
+	core.AssertContains(t, result.GetSource(), "spaces")
+	core.AssertEqual(t, "docs/source with spaces.md", result.GetSource())
+}
+
+func TestQuery_QueryResult_HasChunkIndex_Good(t *core.T) {
+	result := QueryResult{ChunkIndex: 0, ChunkIndexPresent: true}
+
+	core.AssertTrue(t, result.HasChunkIndex())
+	core.AssertEqual(t, 0, result.GetChunkIndex())
+}
+
+func TestQuery_QueryResult_HasChunkIndex_Bad(t *core.T) {
+	result := QueryResult{}
+
+	core.AssertFalse(t, result.HasChunkIndex())
+	core.AssertEqual(t, missingChunkIndex, result.GetChunkIndex())
+}
+
+func TestQuery_QueryResult_HasChunkIndex_Ugly(t *core.T) {
+	result := QueryResult{Index: 9, IndexPresent: true}
+
+	core.AssertTrue(t, result.HasChunkIndex())
+	core.AssertEqual(t, 9, result.GetChunkIndex())
+}
+
+func TestQuery_QueryResult_GetChunkIndex_Good(t *core.T) {
+	result := QueryResult{ChunkIndex: 5, ChunkIndexPresent: true}
+
+	core.AssertEqual(t, 5, result.GetChunkIndex())
+	core.AssertTrue(t, result.HasChunkIndex())
+}
+
+func TestQuery_QueryResult_GetChunkIndex_Bad(t *core.T) {
+	result := QueryResult{}
+
+	core.AssertEqual(t, missingChunkIndex, result.GetChunkIndex())
+	core.AssertFalse(t, result.HasChunkIndex())
+}
+
+func TestQuery_QueryResult_GetChunkIndex_Ugly(t *core.T) {
+	result := QueryResult{Index: 0, IndexPresent: true}
+
+	core.AssertEqual(t, 0, result.GetChunkIndex())
+	core.AssertTrue(t, result.HasChunkIndex())
+}
+
+func TestQuery_DefaultQueryConfig_Bad(t *core.T) {
+	cfg := DefaultQueryConfig()
+
+	core.AssertNotEqual(t, "", cfg.Collection)
+	core.AssertNotEqual(t, uint64(0), cfg.Limit)
+}
+
+func TestQuery_DefaultQueryConfig_Ugly(t *core.T) {
+	cfg := DefaultQueryConfig()
+	cfg.Collection = "mutated"
+
+	core.AssertEqual(t, "hostuk-docs", DefaultQueryConfig().Collection)
+	core.AssertEqual(t, "mutated", cfg.Collection)
+}
+
+func TestQuery_Rank_Good(t *core.T) {
+	results := []QueryResult{{Text: "low", Score: 0.1}, {Text: "high", Score: 0.9}}
+	ranked := Rank(results, 1)
+
+	core.AssertLen(t, ranked, 1)
+	core.AssertEqual(t, "high", ranked[0].Text)
+}
+
+func TestQuery_Rank_Bad(t *core.T) {
+	ranked := Rank([]QueryResult{{Text: "ignored", Score: 1}}, 0)
+
+	core.AssertEmpty(t, ranked)
+	core.AssertEqual(t, 0, len(ranked))
+}
+
+func TestQuery_Rank_Ugly(t *core.T) {
+	results := []QueryResult{{Text: "dup", Source: "a.md", ChunkIndex: 1, ChunkIndexPresent: true, Score: 0.9}, {Text: "dup", Source: "a.md", ChunkIndex: 1, ChunkIndexPresent: true, Score: 0.8}}
+	ranked := Rank(results, 5)
+
+	core.AssertLen(t, ranked, 1)
+	core.AssertEqual(t, float32(0.9), ranked[0].Score)
+}
+
+func TestQuery_Query_Bad(t *core.T) {
+	store := newMockVectorStore()
+	store.searchErr = core.NewError("search failed")
+	_, err := Query(core.Background(), store, newMockEmbedder(2), "query", DefaultQueryConfig())
+
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "error searching")
+}
+
+func TestQuery_Query_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return []SearchResult{{Score: 0.1, Payload: map[string]any{"text": "low"}}}, nil
+	}
+	results, err := Query(core.Background(), store, newMockEmbedder(2), "query", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.9})
+
+	core.AssertNoError(t, err)
+	core.AssertEmpty(t, results)
+}
+
+func TestQuery_QuerySeq_Good(t *core.T) {
+	store := newMockVectorStore()
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return []SearchResult{{Score: 0.9, Payload: map[string]any{"text": "hit", "source": "a.md", "chunk_index": 0}}}, nil
+	}
+	seq, err := QuerySeq(core.Background(), store, newMockEmbedder(2), "query", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.1})
+
+	var results []QueryResult
+	for result := range seq {
+		results = append(results, result)
+	}
+	core.AssertNoError(t, err)
+	core.AssertLen(t, results, 1)
+}
+
+func TestQuery_QuerySeq_Bad(t *core.T) {
+	embedder := newMockEmbedder(2)
+	embedder.embedErr = core.NewError("embed failed")
+	seq, err := QuerySeq(core.Background(), newMockVectorStore(), embedder, "query", DefaultQueryConfig())
+
+	core.AssertError(t, err)
+	core.AssertNil(t, seq)
+}
+
+func TestQuery_QuerySeq_Ugly(t *core.T) {
+	store := newMockVectorStore()
+	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
+		return []SearchResult{{Score: 1, Payload: map[string]any{"text": "Kubernetes"}}, {Score: 0.95, Payload: map[string]any{"text": "Other"}}}, nil
+	}
+	seq, err := QuerySeq(core.Background(), store, newMockEmbedder(2), "kubernetes", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.1, Keywords: true})
+
+	var results []QueryResult
+	for result := range seq {
+		results = append(results, result)
+	}
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "Kubernetes", results[0].Text)
+}
+
+func TestQuery_FormatResultsText_Bad(t *core.T) {
+	text := FormatResultsText(nil)
+
+	core.AssertEqual(t, "No results found.", text)
+	core.AssertNotContains(t, text, "Result 1")
+}
+
+func TestQuery_FormatResultsText_Ugly(t *core.T) {
+	text := FormatResultsText([]QueryResult{{Text: "", Source: "", Category: "", Score: 0}})
+
+	core.AssertContains(t, text, "score: 0.00")
+	core.AssertContains(t, text, "Category:")
+}
+
+func TestQuery_FormatResultsContext_Bad(t *core.T) {
+	context := FormatResultsContext(nil)
+
+	core.AssertEqual(t, "", context)
+	core.AssertEmpty(t, context)
+}
+
+func TestQuery_FormatResultsContext_Ugly(t *core.T) {
+	context := FormatResultsContext([]QueryResult{{Text: "<tag>&", Source: "a&b.md", Section: "\"sec\""}})
+
+	core.AssertContains(t, context, "&lt;tag&gt;&amp;")
+	core.AssertContains(t, context, "a&amp;b.md")
+}
+
+func TestQuery_FormatResultsJSON_Bad(t *core.T) {
+	json := FormatResultsJSON(nil)
+
+	core.AssertEqual(t, "[]", json)
+	core.AssertLen(t, json, 2)
+}
+
+func TestQuery_FormatResultsJSON_Ugly(t *core.T) {
+	json := FormatResultsJSON([]QueryResult{{Text: "line\nquote\"", Source: "a.md", Score: 0.123456}})
+
+	core.AssertContains(t, json, "0.1235")
+	core.AssertContains(t, json, `quote\"`)
+}
