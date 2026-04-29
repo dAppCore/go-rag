@@ -12,73 +12,78 @@ func ExampleDefaultQdrantConfig() {
 }
 
 func ExampleNewQdrantStore() {
-	client, err := NewQdrantStore("http://localhost:6333")
+	r := NewQdrantStore("http://localhost:6333")
+	client := r.Value.(*QdrantClient)
 	if client != nil {
 		defer client.Close()
 	}
-	core.Println(err == nil, client.config.Port)
+	core.Println(r.OK, client.config.Port)
 	// Output: true 6334
 }
 
 func ExampleNewQdrantClient() {
-	client, err := NewQdrantClient(DefaultQdrantConfig())
+	r := NewQdrantClient(DefaultQdrantConfig())
+	client := r.Value.(*QdrantClient)
 	if client != nil {
 		defer client.Close()
 	}
-	core.Println(err == nil, client != nil)
+	core.Println(r.OK, client != nil)
 	// Output: true true
 }
 
 func ExampleQdrantClient_Close() {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).Close()
-	core.Println(err == nil, fake.closeCalled)
+	r := (&QdrantClient{client: fake}).Close()
+	core.Println(r.OK, fake.closeCalled)
 	// Output: true true
 }
 
 func ExampleQdrantClient_HealthCheck() {
-	err := (&QdrantClient{client: &qdrantTestAPI{}}).HealthCheck(core.Background())
-	core.Println(err == nil)
+	r := (&QdrantClient{client: &qdrantTestAPI{}}).HealthCheck(core.Background())
+	core.Println(r.OK)
 	// Output: true
 }
 
 func ExampleQdrantClient_ListCollections() {
-	names, err := (&QdrantClient{client: &qdrantTestAPI{collections: []string{"docs"}}}).ListCollections(core.Background())
-	core.Println(err == nil, names[0])
+	r := (&QdrantClient{client: &qdrantTestAPI{collections: []string{"docs"}}}).ListCollections(core.Background())
+	names := r.Value.([]string)
+	core.Println(r.OK, names[0])
 	// Output: true docs
 }
 
 func ExampleQdrantClient_CollectionExists() {
-	exists, err := (&QdrantClient{client: &qdrantTestAPI{exists: true}}).CollectionExists(core.Background(), "docs")
-	core.Println(err == nil, exists)
+	r := (&QdrantClient{client: &qdrantTestAPI{exists: true}}).CollectionExists(core.Background(), "docs")
+	exists := r.Value.(bool)
+	core.Println(r.OK, exists)
 	// Output: true true
 }
 
 func ExampleQdrantClient_CreateCollection() {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).CreateCollection(core.Background(), "docs", 768)
-	core.Println(err == nil, fake.created.GetCollectionName())
+	r := (&QdrantClient{client: fake}).CreateCollection(core.Background(), "docs", 768)
+	core.Println(r.OK, fake.created.GetCollectionName())
 	// Output: true docs
 }
 
 func ExampleQdrantClient_DeleteCollection() {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).DeleteCollection(core.Background(), "docs")
-	core.Println(err == nil, fake.deleted)
+	r := (&QdrantClient{client: fake}).DeleteCollection(core.Background(), "docs")
+	core.Println(r.OK, fake.deleted)
 	// Output: true docs
 }
 
 func ExampleQdrantClient_CollectionInfo() {
 	fake := &qdrantTestAPI{info: qdrantTestCollectionInfo(3, 768, qdrant.CollectionStatus_Green)}
-	info, err := (&QdrantClient{client: fake}).CollectionInfo(core.Background(), "docs")
-	core.Println(err == nil, info.VectorSize, info.Status)
+	r := (&QdrantClient{client: fake}).CollectionInfo(core.Background(), "docs")
+	info := r.Value.(*CollectionInfo)
+	core.Println(r.OK, info.VectorSize, info.Status)
 	// Output: true 768 green
 }
 
 func ExampleQdrantClient_UpsertPoints() {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).UpsertPoints(core.Background(), "docs", []Point{{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
-	core.Println(err == nil, fake.upsert.GetCollectionName())
+	r := (&QdrantClient{client: fake}).UpsertPoints(core.Background(), "docs", []Point{{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
+	core.Println(r.OK, fake.upsert.GetCollectionName())
 	// Output: true docs
 }
 
@@ -134,14 +139,15 @@ func ExampleQdrantClient_Search() {
 			"chunk_index": qdrant.NewValueInt(2),
 		},
 	}}}
-	results, err := (&QdrantClient{client: fake}).Search(core.Background(), "docs", []float32{0.1}, 5, nil)
-	core.Println(err == nil, results[0].Text, results[0].ChunkIndex)
+	r := (&QdrantClient{client: fake}).Search(core.Background(), "docs", []float32{0.1}, 5, nil)
+	results := r.Value.([]SearchResult)
+	core.Println(r.OK, results[0].Text, results[0].ChunkIndex)
 	// Output: true alpha 2
 }
 
 func ExampleQdrantClient_Add() {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).Add(core.Background(), "docs", []Vector{{ID: "p1", Values: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
-	core.Println(err == nil, fake.upsert.GetCollectionName())
+	r := (&QdrantClient{client: fake}).Add(core.Background(), "docs", []Vector{{ID: "p1", Values: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
+	core.Println(r.OK, fake.upsert.GetCollectionName())
 	// Output: true docs
 }

@@ -90,14 +90,14 @@ func TestKeywordIndex(t *testing.T) {
 
 // TestEndpointConfigParsing verifies endpoint URL parsing for Qdrant and Ollama clients.
 func TestEndpointConfigParsing(t *testing.T) {
-	qcfg, err := qdrantConfigFromEndpoint("https://example.com:6333")
-	assertNoError(t, err)
+	qr := qdrantConfigFromEndpoint("https://example.com:6333")
+	qcfg := resultValue[QdrantConfig](t, qr)
 	assertEqual(t, "example.com", qcfg.Host)
 	assertEqual(t, 6333, qcfg.Port)
 	assertTrue(t, qcfg.UseTLS)
 
-	ocfg, err := ollamaConfigFromEndpoint("http://ollama.local:11435")
-	assertNoError(t, err)
+	or := ollamaConfigFromEndpoint("http://ollama.local:11435")
+	ocfg := resultValue[OllamaConfig](t, or)
 	assertEqual(t, "ollama.local", ocfg.Host)
 	assertEqual(t, 11435, ocfg.Port)
 	assertEqual(t, "http", ocfg.Scheme)

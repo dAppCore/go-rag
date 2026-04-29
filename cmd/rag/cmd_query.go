@@ -24,34 +24,49 @@ var queryCmd = &cli.Command{
 	Short: i18n.T("cmd.rag.query.short"),
 	Long:  i18n.T("cmd.rag.query.long"),
 	Args:  cli.ExactArgs(1),
-	RunE:  runQuery,
+	RunE: func(cmd *cli.Command, args []string) error {
+		r := runQuery(cmd, args)
+		if r.OK {
+			return nil
+		}
+		if err, ok := r.Value.(error); ok {
+			return err
+		}
+		return core.NewError(r.Error())
+	},
 }
 
 // runQuery embeds a question, searches Qdrant, and writes formatted results.
-func runQuery(cmd *cli.Command, args []string) error {
+func runQuery(cmd *cli.Command, args []string) core.Result {
 	question := args[0]
 	ctx := context.Background()
 
 	// Connect to Qdrant
-	qdrantClient, err := rag.NewQdrantClient(rag.QdrantConfig{
+	qdrantResult := rag.NewQdrantClient(rag.QdrantConfig{
 		Host:   qdrantHost,
 		Port:   qdrantPort,
 		UseTLS: false,
 	})
-	if err != nil {
-		return core.E("rag.cmd.query", "failed to connect to Qdrant", err)
+	if !qdrantResult.OK {
+		return core.Fail(core.E("rag.cmd.query", "failed to connect to Qdrant", core.NewError(qdrantResult.Error())))
 	}
-	defer func() { _ = qdrantClient.Close() }()
+	qdrantClient := qdrantResult.Value.(*rag.QdrantClient)
+	defer func() {
+		if r := qdrantClient.Close(); !r.OK {
+			core.Print(nil, "Qdrant close failed: %s", r.Error())
+		}
+	}()
 
 	// Connect to Ollama
-	ollamaClient, err := rag.NewOllamaClient(rag.OllamaConfig{
+	ollamaResult := rag.NewOllamaClient(rag.OllamaConfig{
 		Host:  ollamaHost,
 		Port:  ollamaPort,
 		Model: model,
 	})
-	if err != nil {
-		return core.E("rag.cmd.query", "failed to connect to Ollama", err)
+	if !ollamaResult.OK {
+		return core.Fail(core.E("rag.cmd.query", "failed to connect to Ollama", core.NewError(ollamaResult.Error())))
 	}
+	ollamaClient := ollamaResult.Value.(*rag.OllamaClient)
 
 	// Configure query
 	if limit < 0 {
@@ -66,10 +81,11 @@ func runQuery(cmd *cli.Command, args []string) error {
 	}
 
 	// Run query
-	results, err := rag.Query(ctx, qdrantClient, ollamaClient, question, cfg)
-	if err != nil {
-		return err
+	queryResult := rag.Query(ctx, qdrantClient, ollamaClient, question, cfg)
+	if !queryResult.OK {
+		return queryResult
 	}
+	results := queryResult.Value.([]rag.QueryResult)
 
 	// Format output
 	out := cmd.OutOrStdout()
@@ -82,5 +98,5 @@ func runQuery(cmd *cli.Command, args []string) error {
 		_, _ = io.WriteString(out, rag.FormatResultsText(results)+"\n")
 	}
 
-	return nil
+	return core.Ok(results)
 }

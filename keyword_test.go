@@ -434,9 +434,9 @@ func TestKeywordQueryKeywordsBoosting(t *testing.T) {
 		cfg.Threshold = 0.0
 		cfg.Keywords = true
 
-		results, err := Query(context.Background(), store, embedder, "kubernetes containers", cfg)
+		r := Query(context.Background(), store, embedder, "kubernetes containers", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 2)
 		// The second result (score 0.9 from mock) matches two keywords,
 		// boosted to 0.9 * 1.2 = 1.08, so it should be first.
@@ -463,9 +463,9 @@ func TestKeywordQueryKeywordsBoosting(t *testing.T) {
 		cfg.Threshold = 0.0
 		cfg.Keywords = false
 
-		results, err := Query(context.Background(), store, embedder, "keywords", cfg)
+		r := Query(context.Background(), store, embedder, "keywords", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 2)
 		// Without keywords, original order preserved (first has higher score)
 		assertEqual(t, "First result text.", results[0].Text)

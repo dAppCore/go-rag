@@ -2,6 +2,7 @@ package rag
 
 import (
 	"context"
+	"iter"
 	"testing"
 
 	"dappco.re/go"
@@ -281,9 +282,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg := DefaultQueryConfig()
 		cfg.Collection = "test-col"
 
-		_, err := Query(context.Background(), store, embedder, "what is Go?", cfg)
+		r := Query(context.Background(), store, embedder, "what is Go?", cfg)
 
-		assertNoError(t, err)
+		assertNoError(t, r)
 		assertEqual(t, 1, embedder.embedCallCount())
 		assertEqual(t, "what is Go?", embedder.embedCalls[0])
 	})
@@ -296,9 +297,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Collection = "my-docs"
 		cfg.Limit = 3
 
-		_, err := Query(context.Background(), store, embedder, "test query", cfg)
+		r := Query(context.Background(), store, embedder, "test query", cfg)
 
-		assertNoError(t, err)
+		assertNoError(t, r)
 		assertEqual(t, 1, store.searchCallCount())
 
 		call := store.searchCalls[0]
@@ -316,9 +317,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Collection = "test-col"
 		cfg.Category = "documentation"
 
-		_, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
 
-		assertNoError(t, err)
+		assertNoError(t, r)
 		call := store.searchCalls[0]
 		assertEqual(t, map[string]string{"category": "documentation"}, call.Filter)
 	})
@@ -341,9 +342,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Limit = 10
 		cfg.Threshold = 0.95 // Only the first result (score 1.0) should pass; second gets 0.9
 
-		results, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 1)
 		assertEqual(t, "high score", results[0].Text)
 		assertEqual(t, "a.md", results[0].Source)
@@ -360,9 +361,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Collection = "empty-col"
 		cfg.Threshold = 0.5
 
-		results, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertEmpty(t, results)
 	})
 
@@ -373,9 +374,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg := DefaultQueryConfig()
 		cfg.Collection = "no-data"
 
-		results, err := Query(context.Background(), store, embedder, "test query", cfg)
+		r := Query(context.Background(), store, embedder, "test query", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertEmpty(t, results)
 	})
 
@@ -386,10 +387,10 @@ func TestQuery_Query_Good(t *testing.T) {
 
 		cfg := DefaultQueryConfig()
 
-		_, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error generating query embedding")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error generating query embedding")
 		// Search should not be called if embedding fails
 		assertEqual(t, 0, store.searchCallCount())
 	})
@@ -401,10 +402,10 @@ func TestQuery_Query_Good(t *testing.T) {
 
 		cfg := DefaultQueryConfig()
 
-		_, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error searching")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error searching")
 	})
 
 	t.Run("extracts all payload fields correctly", func(t *testing.T) {
@@ -425,17 +426,17 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Limit = 10
 		cfg.Threshold = 0.0
 
-		results, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 1)
 
-		r := results[0]
-		assertEqual(t, "Full payload test.", r.Text)
-		assertEqual(t, "docs/guide.md", r.Source)
-		assertEqual(t, "Getting Started", r.Section)
-		assertEqual(t, "documentation", r.Category)
-		assertEqual(t, 5, r.ChunkIndex)
+		result := results[0]
+		assertEqual(t, "Full payload test.", result.Text)
+		assertEqual(t, "docs/guide.md", result.Source)
+		assertEqual(t, "Getting Started", result.Section)
+		assertEqual(t, "documentation", result.Category)
+		assertEqual(t, 5, result.ChunkIndex)
 	})
 
 	t.Run("handles int64 chunk_index from Qdrant", func(t *testing.T) {
@@ -455,9 +456,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Collection = "test-col"
 		cfg.Threshold = 0.0
 
-		results, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 1)
 		assertEqual(t, 42, results[0].ChunkIndex)
 	})
@@ -479,9 +480,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Collection = "test-col"
 		cfg.Threshold = 0.0
 
-		results, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 1)
 		assertEqual(t, 7, results[0].ChunkIndex)
 	})
@@ -509,9 +510,9 @@ func TestQuery_Query_Good(t *testing.T) {
 		cfg.Limit = 3
 		cfg.Threshold = 0.0
 
-		results, err := Query(context.Background(), store, embedder, "test", cfg)
+		r := Query(context.Background(), store, embedder, "test", cfg)
+		results := resultValue[[]QueryResult](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, results, 3)
 	})
 }
@@ -676,10 +677,10 @@ func TestQuery_Rank_Ugly(t *core.T) {
 func TestQuery_Query_Bad(t *core.T) {
 	store := newMockVectorStore()
 	store.searchErr = core.NewError("search failed")
-	_, err := Query(core.Background(), store, newMockEmbedder(2), "query", DefaultQueryConfig())
+	r := Query(core.Background(), store, newMockEmbedder(2), "query", DefaultQueryConfig())
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "error searching")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "error searching")
 }
 
 func TestQuery_Query_Ugly(t *core.T) {
@@ -687,9 +688,10 @@ func TestQuery_Query_Ugly(t *core.T) {
 	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
 		return []SearchResult{{Score: 0.1, Payload: map[string]any{"text": "low"}}}, nil
 	}
-	results, err := Query(core.Background(), store, newMockEmbedder(2), "query", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.9})
+	r := Query(core.Background(), store, newMockEmbedder(2), "query", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.9})
+	results := r.Value.([]QueryResult)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEmpty(t, results)
 }
 
@@ -698,23 +700,24 @@ func TestQuery_QuerySeq_Good(t *core.T) {
 	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
 		return []SearchResult{{Score: 0.9, Payload: map[string]any{"text": "hit", "source": "a.md", "chunk_index": 0}}}, nil
 	}
-	seq, err := QuerySeq(core.Background(), store, newMockEmbedder(2), "query", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.1})
+	r := QuerySeq(core.Background(), store, newMockEmbedder(2), "query", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.1})
+	seq := r.Value.(iter.Seq[QueryResult])
 
 	var results []QueryResult
 	for result := range seq {
 		results = append(results, result)
 	}
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertLen(t, results, 1)
 }
 
 func TestQuery_QuerySeq_Bad(t *core.T) {
 	embedder := newMockEmbedder(2)
 	embedder.embedErr = core.NewError("embed failed")
-	seq, err := QuerySeq(core.Background(), newMockVectorStore(), embedder, "query", DefaultQueryConfig())
+	r := QuerySeq(core.Background(), newMockVectorStore(), embedder, "query", DefaultQueryConfig())
 
-	core.AssertError(t, err)
-	core.AssertNil(t, seq)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "embedding")
 }
 
 func TestQuery_QuerySeq_Ugly(t *core.T) {
@@ -722,13 +725,14 @@ func TestQuery_QuerySeq_Ugly(t *core.T) {
 	store.searchFunc = func(string, []float32, uint64, map[string]string) ([]SearchResult, error) {
 		return []SearchResult{{Score: 1, Payload: map[string]any{"text": "Kubernetes"}}, {Score: 0.95, Payload: map[string]any{"text": "Other"}}}, nil
 	}
-	seq, err := QuerySeq(core.Background(), store, newMockEmbedder(2), "kubernetes", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.1, Keywords: true})
+	r := QuerySeq(core.Background(), store, newMockEmbedder(2), "kubernetes", QueryConfig{Collection: "docs", Limit: 5, Threshold: 0.1, Keywords: true})
+	seq := r.Value.(iter.Seq[QueryResult])
 
 	var results []QueryResult
 	for result := range seq {
 		results = append(results, result)
 	}
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "Kubernetes", results[0].Text)
 }
 

@@ -28,9 +28,9 @@ func TestOllama_DefaultOllamaConfig_Good(t *testing.T) {
 
 func TestOllama_NewOllamaClient_Good(t *testing.T) {
 	t.Run("constructs client with default config", func(t *testing.T) {
-		client, err := NewOllamaClient(DefaultOllamaConfig())
+		r := NewOllamaClient(DefaultOllamaConfig())
+		client := resultValue[*OllamaClient](t, r)
 
-		assertNoError(t, err)
 		assertNotNil(t, client)
 		assertEqual(t, "nomic-embed-text", client.Model())
 		assertEqual(t, uint64(768), client.EmbedDimension())
@@ -42,9 +42,9 @@ func TestOllama_NewOllamaClient_Good(t *testing.T) {
 			Port:  8080,
 			Model: "mxbai-embed-large",
 		}
-		client, err := NewOllamaClient(cfg)
+		r := NewOllamaClient(cfg)
+		client := resultValue[*OllamaClient](t, r)
 
-		assertNoError(t, err)
 		assertNotNil(t, client)
 		assertEqual(t, "mxbai-embed-large", client.Model())
 		assertEqual(t, uint64(1024), client.EmbedDimension())
@@ -156,8 +156,8 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 		config: OllamaConfig{Model: "nomic-embed-text"},
 	}
 
-	vectors, err := client.EmbedBatch(context.Background(), []string{"first", "second"})
-	assertNoError(t, err)
+	r := client.EmbedBatch(context.Background(), []string{"first", "second"})
+	vectors := resultValue[[][]float32](t, r)
 	assertLen(t, vectors, 2)
 	assertEqual(t, []float32{0.1, 0.2}, vectors[0])
 	assertEqual(t, []float32{0.3, 0.4}, vectors[1])
@@ -187,9 +187,9 @@ func TestOllama_EmbedBatch_Bad(t *testing.T) {
 		config: OllamaConfig{Model: "nomic-embed-text"},
 	}
 
-	_, err = client.EmbedBatch(context.Background(), []string{"first", "second"})
-	assertError(t, err)
-	assertContains(t, err.Error(), "item 1")
+	r := client.EmbedBatch(context.Background(), []string{"first", "second"})
+	assertError(t, r)
+	assertContains(t, r.Error(), "item 1")
 	assertEqual(t, 2, requestCount)
 }
 
@@ -221,37 +221,40 @@ func TestOllama_DefaultOllamaConfig_Ugly(t *core.T) {
 }
 
 func TestOllama_NewOllamaClient_Bad(t *core.T) {
-	client, err := NewOllamaClient(OllamaConfig{Host: "localhost", Port: 0})
+	r := NewOllamaClient(OllamaConfig{Host: "localhost", Port: 0})
 
-	core.AssertError(t, err)
-	core.AssertNil(t, client)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "port out of range")
 }
 
 func TestOllama_NewOllamaClient_Ugly(t *core.T) {
-	client, err := NewOllamaClient(OllamaConfig{Host: "localhost", Port: 11434, Model: ""})
+	r := NewOllamaClient(OllamaConfig{Host: "localhost", Port: 11434, Model: ""})
+	client := r.Value.(*OllamaClient)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "", client.Model())
 }
 
 func TestOllama_NewOllamaEmbedder_Good(t *core.T) {
-	client, err := NewOllamaEmbedder("http://localhost:11434", "custom-model")
+	r := NewOllamaEmbedder("http://localhost:11434", "custom-model")
+	client := r.Value.(*OllamaClient)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "custom-model", client.Model())
 }
 
 func TestOllama_NewOllamaEmbedder_Bad(t *core.T) {
-	client, err := NewOllamaEmbedder("http://[::1", "custom-model")
+	r := NewOllamaEmbedder("http://[::1", "custom-model")
 
-	core.AssertError(t, err)
-	core.AssertNil(t, client)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "invalid Ollama endpoint")
 }
 
 func TestOllama_NewOllamaEmbedder_Ugly(t *core.T) {
-	client, err := NewOllamaEmbedder("", "")
+	r := NewOllamaEmbedder("", "")
+	client := r.Value.(*OllamaClient)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "nomic-embed-text", client.Model())
 }
 
@@ -262,8 +265,9 @@ func TestOllama_OllamaClient_Embed_Good(t *core.T) {
 	})
 	defer closeServer()
 
-	vector, err := client.Embed(core.Background(), "hello")
-	core.AssertNoError(t, err)
+	r := client.Embed(core.Background(), "hello")
+	vector := r.Value.([]float32)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, []float32{0.1, 0.2}, vector)
 }
 
@@ -274,9 +278,9 @@ func TestOllama_OllamaClient_Embed_Bad(t *core.T) {
 	})
 	defer closeServer()
 
-	vector, err := client.Embed(core.Background(), "hello")
-	core.AssertError(t, err)
-	core.AssertNil(t, vector)
+	r := client.Embed(core.Background(), "hello")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "empty embedding")
 }
 
 func TestOllama_OllamaClient_Embed_Ugly(t *core.T) {
@@ -286,9 +290,9 @@ func TestOllama_OllamaClient_Embed_Ugly(t *core.T) {
 	})
 	defer closeServer()
 
-	vector, err := client.Embed(core.Background(), "hello")
-	core.AssertError(t, err)
-	core.AssertNil(t, vector)
+	r := client.Embed(core.Background(), "hello")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "failed to generate embedding")
 }
 
 func TestOllama_OllamaClient_EmbedBatch_Good(t *core.T) {
@@ -300,8 +304,9 @@ func TestOllama_OllamaClient_EmbedBatch_Good(t *core.T) {
 	})
 	defer closeServer()
 
-	vectors, err := client.EmbedBatch(core.Background(), []string{"first", "second"})
-	core.AssertNoError(t, err)
+	r := client.EmbedBatch(core.Background(), []string{"first", "second"})
+	vectors := r.Value.([][]float32)
+	core.AssertTrue(t, r.OK)
 	core.AssertLen(t, vectors, 2)
 	core.AssertEqual(t, 2, calls)
 }
@@ -313,16 +318,17 @@ func TestOllama_OllamaClient_EmbedBatch_Bad(t *core.T) {
 	})
 	defer closeServer()
 
-	vectors, err := client.EmbedBatch(core.Background(), []string{"first"})
-	core.AssertError(t, err)
-	core.AssertNil(t, vectors)
+	r := client.EmbedBatch(core.Background(), []string{"first"})
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "item 0")
 }
 
 func TestOllama_OllamaClient_EmbedBatch_Ugly(t *core.T) {
 	client := &OllamaClient{}
-	vectors, err := client.EmbedBatch(core.Background(), nil)
+	r := client.EmbedBatch(core.Background(), nil)
+	vectors := r.Value.([][]float32)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEmpty(t, vectors)
 }
 
@@ -375,9 +381,9 @@ func TestOllama_OllamaClient_VerifyModel_Good(t *core.T) {
 	})
 	defer closeServer()
 
-	err := client.VerifyModel(core.Background())
-	core.AssertNoError(t, err)
-	core.AssertNil(t, err)
+	r := client.VerifyModel(core.Background())
+	core.AssertTrue(t, r.OK)
+	core.AssertNil(t, r.Value)
 }
 
 func TestOllama_OllamaClient_VerifyModel_Bad(t *core.T) {
@@ -387,9 +393,9 @@ func TestOllama_OllamaClient_VerifyModel_Bad(t *core.T) {
 	})
 	defer closeServer()
 
-	err := client.VerifyModel(core.Background())
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not available")
+	r := client.VerifyModel(core.Background())
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not available")
 }
 
 func TestOllama_OllamaClient_VerifyModel_Ugly(t *core.T) {
@@ -399,7 +405,7 @@ func TestOllama_OllamaClient_VerifyModel_Ugly(t *core.T) {
 	})
 	defer closeServer()
 
-	err := client.VerifyModel(core.Background())
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "nomic-embed-text")
+	r := client.VerifyModel(core.Background())
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "nomic-embed-text")
 }

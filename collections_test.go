@@ -2,6 +2,7 @@ package rag
 
 import (
 	"context"
+	"iter"
 	"testing"
 
 	"dappco.re/go"
@@ -15,9 +16,9 @@ func TestCollections_ListCollections_Good(t *testing.T) {
 		store.collections["alpha"] = 768
 		store.collections["bravo"] = 384
 
-		names, err := ListCollections(context.Background(), store)
+		r := ListCollections(context.Background(), store)
+		names := resultValue[[]string](t, r)
 
-		assertNoError(t, err)
 		assertLen(t, names, 2)
 		assertContains(t, names, "alpha")
 		assertContains(t, names, "bravo")
@@ -26,9 +27,9 @@ func TestCollections_ListCollections_Good(t *testing.T) {
 	t.Run("empty store returns empty list", func(t *testing.T) {
 		store := newMockVectorStore()
 
-		names, err := ListCollections(context.Background(), store)
+		r := ListCollections(context.Background(), store)
+		names := resultValue[[]string](t, r)
 
-		assertNoError(t, err)
 		assertEmpty(t, names)
 	})
 
@@ -36,10 +37,10 @@ func TestCollections_ListCollections_Good(t *testing.T) {
 		store := newMockVectorStore()
 		store.listErr = core.E("mock.collections.list", "connection lost", nil)
 
-		_, err := ListCollections(context.Background(), store)
+		r := ListCollections(context.Background(), store)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "connection lost")
+		assertError(t, r)
+		assertContains(t, r.Error(), "connection lost")
 	})
 }
 
@@ -51,9 +52,9 @@ func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 		store.collections["alpha"] = 768
 		store.collections["bravo"] = 384
 
-		it, err := ListCollectionsSeq(context.Background(), store)
+		r := ListCollectionsSeq(context.Background(), store)
+		it := resultValue[iter.Seq[string]](t, r)
 
-		assertNoError(t, err)
 		assertNotNil(t, it)
 
 		var names []string
@@ -68,9 +69,8 @@ func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 	t.Run("empty store yields nothing", func(t *testing.T) {
 		store := newMockVectorStore()
 
-		it, err := ListCollectionsSeq(context.Background(), store)
-
-		assertNoError(t, err)
+		r := ListCollectionsSeq(context.Background(), store)
+		it := resultValue[iter.Seq[string]](t, r)
 
 		count := 0
 		for range it {
@@ -83,10 +83,10 @@ func TestCollections_ListCollectionsSeq_Good(t *testing.T) {
 		store := newMockVectorStore()
 		store.listErr = core.E("mock.collections.list", "connection lost", nil)
 
-		it, err := ListCollectionsSeq(context.Background(), store)
+		r := ListCollectionsSeq(context.Background(), store)
 
-		assertError(t, err)
-		assertNil(t, it)
+		assertError(t, r)
+		assertContains(t, r.Error(), "connection lost")
 	})
 }
 
@@ -129,9 +129,9 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 			{ID: "p3", Vector: []float32{0.3}},
 		}
 
-		info, err := CollectionStats(context.Background(), store, "my-col")
+		r := CollectionStats(context.Background(), store, "my-col")
+		info := resultValue[*CollectionInfo](t, r)
 
-		assertNoError(t, err)
 		assertNotNil(t, info)
 		assertEqual(t, "my-col", info.Name)
 		assertEqual(t, uint64(3), info.Count)
@@ -145,10 +145,10 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 	t.Run("nonexistent collection returns error", func(t *testing.T) {
 		store := newMockVectorStore()
 
-		_, err := CollectionStats(context.Background(), store, "missing")
+		r := CollectionStats(context.Background(), store, "missing")
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "not found")
+		assertError(t, r)
+		assertContains(t, r.Error(), "not found")
 	})
 
 	t.Run("error from store propagates", func(t *testing.T) {
@@ -156,19 +156,19 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 		store.collections["err-col"] = 768
 		store.infoErr = core.E("mock.collections.info", "internal error", nil)
 
-		_, err := CollectionStats(context.Background(), store, "err-col")
+		r := CollectionStats(context.Background(), store, "err-col")
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "internal error")
+		assertError(t, r)
+		assertContains(t, r.Error(), "internal error")
 	})
 
 	t.Run("empty collection has zero point count", func(t *testing.T) {
 		store := newMockVectorStore()
 		store.collections["empty-col"] = 384
 
-		info, err := CollectionStats(context.Background(), store, "empty-col")
+		r := CollectionStats(context.Background(), store, "empty-col")
+		info := resultValue[*CollectionInfo](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, uint64(0), info.Count)
 		assertEqual(t, uint64(0), info.Vectors)
 		assertEqual(t, uint64(0), info.PointCount)
@@ -180,72 +180,75 @@ func TestCollections_CollectionStats_Good(t *testing.T) {
 func TestCollections_ListCollections_Bad(t *core.T) {
 	store := newMockVectorStore()
 	store.listErr = core.NewError("list failed")
-	names, err := ListCollections(core.Background(), store)
+	r := ListCollections(core.Background(), store)
 
-	core.AssertError(t, err)
-	core.AssertNil(t, names)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "list failed")
 }
 
 func TestCollections_ListCollections_Ugly(t *core.T) {
 	store := newMockVectorStore()
-	names, err := ListCollections(core.Background(), store)
+	r := ListCollections(core.Background(), store)
+	names := r.Value.([]string)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEmpty(t, names)
 }
 
 func TestCollections_ListCollectionsSeq_Bad(t *core.T) {
 	store := newMockVectorStore()
 	store.listErr = core.NewError("list failed")
-	seq, err := ListCollectionsSeq(core.Background(), store)
+	r := ListCollectionsSeq(core.Background(), store)
 
-	core.AssertError(t, err)
-	core.AssertNil(t, seq)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "list failed")
 }
 
 func TestCollections_ListCollectionsSeq_Ugly(t *core.T) {
 	store := newMockVectorStore()
-	seq, err := ListCollectionsSeq(core.Background(), store)
+	r := ListCollectionsSeq(core.Background(), store)
+	seq := r.Value.(iter.Seq[string])
 	count := 0
 	for range seq {
 		count++
 	}
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, 0, count)
 }
 
 func TestCollections_DeleteCollection_Bad(t *core.T) {
 	store := newMockVectorStore()
 	store.deleteErr = core.NewError("delete failed")
-	err := DeleteCollection(core.Background(), store, "docs")
+	r := DeleteCollection(core.Background(), store, "docs")
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "delete failed")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "delete failed")
 }
 
 func TestCollections_DeleteCollection_Ugly(t *core.T) {
 	store := newMockVectorStore()
-	err := DeleteCollection(core.Background(), store, "")
+	r := DeleteCollection(core.Background(), store, "")
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertLen(t, store.deleteCalls, 1)
 }
 
 func TestCollections_CollectionStats_Bad(t *core.T) {
 	store := newMockVectorStore()
 	store.infoErr = core.NewError("info failed")
-	info, err := CollectionStats(core.Background(), store, "docs")
+	r := CollectionStats(core.Background(), store, "docs")
 
-	core.AssertError(t, err)
-	core.AssertNil(t, info)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "info failed")
 }
 
 func TestCollections_CollectionStats_Ugly(t *core.T) {
 	store := newMockVectorStore()
 	store.collections["empty"] = 384
-	info, err := CollectionStats(core.Background(), store, "empty")
+	r := CollectionStats(core.Background(), store, "empty")
+	info := r.Value.(*CollectionInfo)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, uint64(0), info.PointCount)
 }

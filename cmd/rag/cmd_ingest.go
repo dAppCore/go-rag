@@ -22,11 +22,20 @@ var ingestCmd = &cli.Command{
 	Short: i18n.T("cmd.rag.ingest.short"),
 	Long:  i18n.T("cmd.rag.ingest.long"),
 	Args:  cli.MaximumNArgs(1),
-	RunE:  runIngest,
+	RunE: func(cmd *cli.Command, args []string) error {
+		r := runIngest(cmd, args)
+		if r.OK {
+			return nil
+		}
+		if err, ok := r.Value.(error); ok {
+			return err
+		}
+		return core.NewError(r.Error())
+	},
 }
 
 // runIngest validates local flags, connects clients, and ingests documents.
-func runIngest(cmd *cli.Command, args []string) error {
+func runIngest(cmd *cli.Command, args []string) core.Result {
 	directory := "."
 	if len(args) > 0 {
 		directory = args[0]
@@ -37,41 +46,47 @@ func runIngest(cmd *cli.Command, args []string) error {
 
 	// Validate local config before opening network clients.
 	if chunkSize <= 0 {
-		return core.E("rag.cmd.ingest", "chunk-size must be > 0", nil)
+		return core.Fail(core.E("rag.cmd.ingest", "chunk-size must be > 0", nil))
 	}
 	if chunkOverlap < 0 || chunkOverlap >= chunkSize {
-		return core.E("rag.cmd.ingest", "chunk-overlap must be >= 0 and < chunk-size", nil)
+		return core.Fail(core.E("rag.cmd.ingest", "chunk-overlap must be >= 0 and < chunk-size", nil))
 	}
 
 	// Connect to Qdrant
 	core.Print(out, "Connecting to Qdrant at %s:%d...", qdrantHost, qdrantPort)
-	qdrantClient, err := rag.NewQdrantClient(rag.QdrantConfig{
+	qdrantResult := rag.NewQdrantClient(rag.QdrantConfig{
 		Host:   qdrantHost,
 		Port:   qdrantPort,
 		UseTLS: false,
 	})
-	if err != nil {
-		return core.E("rag.cmd.ingest", "failed to connect to Qdrant", err)
+	if !qdrantResult.OK {
+		return core.Fail(core.E("rag.cmd.ingest", "failed to connect to Qdrant", core.NewError(qdrantResult.Error())))
 	}
-	defer func() { _ = qdrantClient.Close() }()
+	qdrantClient := qdrantResult.Value.(*rag.QdrantClient)
+	defer func() {
+		if r := qdrantClient.Close(); !r.OK {
+			core.Print(out, "Qdrant close failed: %s", r.Error())
+		}
+	}()
 
-	if err := qdrantClient.HealthCheck(ctx); err != nil {
-		return core.E("rag.cmd.ingest", "qdrant health check failed", err)
+	if r := qdrantClient.HealthCheck(ctx); !r.OK {
+		return core.Fail(core.E("rag.cmd.ingest", "qdrant health check failed", core.NewError(r.Error())))
 	}
 
 	// Connect to Ollama
 	core.Print(out, "Using embedding model: %s (via %s:%d)", model, ollamaHost, ollamaPort)
-	ollamaClient, err := rag.NewOllamaClient(rag.OllamaConfig{
+	ollamaResult := rag.NewOllamaClient(rag.OllamaConfig{
 		Host:  ollamaHost,
 		Port:  ollamaPort,
 		Model: model,
 	})
-	if err != nil {
-		return core.E("rag.cmd.ingest", "failed to connect to Ollama", err)
+	if !ollamaResult.OK {
+		return core.Fail(core.E("rag.cmd.ingest", "failed to connect to Ollama", core.NewError(ollamaResult.Error())))
 	}
+	ollamaClient := ollamaResult.Value.(*rag.OllamaClient)
 
-	if err := ollamaClient.VerifyModel(ctx); err != nil {
-		return err
+	if r := ollamaClient.VerifyModel(ctx); !r.OK {
+		return r
 	}
 
 	cfg := rag.IngestConfig{
@@ -101,10 +116,11 @@ func runIngest(cmd *cli.Command, args []string) error {
 		core.Print(out, "  (recreating collection: %s)", collection)
 	}
 
-	stats, err := rag.Ingest(ctx, qdrantClient, ollamaClient, cfg, progress)
-	if err != nil {
-		return err
+	ingestResult := rag.Ingest(ctx, qdrantClient, ollamaClient, cfg, progress)
+	if !ingestResult.OK {
+		return ingestResult
 	}
+	stats := ingestResult.Value.(*rag.IngestStats)
 
 	// Summary
 	_, _ = io.WriteString(out, core.Sprintf("\n\n%s\n", cli.TitleStyle.Render("Ingestion complete!")))
@@ -115,5 +131,5 @@ func runIngest(cmd *cli.Command, args []string) error {
 	}
 	core.Print(out, "  Collection:      %s", collection)
 
-	return nil
+	return core.Ok(stats)
 }

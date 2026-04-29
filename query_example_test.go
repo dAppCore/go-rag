@@ -1,6 +1,10 @@
 package rag
 
-import core "dappco.re/go"
+import (
+	"iter"
+
+	core "dappco.re/go"
+)
 
 func ExampleDefaultQueryConfig() {
 	cfg := DefaultQueryConfig()
@@ -49,8 +53,9 @@ func ExampleQuery() {
 	store := newMockVectorStore()
 	store.points["docs"] = []Point{{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{"text": "hit", "source": "guide.md", "chunk_index": 0}}}
 	cfg := QueryConfig{Collection: "docs", Limit: 5, Threshold: 0}
-	results, err := Query(core.Background(), store, newMockEmbedder(2), "guide", cfg)
-	core.Println(err == nil, len(results), results[0].Text)
+	r := Query(core.Background(), store, newMockEmbedder(2), "guide", cfg)
+	results := r.Value.([]QueryResult)
+	core.Println(r.OK, len(results), results[0].Text)
 	// Output: true 1 hit
 }
 
@@ -58,12 +63,13 @@ func ExampleQuerySeq() {
 	store := newMockVectorStore()
 	store.points["docs"] = []Point{{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{"text": "hit", "source": "guide.md", "chunk_index": 0}}}
 	cfg := QueryConfig{Collection: "docs", Limit: 5, Threshold: 0}
-	seq, err := QuerySeq(core.Background(), store, newMockEmbedder(2), "guide", cfg)
+	r := QuerySeq(core.Background(), store, newMockEmbedder(2), "guide", cfg)
+	seq := r.Value.(iter.Seq[QueryResult])
 	count := 0
 	for range seq {
 		count++
 	}
-	core.Println(err == nil, count)
+	core.Println(r.OK, count)
 	// Output: true 1
 }
 

@@ -25,14 +25,16 @@ func ExampleDefaultOllamaConfig() {
 }
 
 func ExampleNewOllamaEmbedder() {
-	client, err := NewOllamaEmbedder("http://localhost:11434", "custom-model")
-	core.Println(err == nil, client.Model())
+	r := NewOllamaEmbedder("http://localhost:11434", "custom-model")
+	client := r.Value.(*OllamaClient)
+	core.Println(r.OK, client.Model())
 	// Output: true custom-model
 }
 
 func ExampleNewOllamaClient() {
-	client, err := NewOllamaClient(DefaultOllamaConfig())
-	core.Println(err == nil, client.Model())
+	r := NewOllamaClient(DefaultOllamaConfig())
+	client := r.Value.(*OllamaClient)
+	core.Println(r.OK, client.Model())
 	// Output: true nomic-embed-text
 }
 
@@ -49,8 +51,9 @@ func ExampleOllamaClient_Embed() {
 	})
 	defer closeServer()
 
-	vector, err := client.Embed(core.Background(), "hello")
-	core.Println(err == nil, len(vector))
+	r := client.Embed(core.Background(), "hello")
+	vector := r.Value.([]float32)
+	core.Println(r.OK, len(vector))
 	// Output: true 2
 }
 
@@ -61,8 +64,9 @@ func ExampleOllamaClient_EmbedBatch() {
 	})
 	defer closeServer()
 
-	vectors, err := client.EmbedBatch(core.Background(), []string{"first", "second"})
-	core.Println(err == nil, len(vectors))
+	r := client.EmbedBatch(core.Background(), []string{"first", "second"})
+	vectors := r.Value.([][]float32)
+	core.Println(r.OK, len(vectors))
 	// Output: true 2
 }
 
@@ -73,8 +77,8 @@ func ExampleOllamaClient_VerifyModel() {
 	})
 	defer closeServer()
 
-	err := client.VerifyModel(core.Background())
-	core.Println(err == nil)
+	r := client.VerifyModel(core.Background())
+	core.Println(r.OK)
 	// Output: true
 }
 

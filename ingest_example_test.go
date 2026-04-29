@@ -15,8 +15,9 @@ func ExampleIngest() {
 	core.WriteFile(core.PathJoin(dir, "guide.md"), []byte("## Guide\n\nHello world."), 0o644)
 
 	cfg := IngestConfig{Directory: dir, Collection: "docs", Chunk: DefaultChunkConfig(), BatchSize: 10}
-	stats, err := Ingest(core.Background(), newMockVectorStore(), newMockEmbedder(2), cfg, nil)
-	core.Println(err == nil, stats.Files, stats.Chunks)
+	r := Ingest(core.Background(), newMockVectorStore(), newMockEmbedder(2), cfg, nil)
+	stats := r.Value.(*IngestStats)
+	core.Println(r.OK, stats.Files, stats.Chunks)
 	// Output: true 1 1
 }
 
@@ -27,7 +28,8 @@ func ExampleIngestFile() {
 	path := core.PathJoin(dir, "guide.md")
 	core.WriteFile(path, []byte("## Guide\n\nHello world."), 0o644)
 
-	count, err := IngestFile(core.Background(), newMockVectorStore(), newMockEmbedder(2), "docs", path, DefaultChunkConfig())
-	core.Println(err == nil, count)
+	r := IngestFile(core.Background(), newMockVectorStore(), newMockEmbedder(2), "docs", path, DefaultChunkConfig())
+	count := r.Value.(int)
+	core.Println(r.OK, count)
 	// Output: true 1
 }

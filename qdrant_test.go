@@ -300,14 +300,14 @@ func TestQdrant_Search_OptionalFilter_Good(t *testing.T) {
 	}
 
 	t.Run("allows RFC-style call without filter", func(t *testing.T) {
-		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5, nil)
-		assertNoError(t, err)
+		r := store.Search(context.Background(), "docs", []float32{0.1}, 5, nil)
+		results := resultValue[[]SearchResult](t, r)
 		assertLen(t, results, 2)
 	})
 
 	t.Run("still accepts an optional filter map", func(t *testing.T) {
-		results, err := store.Search(context.Background(), "docs", []float32{0.1}, 5, map[string]string{"source": "a.md"})
-		assertNoError(t, err)
+		r := store.Search(context.Background(), "docs", []float32{0.1}, 5, map[string]string{"source": "a.md"})
+		results := resultValue[[]SearchResult](t, r)
 		assertLen(t, results, 1)
 		assertEqual(t, "a.md", results[0].Payload["source"])
 	})
@@ -487,240 +487,247 @@ func TestQdrant_DefaultQdrantConfig_Ugly(t *core.T) {
 }
 
 func TestQdrant_NewQdrantClient_Good(t *core.T) {
-	client, err := NewQdrantClient(DefaultQdrantConfig())
+	r := NewQdrantClient(DefaultQdrantConfig())
+	client := r.Value.(*QdrantClient)
 	defer func() {
 		if client != nil {
 			_ = client.Close()
 		}
 	}()
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertNotNil(t, client)
 }
 
 func TestQdrant_NewQdrantClient_Bad(t *core.T) {
-	client, err := NewQdrantClient(QdrantConfig{Host: "bad host", Port: -1})
+	r := NewQdrantClient(QdrantConfig{Host: "bad host", Port: -1})
 
-	core.AssertError(t, err)
-	core.AssertNil(t, client)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "port out of range")
 }
 
 func TestQdrant_NewQdrantClient_Ugly(t *core.T) {
-	client, err := NewQdrantClient(QdrantConfig{Host: "localhost", Port: 6334, APIKey: "token", UseTLS: true})
+	r := NewQdrantClient(QdrantConfig{Host: "localhost", Port: 6334, APIKey: "token", UseTLS: true})
+	client := r.Value.(*QdrantClient)
 	defer func() {
 		if client != nil {
 			_ = client.Close()
 		}
 	}()
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertTrue(t, client.config.UseTLS)
 }
 
 func TestQdrant_NewQdrantStore_Good(t *core.T) {
-	client, err := NewQdrantStore("http://localhost:6333")
+	r := NewQdrantStore("http://localhost:6333")
+	client := r.Value.(*QdrantClient)
 	defer func() {
 		if client != nil {
 			_ = client.Close()
 		}
 	}()
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, 6334, client.config.Port)
 }
 
 func TestQdrant_NewQdrantStore_Bad(t *core.T) {
-	client, err := NewQdrantStore("http://[::1")
+	r := NewQdrantStore("http://[::1")
 
-	core.AssertError(t, err)
-	core.AssertNil(t, client)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "invalid Qdrant endpoint")
 }
 
 func TestQdrant_NewQdrantStore_Ugly(t *core.T) {
-	client, err := NewQdrantStore("")
+	r := NewQdrantStore("")
+	client := r.Value.(*QdrantClient)
 	defer func() {
 		if client != nil {
 			_ = client.Close()
 		}
 	}()
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "localhost", client.config.Host)
 }
 
 func TestQdrant_QdrantClient_Close_Good(t *core.T) {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).Close()
+	r := (&QdrantClient{client: fake}).Close()
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertTrue(t, fake.closeCalled)
 }
 
 func TestQdrant_QdrantClient_Close_Bad(t *core.T) {
-	err := (&QdrantClient{}).Close()
+	r := (&QdrantClient{}).Close()
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not initialized")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_Close_Ugly(t *core.T) {
 	fake := &qdrantTestAPI{closeErr: core.NewError("close failed")}
-	err := (&QdrantClient{client: fake}).Close()
+	r := (&QdrantClient{client: fake}).Close()
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "close failed")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "close failed")
 }
 
 func TestQdrant_QdrantClient_HealthCheck_Good(t *core.T) {
-	err := (&QdrantClient{client: &qdrantTestAPI{}}).HealthCheck(core.Background())
+	r := (&QdrantClient{client: &qdrantTestAPI{}}).HealthCheck(core.Background())
 
-	core.AssertNoError(t, err)
-	core.AssertNil(t, err)
+	core.AssertTrue(t, r.OK)
+	core.AssertNil(t, r.Value)
 }
 
 func TestQdrant_QdrantClient_HealthCheck_Bad(t *core.T) {
-	err := (&QdrantClient{}).HealthCheck(core.Background())
+	r := (&QdrantClient{}).HealthCheck(core.Background())
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not initialized")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_HealthCheck_Ugly(t *core.T) {
-	err := (&QdrantClient{client: &qdrantTestAPI{healthErr: core.NewError("down")}}).HealthCheck(core.Background())
+	r := (&QdrantClient{client: &qdrantTestAPI{healthErr: core.NewError("down")}}).HealthCheck(core.Background())
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "down")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "down")
 }
 
 func TestQdrant_QdrantClient_ListCollections_Good(t *core.T) {
 	fake := &qdrantTestAPI{collections: []string{"alpha", "bravo"}}
-	names, err := (&QdrantClient{client: fake}).ListCollections(core.Background())
+	r := (&QdrantClient{client: fake}).ListCollections(core.Background())
+	names := r.Value.([]string)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, []string{"alpha", "bravo"}, names)
 }
 
 func TestQdrant_QdrantClient_ListCollections_Bad(t *core.T) {
-	names, err := (&QdrantClient{}).ListCollections(core.Background())
+	r := (&QdrantClient{}).ListCollections(core.Background())
 
-	core.AssertError(t, err)
-	core.AssertNil(t, names)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_ListCollections_Ugly(t *core.T) {
 	fake := &qdrantTestAPI{listErr: core.NewError("list failed")}
-	names, err := (&QdrantClient{client: fake}).ListCollections(core.Background())
+	r := (&QdrantClient{client: fake}).ListCollections(core.Background())
 
-	core.AssertError(t, err)
-	core.AssertNil(t, names)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "list failed")
 }
 
 func TestQdrant_QdrantClient_CollectionExists_Good(t *core.T) {
-	exists, err := (&QdrantClient{client: &qdrantTestAPI{exists: true}}).CollectionExists(core.Background(), "docs")
+	r := (&QdrantClient{client: &qdrantTestAPI{exists: true}}).CollectionExists(core.Background(), "docs")
+	exists := r.Value.(bool)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertTrue(t, exists)
 }
 
 func TestQdrant_QdrantClient_CollectionExists_Bad(t *core.T) {
-	exists, err := (&QdrantClient{}).CollectionExists(core.Background(), "docs")
+	r := (&QdrantClient{}).CollectionExists(core.Background(), "docs")
 
-	core.AssertError(t, err)
-	core.AssertFalse(t, exists)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_CollectionExists_Ugly(t *core.T) {
-	exists, err := (&QdrantClient{client: &qdrantTestAPI{existsErr: core.NewError("exists failed")}}).CollectionExists(core.Background(), "docs")
+	r := (&QdrantClient{client: &qdrantTestAPI{existsErr: core.NewError("exists failed")}}).CollectionExists(core.Background(), "docs")
 
-	core.AssertError(t, err)
-	core.AssertFalse(t, exists)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "exists failed")
 }
 
 func TestQdrant_QdrantClient_CreateCollection_Good(t *core.T) {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).CreateCollection(core.Background(), "docs", 768)
+	r := (&QdrantClient{client: fake}).CreateCollection(core.Background(), "docs", 768)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, uint64(768), fake.created.GetVectorsConfig().GetParams().GetSize())
 }
 
 func TestQdrant_QdrantClient_CreateCollection_Bad(t *core.T) {
-	err := (&QdrantClient{}).CreateCollection(core.Background(), "docs", 768)
+	r := (&QdrantClient{}).CreateCollection(core.Background(), "docs", 768)
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not initialized")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_CreateCollection_Ugly(t *core.T) {
-	err := (&QdrantClient{client: &qdrantTestAPI{createErr: core.NewError("create failed")}}).CreateCollection(core.Background(), "", 0)
+	r := (&QdrantClient{client: &qdrantTestAPI{createErr: core.NewError("create failed")}}).CreateCollection(core.Background(), "", 0)
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "create failed")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "create failed")
 }
 
 func TestQdrant_QdrantClient_DeleteCollection_Good(t *core.T) {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).DeleteCollection(core.Background(), "docs")
+	r := (&QdrantClient{client: fake}).DeleteCollection(core.Background(), "docs")
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "docs", fake.deleted)
 }
 
 func TestQdrant_QdrantClient_DeleteCollection_Bad(t *core.T) {
-	err := (&QdrantClient{}).DeleteCollection(core.Background(), "docs")
+	r := (&QdrantClient{}).DeleteCollection(core.Background(), "docs")
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not initialized")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_DeleteCollection_Ugly(t *core.T) {
-	err := (&QdrantClient{client: &qdrantTestAPI{deleteErr: core.NewError("delete failed")}}).DeleteCollection(core.Background(), "docs")
+	r := (&QdrantClient{client: &qdrantTestAPI{deleteErr: core.NewError("delete failed")}}).DeleteCollection(core.Background(), "docs")
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "delete failed")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "delete failed")
 }
 
 func TestQdrant_QdrantClient_CollectionInfo_Good(t *core.T) {
-	info, err := (&QdrantClient{client: &qdrantTestAPI{info: qdrantTestCollectionInfo(3, 768, qdrant.CollectionStatus_Green)}}).CollectionInfo(core.Background(), "docs")
+	r := (&QdrantClient{client: &qdrantTestAPI{info: qdrantTestCollectionInfo(3, 768, qdrant.CollectionStatus_Green)}}).CollectionInfo(core.Background(), "docs")
+	info := r.Value.(*CollectionInfo)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, uint64(768), info.VectorSize)
 }
 
 func TestQdrant_QdrantClient_CollectionInfo_Bad(t *core.T) {
-	info, err := (&QdrantClient{}).CollectionInfo(core.Background(), "docs")
+	r := (&QdrantClient{}).CollectionInfo(core.Background(), "docs")
 
-	core.AssertError(t, err)
-	core.AssertNil(t, info)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_CollectionInfo_Ugly(t *core.T) {
-	info, err := (&QdrantClient{client: &qdrantTestAPI{infoErr: core.NewError("info failed")}}).CollectionInfo(core.Background(), "docs")
+	r := (&QdrantClient{client: &qdrantTestAPI{infoErr: core.NewError("info failed")}}).CollectionInfo(core.Background(), "docs")
 
-	core.AssertError(t, err)
-	core.AssertNil(t, info)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "info failed")
 }
 
 func TestQdrant_QdrantClient_UpsertPoints_Good(t *core.T) {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).UpsertPoints(core.Background(), "docs", []Point{{ID: "id", Vector: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
+	r := (&QdrantClient{client: fake}).UpsertPoints(core.Background(), "docs", []Point{{ID: "id", Vector: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "docs", fake.upsert.GetCollectionName())
 }
 
 func TestQdrant_QdrantClient_UpsertPoints_Bad(t *core.T) {
-	err := (&QdrantClient{}).UpsertPoints(core.Background(), "docs", []Point{{ID: "id", Vector: []float32{0.1}}})
+	r := (&QdrantClient{}).UpsertPoints(core.Background(), "docs", []Point{{ID: "id", Vector: []float32{0.1}}})
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not initialized")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_UpsertPoints_Ugly(t *core.T) {
-	err := (&QdrantClient{}).UpsertPoints(core.Background(), "docs", nil)
+	r := (&QdrantClient{}).UpsertPoints(core.Background(), "docs", nil)
 
-	core.AssertNoError(t, err)
-	core.AssertNil(t, err)
+	core.AssertTrue(t, r.OK)
+	core.AssertNil(t, r.Value)
 }
 
 func TestQdrant_QdrantClient_Search_Good(t *core.T) {
@@ -735,46 +742,47 @@ func TestQdrant_QdrantClient_Search_Good(t *core.T) {
 			"chunk_index": qdrant.NewValueInt(2),
 		},
 	}}}
-	results, err := (&QdrantClient{client: fake}).Search(core.Background(), "docs", []float32{0.1}, 5, map[string]string{"category": "docs"})
+	r := (&QdrantClient{client: fake}).Search(core.Background(), "docs", []float32{0.1}, 5, map[string]string{"category": "docs"})
+	results := r.Value.([]SearchResult)
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "alpha", results[0].Text)
 }
 
 func TestQdrant_QdrantClient_Search_Bad(t *core.T) {
-	results, err := (&QdrantClient{}).Search(core.Background(), "docs", []float32{0.1}, 5, nil)
+	r := (&QdrantClient{}).Search(core.Background(), "docs", []float32{0.1}, 5, nil)
 
-	core.AssertError(t, err)
-	core.AssertNil(t, results)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_Search_Ugly(t *core.T) {
-	results, err := (&QdrantClient{client: &qdrantTestAPI{queryErr: core.NewError("query failed")}}).Search(core.Background(), "docs", nil, 0, nil)
+	r := (&QdrantClient{client: &qdrantTestAPI{queryErr: core.NewError("query failed")}}).Search(core.Background(), "docs", nil, 0, nil)
 
-	core.AssertError(t, err)
-	core.AssertNil(t, results)
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "query failed")
 }
 
 func TestQdrant_QdrantClient_Add_Good(t *core.T) {
 	fake := &qdrantTestAPI{}
-	err := (&QdrantClient{client: fake}).Add(core.Background(), "docs", []Vector{{ID: "id", Values: []float32{0.2}, Payload: map[string]any{"text": "alpha"}}})
+	r := (&QdrantClient{client: fake}).Add(core.Background(), "docs", []Vector{{ID: "id", Values: []float32{0.2}, Payload: map[string]any{"text": "alpha"}}})
 
-	core.AssertNoError(t, err)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, "docs", fake.upsert.GetCollectionName())
 }
 
 func TestQdrant_QdrantClient_Add_Bad(t *core.T) {
-	err := (&QdrantClient{}).Add(core.Background(), "docs", []Vector{{ID: "id", Values: []float32{0.2}}})
+	r := (&QdrantClient{}).Add(core.Background(), "docs", []Vector{{ID: "id", Values: []float32{0.2}}})
 
-	core.AssertError(t, err)
-	core.AssertContains(t, err.Error(), "not initialized")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not initialized")
 }
 
 func TestQdrant_QdrantClient_Add_Ugly(t *core.T) {
-	err := (&QdrantClient{}).Add(core.Background(), "docs", nil)
+	r := (&QdrantClient{}).Add(core.Background(), "docs", nil)
 
-	core.AssertNoError(t, err)
-	core.AssertNil(t, err)
+	core.AssertTrue(t, r.OK)
+	core.AssertNil(t, r.Value)
 }
 
 func TestQdrant_SearchResult_GetText_Good(t *core.T) {

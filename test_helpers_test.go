@@ -12,16 +12,16 @@ type assertionHelper struct{}
 
 var testAssert assertionHelper
 
-// assertNoError fails the test when err is non-nil.
-func assertNoError(t testing.TB, err error, msgAndArgs ...any) bool {
+// assertNoError fails the test when err is non-nil or Result is not OK.
+func assertNoError(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
-	return testAssert.NoError(t, err, msgAndArgs...)
+	return testAssert.NoError(t, value, msgAndArgs...)
 }
 
-// assertError fails the test when err is nil.
-func assertError(t testing.TB, err error, msgAndArgs ...any) bool {
+// assertError fails the test when err is nil or Result is OK.
+func assertError(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
-	return testAssert.Error(t, err, msgAndArgs...)
+	return testAssert.Error(t, value, msgAndArgs...)
 }
 
 // assertEqual fails the test when want and got differ.
@@ -102,6 +102,16 @@ func assertNotEmptyf(t testing.TB, value any, msg string, args ...any) bool {
 	return testAssert.NotEmptyf(t, value, msg, args...)
 }
 
+func resultValue[T any](t testing.TB, result core.Result) T {
+	t.Helper()
+	assertNoError(t, result)
+	value, ok := result.Value.(T)
+	if !ok {
+		t.Fatalf("expected Result value %T, got %T", *new(T), result.Value)
+	}
+	return value
+}
+
 // assertGreater fails the test when got is not greater than want.
 func assertGreater(t testing.TB, got any, want any, msgAndArgs ...any) bool {
 	t.Helper()
@@ -138,22 +148,46 @@ func assertInDelta(t testing.TB, want any, got any, delta any, msgAndArgs ...any
 	return testAssert.InDelta(t, want, got, delta, msgAndArgs...)
 }
 
-// NoError reports whether err is nil.
-func (assertionHelper) NoError(t testing.TB, err error, msgAndArgs ...any) bool {
+// NoError reports whether err is nil or Result is OK.
+func (assertionHelper) NoError(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
-	if err != nil {
-		return failf(t, "unexpected error: %v", []any{err}, msgAndArgs...)
+	switch v := value.(type) {
+	case nil:
+		return true
+	case core.Result:
+		if v.OK {
+			return true
+		}
+		return failf(t, "unexpected error: %s", []any{v.Error()}, msgAndArgs...)
+	case error:
+		if v == nil {
+			return true
+		}
+		return failf(t, "unexpected error: %v", []any{v}, msgAndArgs...)
+	default:
+		return failf(t, "expected error or Result, got %T", []any{value}, msgAndArgs...)
 	}
-	return true
 }
 
-// Error reports whether err is non-nil.
-func (assertionHelper) Error(t testing.TB, err error, msgAndArgs ...any) bool {
+// Error reports whether err is non-nil or Result is not OK.
+func (assertionHelper) Error(t testing.TB, value any, msgAndArgs ...any) bool {
 	t.Helper()
-	if err == nil {
+	switch v := value.(type) {
+	case nil:
 		return failf(t, "expected error, got nil", nil, msgAndArgs...)
+	case core.Result:
+		if !v.OK {
+			return true
+		}
+		return failf(t, "expected error, got OK Result", nil, msgAndArgs...)
+	case error:
+		if v != nil {
+			return true
+		}
+		return failf(t, "expected error, got nil", nil, msgAndArgs...)
+	default:
+		return failf(t, "expected error or Result, got %T", []any{value}, msgAndArgs...)
 	}
-	return true
 }
 
 // Equal reports whether want and got are deeply equal.

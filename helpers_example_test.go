@@ -5,16 +5,18 @@ import core "dappco.re/go"
 func ExampleQueryWith() {
 	store := newMockVectorStore()
 	store.points["docs"] = []Point{{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{"text": "answer", "source": "guide.md", "chunk_index": 0}}}
-	results, err := QueryWith(core.Background(), store, newMockEmbedder(2), "guide", "docs", 3)
-	core.Println(err == nil, results[0].Text)
+	r := QueryWith(core.Background(), store, newMockEmbedder(2), "guide", "docs", 3)
+	results := r.Value.([]QueryResult)
+	core.Println(r.OK, results[0].Text)
 	// Output: true answer
 }
 
 func ExampleQueryContextWith() {
 	store := newMockVectorStore()
 	store.points["docs"] = []Point{{ID: "p1", Vector: []float32{0.1}, Payload: map[string]any{"text": "answer", "source": "guide.md", "chunk_index": 0}}}
-	text, err := QueryContextWith(core.Background(), store, newMockEmbedder(2), "guide", "docs", 3)
-	core.Println(err == nil, core.Contains(text, "answer"))
+	r := QueryContextWith(core.Background(), store, newMockEmbedder(2), "guide", "docs", 3)
+	text := r.Value.(string)
+	core.Println(r.OK, core.Contains(text, "answer"))
 	// Output: true true
 }
 
@@ -25,8 +27,8 @@ func ExampleIngestDirWith() {
 	core.WriteFile(core.PathJoin(dir, "guide.md"), []byte("## Guide\n\nHello world."), 0o644)
 
 	store := newMockVectorStore()
-	err := IngestDirWith(core.Background(), store, newMockEmbedder(2), dir, "docs", false)
-	core.Println(err == nil, len(store.points["docs"]))
+	r := IngestDirWith(core.Background(), store, newMockEmbedder(2), dir, "docs", false)
+	core.Println(r.OK, len(store.points["docs"]))
 	// Output: true 1
 }
 
@@ -37,8 +39,9 @@ func ExampleIngestFileWith() {
 	path := core.PathJoin(dir, "guide.md")
 	core.WriteFile(path, []byte("## Guide\n\nHello world."), 0o644)
 
-	count, err := IngestFileWith(core.Background(), newMockVectorStore(), newMockEmbedder(2), path, "docs")
-	core.Println(err == nil, count)
+	r := IngestFileWith(core.Background(), newMockVectorStore(), newMockEmbedder(2), path, "docs")
+	count := r.Value.(int)
+	core.Println(r.OK, count)
 	// Output: true 1
 }
 
@@ -56,8 +59,9 @@ func ExampleQueryDocs() {
 	newDefaultQdrantClient = func() (defaultQdrantClient, error) { return store, nil }
 	newDefaultOllamaClient = func() (defaultOllamaClient, error) { return &testDefaultOllama{mockEmbedder: newMockEmbedder(2)}, nil }
 
-	results, err := QueryDocs(core.Background(), "guide", "docs", 3)
-	core.Println(err == nil, results[0].Text)
+	r := QueryDocs(core.Background(), "guide", "docs", 3)
+	results := r.Value.([]QueryResult)
+	core.Println(r.OK, results[0].Text)
 	// Output: true answer
 }
 
@@ -75,8 +79,9 @@ func ExampleQueryDocsContext() {
 	newDefaultQdrantClient = func() (defaultQdrantClient, error) { return store, nil }
 	newDefaultOllamaClient = func() (defaultOllamaClient, error) { return &testDefaultOllama{mockEmbedder: newMockEmbedder(2)}, nil }
 
-	text, err := QueryDocsContext(core.Background(), "guide", "docs", 3)
-	core.Println(err == nil, core.Contains(text, "context answer"))
+	r := QueryDocsContext(core.Background(), "guide", "docs", 3)
+	text := r.Value.(string)
+	core.Println(r.OK, core.Contains(text, "context answer"))
 	// Output: true true
 }
 
@@ -95,8 +100,8 @@ func ExampleIngestDirectory() {
 	newDefaultQdrantClient = func() (defaultQdrantClient, error) { return store, nil }
 	newDefaultOllamaClient = func() (defaultOllamaClient, error) { return &testDefaultOllama{mockEmbedder: newMockEmbedder(2)}, nil }
 
-	err := IngestDirectory(core.Background(), dir, "docs", false)
-	core.Println(err == nil, len(store.points["docs"]))
+	r := IngestDirectory(core.Background(), dir, "docs", false)
+	core.Println(r.OK, len(store.points["docs"]))
 	// Output: true 1
 }
 
@@ -116,8 +121,9 @@ func ExampleIngestSingleFile() {
 	newDefaultQdrantClient = func() (defaultQdrantClient, error) { return store, nil }
 	newDefaultOllamaClient = func() (defaultOllamaClient, error) { return &testDefaultOllama{mockEmbedder: newMockEmbedder(2)}, nil }
 
-	count, err := IngestSingleFile(core.Background(), path, "docs")
-	core.Println(err == nil, count)
+	r := IngestSingleFile(core.Background(), path, "docs")
+	count := r.Value.(int)
+	core.Println(r.OK, count)
 	// Output: true 1
 }
 

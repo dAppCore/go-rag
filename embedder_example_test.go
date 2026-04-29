@@ -4,7 +4,8 @@ import core "dappco.re/go"
 
 func ExampleEmbedder() {
 	var embedder Embedder = newMockEmbedder(2)
-	vector, err := embedder.Embed(core.Background(), "hello")
-	core.Println(err == nil, len(vector))
+	r := embedder.Embed(core.Background(), "hello")
+	vector := r.Value.([]float32)
+	core.Println(r.OK, len(vector))
 	// Output: true 2
 }

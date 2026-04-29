@@ -4,8 +4,8 @@ import core "dappco.re/go"
 
 func ExampleVectorStore() {
 	var store VectorStore = newMockVectorStore()
-	err := store.CreateCollection(core.Background(), "docs", 768)
-	core.Println(err == nil)
+	r := store.CreateCollection(core.Background(), "docs", 768)
+	core.Println(r.OK)
 	// Output: true
 }
 

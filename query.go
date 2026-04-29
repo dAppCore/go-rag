@@ -183,22 +183,24 @@ func resultHasChunkIndex[T rankedResult](result T) bool {
 
 // Query searches for similar documents in the vector store.
 // Query(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
-func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
-	it, err := QuerySeq(ctx, store, embedder, query, cfg)
-	if err != nil {
-		return nil, err
+func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) core.Result {
+	itResult := QuerySeq(ctx, store, embedder, query, cfg)
+	if !itResult.OK {
+		return itResult
 	}
-	return slices.Collect(it), nil
+	it := itResult.Value.(iter.Seq[QueryResult])
+	return core.Ok(slices.Collect(it))
 }
 
 // QuerySeq returns an iterator that yields query results from the vector store.
 // it, _ := QuerySeq(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
-func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error) {
+func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) core.Result {
 	// Generate embedding for query
-	embedding, err := embedder.Embed(ctx, query)
-	if err != nil {
-		return nil, core.E("rag.Query", "error generating query embedding", err)
+	embeddingResult := embedder.Embed(ctx, query)
+	if !embeddingResult.OK {
+		return core.Fail(core.E("rag.Query", "error generating query embedding", core.NewError(embeddingResult.Error())))
 	}
+	embedding := embeddingResult.Value.([]float32)
 
 	// Build filter
 	var filter map[string]string
@@ -207,11 +209,11 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 	}
 
 	// Search vector store
-	var results []SearchResult
-	results, err = store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
-	if err != nil {
-		return nil, core.E("rag.Query", "error searching", err)
+	resultsResult := store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
+	if !resultsResult.OK {
+		return core.Fail(core.E("rag.Query", "error searching", core.NewError(resultsResult.Error())))
 	}
+	results := resultsResult.Value.([]SearchResult)
 
 	// Filter by threshold and convert to iterator
 	filteredIt := func(yield func(QueryResult) bool) {
@@ -254,7 +256,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 		}
 	}
 
-	return filteredIt, nil
+	return core.Ok(iter.Seq[QueryResult](filteredIt))
 }
 
 // FormatResultsText formats query results as plain text.

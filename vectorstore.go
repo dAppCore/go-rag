@@ -1,34 +1,38 @@
 package rag
 
-import "context"
+import (
+	"context"
+
+	"dappco.re/go"
+)
 
 // VectorStore defines the interface for vector storage and search.
 // var store VectorStore = qdrantClient
 type VectorStore interface {
 	// CreateCollection creates a new vector collection with the given
 	// name and vector dimensionality.
-	CreateCollection(ctx context.Context, name string, vectorSize uint64) error
+	CreateCollection(ctx context.Context, name string, vectorSize uint64) core.Result
 
 	// CollectionExists checks whether a collection with the given name exists.
-	CollectionExists(ctx context.Context, name string) (bool, error)
+	CollectionExists(ctx context.Context, name string) core.Result
 
 	// DeleteCollection deletes the collection with the given name.
-	DeleteCollection(ctx context.Context, name string) error
+	DeleteCollection(ctx context.Context, name string) core.Result
 
 	// ListCollections returns all collection names in the store.
-	ListCollections(ctx context.Context) ([]string, error)
+	ListCollections(ctx context.Context) core.Result
 
 	// CollectionInfo returns metadata about a collection. Implementations
 	// should populate at least PointCount and VectorSize in the returned
 	// CollectionInfo struct.
-	CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error)
+	CollectionInfo(ctx context.Context, name string) core.Result
 
 	// UpsertPoints inserts or updates points in the named collection.
-	UpsertPoints(ctx context.Context, collection string, points []Point) error
+	UpsertPoints(ctx context.Context, collection string, points []Point) core.Result
 
 	// Search performs a vector similarity search, returning up to limit results.
 	// The filter map restricts results by payload field values when non-nil.
-	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error)
+	Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) core.Result
 }
 
 // Vector represents an RFC-compatible vector payload for storage.

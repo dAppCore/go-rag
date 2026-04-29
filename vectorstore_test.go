@@ -20,8 +20,8 @@ func TestVectorstore_VectorStore_Ugly(t *core.T) {
 	store := newMockVectorStore()
 	var _ VectorStore = store
 
-	err := store.CreateCollection(core.Background(), "docs", 2)
-	core.AssertNoError(t, err)
+	r := store.CreateCollection(core.Background(), "docs", 2)
+	core.AssertTrue(t, r.OK)
 	core.AssertEqual(t, uint64(2), store.collections["docs"])
 }
 
