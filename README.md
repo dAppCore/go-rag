@@ -1,8 +1,20 @@
-[![Go Reference](https://pkg.go.dev/badge/forge.lthn.ai/core/go-rag.svg)](https://pkg.go.dev/forge.lthn.ai/core/go-rag)
-[![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.md)
-[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](go.mod)
+<!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# go-rag
+
+
+> Retrieval-augmented generation — chunking, embeddings, qdrant + ollama
+
+[![CI](https://github.com/dappcore/go-rag/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/dappcore/go-rag/actions/workflows/ci.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=dappcore_go-rag&metric=alert_status)](https://sonarcloud.io/dashboard?id=dappcore_go-rag)
+[![Coverage](https://codecov.io/gh/dappcore/go-rag/branch/dev/graph/badge.svg)](https://codecov.io/gh/dappcore/go-rag)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dappcore_go-rag&metric=security_rating)](https://sonarcloud.io/dashboard?id=dappcore_go-rag)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dappcore_go-rag&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=dappcore_go-rag)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dappcore_go-rag&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=dappcore_go-rag)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=dappcore_go-rag&metric=code_smells)](https://sonarcloud.io/dashboard?id=dappcore_go-rag)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=dappcore_go-rag&metric=ncloc)](https://sonarcloud.io/dashboard?id=dappcore_go-rag)
+[![Go Reference](https://pkg.go.dev/badge/dappco.re/go/go-rag.svg)](https://pkg.go.dev/dappco.re/go/go-rag)
+[![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](https://eupl.eu/1.2/en/)
+
 
 Retrieval-Augmented Generation library for Go. Provides document chunking with three-level Markdown splitting plus sentence- and paragraph-based chunkers, configurable overlap, embedding generation via Ollama, vector storage and cosine-similarity search via Qdrant (gRPC), TF-IDF keyword fallback and keyword boosting post-filter, and result formatting in plain text, XML (for LLM prompt injection), or JSON. Ingestion accepts Markdown, text, PDF, and `.markdown` documents via `ShouldProcess()` / `FileExtensions()`. Designed around `Embedder` and `VectorStore` interfaces that decouple business logic from service implementations and enable mock-based testing.
 
