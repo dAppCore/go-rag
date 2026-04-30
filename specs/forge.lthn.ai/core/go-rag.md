@@ -62,7 +62,7 @@ Connection settings for Qdrant. `Host` and `Port` identify the server, `APIKey` 
 ### `QdrantClient`
 `type QdrantClient struct { /* unexported fields */ }`
 
-Concrete `VectorStore` implementation backed by `github.com/qdrant/go-client/qdrant`. The value wraps an initialized Qdrant client plus the configuration used to create it.
+Concrete `VectorStore` implementation backed by `github.com/qdrant/go-client/qdrant`. The value wraps an initialised Qdrant client plus the configuration used to create it.
 
 ### `QueryConfig`
 `type QueryConfig struct { Collection string; Limit uint64; Threshold float32; Category string; Keywords bool }`

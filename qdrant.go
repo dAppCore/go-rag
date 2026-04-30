@@ -4,17 +4,22 @@ package rag
 
 import (
 	"context"
+	"net/url"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"github.com/qdrant/go-client/qdrant"
 )
 
 // QdrantConfig holds Qdrant connection configuration.
 // cfg := QdrantConfig{Host: "localhost", Port: 6334, UseTLS: false}
 type QdrantConfig struct {
-	Host   string
-	Port   int
+	// Host is the Qdrant server hostname.
+	Host string
+	// Port is the Qdrant gRPC port.
+	Port int
+	// APIKey is the optional Qdrant API key.
 	APIKey string
+	// UseTLS enables TLS when connecting to Qdrant.
 	UseTLS bool
 }
 
@@ -33,15 +38,17 @@ func DefaultQdrantConfig() QdrantConfig {
 // The convenience form accepts the common Qdrant REST endpoint example
 // (http://localhost:6333) and normalises it to the gRPC port used by the
 // Go client.
-func NewQdrantStore(endpoint string) (*QdrantClient, error) {
-	cfg, err := qdrantConfigFromEndpoint(endpoint)
-	if err != nil {
-		return nil, core.E("rag.NewQdrantStore", "invalid Qdrant endpoint", err)
+func NewQdrantStore(endpoint string) core.Result {
+	cfgResult := qdrantConfigFromEndpoint(endpoint)
+	if !cfgResult.OK {
+		return core.Fail(core.E("rag.NewQdrantStore", "invalid Qdrant endpoint", core.NewError(cfgResult.Error())))
 	}
+	cfg := cfgResult.Value.(QdrantConfig)
 	cfg.Port = normalizeQdrantGRPCPort(cfg.Port)
 	return NewQdrantClient(cfg)
 }
 
+// normalizeQdrantGRPCPort maps Qdrant's common REST port to its gRPC port.
 func normalizeQdrantGRPCPort(port int) int {
 	if port == 6333 {
 		return 6334
@@ -49,12 +56,14 @@ func normalizeQdrantGRPCPort(port int) int {
 	return port
 }
 
-func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
+// qdrantConfigFromEndpoint parses a host or URL into Qdrant connection settings.
+func qdrantConfigFromEndpoint(endpoint string) core.Result {
 	cfg := DefaultQdrantConfig()
-	parsed, err := parseEndpointURL(endpoint)
-	if err != nil {
-		return QdrantConfig{}, err
+	parsedResult := parseEndpointURL(endpoint)
+	if !parsedResult.OK {
+		return parsedResult
 	}
+	parsed := parsedResult.Value.(*url.URL)
 
 	host := parsed.Hostname()
 	if host == "" {
@@ -63,10 +72,11 @@ func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
 	cfg.Host = host
 
 	if portText := parsed.Port(); portText != "" {
-		port, err := parseEndpointPort("rag.qdrantConfigFromEndpoint", portText)
-		if err != nil {
-			return QdrantConfig{}, err
+		portResult := parseEndpointPort("rag.qdrantConfigFromEndpoint", portText)
+		if !portResult.OK {
+			return portResult
 		}
+		port := portResult.Value.(int)
 		cfg.Port = port
 	}
 
@@ -77,92 +87,150 @@ func qdrantConfigFromEndpoint(endpoint string) (QdrantConfig, error) {
 		cfg.UseTLS = false
 	}
 
-	return cfg, nil
+	return core.Ok(cfg)
 }
 
 // QdrantClient wraps the Qdrant Go client with convenience methods.
 // client, _ := NewQdrantClient(DefaultQdrantConfig())
 type QdrantClient struct {
-	client *qdrant.Client
+	client qdrantClientAPI
 	config QdrantConfig
+}
+
+type qdrantClientAPI interface {
+	Close() error
+	HealthCheck(ctx context.Context) (*qdrant.HealthCheckReply, error)
+	ListCollections(ctx context.Context) ([]string, error)
+	CollectionExists(ctx context.Context, name string) (bool, error)
+	CreateCollection(ctx context.Context, request *qdrant.CreateCollection) error
+	DeleteCollection(ctx context.Context, name string) error
+	GetCollectionInfo(ctx context.Context, name string) (*qdrant.CollectionInfo, error)
+	Upsert(ctx context.Context, request *qdrant.UpsertPoints) (*qdrant.UpdateResult, error)
+	Query(ctx context.Context, request *qdrant.QueryPoints) ([]*qdrant.ScoredPoint, error)
+}
+
+func (q *QdrantClient) api() core.Result {
+	if q == nil || q.client == nil {
+		return core.Fail(core.E("rag.Qdrant", "client is not initialized", nil))
+	}
+	return core.Ok(q.client)
 }
 
 // NewQdrantClient creates a new Qdrant client.
 // client, err := NewQdrantClient(DefaultQdrantConfig())
-func NewQdrantClient(cfg QdrantConfig) (*QdrantClient, error) {
+func NewQdrantClient(cfg QdrantConfig) core.Result {
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		return core.Fail(core.E("rag.Qdrant", core.Sprintf("port out of range: %d", cfg.Port), nil))
+	}
 	addr := core.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:   cfg.Host,
-		Port:   cfg.Port,
-		APIKey: cfg.APIKey,
-		UseTLS: cfg.UseTLS,
+		Host:                   cfg.Host,
+		Port:                   cfg.Port,
+		APIKey:                 cfg.APIKey,
+		UseTLS:                 cfg.UseTLS,
+		SkipCompatibilityCheck: true,
 	})
 	if err != nil {
-		return nil, core.E("rag.Qdrant", core.Sprintf("failed to connect to Qdrant at %s", addr), err)
+		return core.Fail(core.E("rag.Qdrant", core.Sprintf("failed to connect to Qdrant at %s", addr), err))
 	}
 
-	return &QdrantClient{
+	return core.Ok(&QdrantClient{
 		client: client,
 		config: cfg,
-	}, nil
+	})
 }
 
 // Close closes the Qdrant client connection.
 // defer client.Close()
-func (q *QdrantClient) Close() error {
-	return q.client.Close()
+func (q *QdrantClient) Close() core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	return core.ResultOf(nil, client.Close())
 }
 
 // HealthCheck verifies the connection to Qdrant.
 // client.HealthCheck(ctx)
-func (q *QdrantClient) HealthCheck(ctx context.Context) error {
-	_, err := q.client.HealthCheck(ctx)
-	return err
+func (q *QdrantClient) HealthCheck(ctx context.Context) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	_, err := client.HealthCheck(ctx)
+	return core.ResultOf(nil, err)
 }
 
 // ListCollections returns all collection names.
 // names, _ := client.ListCollections(ctx)
-func (q *QdrantClient) ListCollections(ctx context.Context) ([]string, error) {
-	resp, err := q.client.ListCollections(ctx)
+func (q *QdrantClient) ListCollections(ctx context.Context) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	resp, err := client.ListCollections(ctx)
 	if err != nil {
-		return nil, err
+		return core.Fail(err)
 	}
 	names := make([]string, len(resp))
 	copy(names, resp)
-	return names, nil
+	return core.Ok(names)
 }
 
 // CollectionExists checks if a collection exists.
 // exists, _ := client.CollectionExists(ctx, "project-docs")
-func (q *QdrantClient) CollectionExists(ctx context.Context, name string) (bool, error) {
-	return q.client.CollectionExists(ctx, name)
+func (q *QdrantClient) CollectionExists(ctx context.Context, name string) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	return core.ResultOf(client.CollectionExists(ctx, name))
 }
 
 // CreateCollection creates a new collection with cosine distance.
 // client.CreateCollection(ctx, "project-docs", 768)
-func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vectorSize uint64) error {
-	return q.client.CreateCollection(ctx, &qdrant.CreateCollection{
+func (q *QdrantClient) CreateCollection(ctx context.Context, name string, vectorSize uint64) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	return core.ResultOf(nil, client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: name,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
 			Size:     vectorSize,
 			Distance: qdrant.Distance_Cosine,
 		}),
-	})
+	}))
 }
 
 // DeleteCollection deletes a collection.
 // client.DeleteCollection(ctx, "project-docs")
-func (q *QdrantClient) DeleteCollection(ctx context.Context, name string) error {
-	return q.client.DeleteCollection(ctx, name)
+func (q *QdrantClient) DeleteCollection(ctx context.Context, name string) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	return core.ResultOf(nil, client.DeleteCollection(ctx, name))
 }
 
 // CollectionInfo returns backend-agnostic metadata about a collection.
 // info, _ := client.CollectionInfo(ctx, "project-docs")
-func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
-	info, err := q.client.GetCollectionInfo(ctx, name)
+func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
+	info, err := client.GetCollectionInfo(ctx, name)
 	if err != nil {
-		return nil, err
+		return core.Fail(err)
 	}
 
 	pointCount := info.GetPointsCount()
@@ -203,23 +271,31 @@ func (q *QdrantClient) CollectionInfo(ctx context.Context, name string) (*Collec
 		ci.Status = "unknown"
 	}
 
-	return ci, nil
+	return core.Ok(ci)
 }
 
 // Point represents a vector point with payload.
 // point := Point{ID: "chunk-1", Vector: []float32{0.1, 0.2}, Payload: map[string]any{"source": "docs/go.md"}}
 type Point struct {
-	ID      string
-	Vector  []float32
+	// ID is the stable vector-store identifier for the point.
+	ID string
+	// Vector is the embedding stored in the collection.
+	Vector []float32
+	// Payload stores source text and metadata alongside the vector.
 	Payload map[string]any
 }
 
 // UpsertPoints inserts or updates points in a collection.
 // client.UpsertPoints(ctx, "project-docs", points)
-func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, points []Point) error {
+func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, points []Point) core.Result {
 	if len(points) == 0 {
-		return nil
+		return core.Ok(nil)
 	}
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
 
 	qdrantPoints := make([]*qdrant.PointStruct, len(points))
 	for i, p := range points {
@@ -230,27 +306,38 @@ func (q *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 		}
 	}
 
-	_, err := q.client.Upsert(ctx, &qdrant.UpsertPoints{
+	_, err := client.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: collection,
 		Points:         qdrantPoints,
 	})
-	return err
+	return core.ResultOf(nil, err)
 }
 
 // SearchResult represents a low-level vector search hit.
 // result := SearchResult{ID: "chunk-1", Score: 0.92, Text: "...", Source: "docs.md"}
 type SearchResult struct {
-	ID                string
-	Score             float32
-	Text              string
-	Source            string
-	Section           string
-	Category          string
-	ChunkIndex        int
-	Index             int
+	// ID is the vector-store point identifier.
+	ID string
+	// Score is the similarity score returned by the vector store.
+	Score float32
+	// Text is the denormalised chunk text, when present.
+	Text string
+	// Source is the denormalised source path, when present.
+	Source string
+	// Section is the denormalised Markdown section, when present.
+	Section string
+	// Category is the denormalised document category, when present.
+	Category string
+	// ChunkIndex is the denormalised source chunk index.
+	ChunkIndex int
+	// Index is a compatibility alias for ChunkIndex.
+	Index int
+	// ChunkIndexPresent distinguishes an explicit zero chunk index from missing metadata.
 	ChunkIndexPresent bool
-	IndexPresent      bool
-	Payload           map[string]any
+	// IndexPresent distinguishes an explicit zero index from missing metadata.
+	IndexPresent bool
+	// Payload is the decoded raw vector-store payload.
+	Payload map[string]any
 }
 
 // GetText returns the text field from Payload (satisfies textResult / rankedResult).
@@ -341,7 +428,12 @@ func (r SearchResult) GetCategory() string {
 // Search performs a vector similarity search.
 // results, _ := client.Search(ctx, "project-docs", vector, 5, nil)
 // results, _ := client.Search(ctx, "project-docs", vector, 5, map[string]string{"source": "docs"})
-func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
+func (q *QdrantClient) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) core.Result {
+	clientResult := q.api()
+	if !clientResult.OK {
+		return clientResult
+	}
+	client := clientResult.Value.(qdrantClientAPI)
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(vector...),
@@ -359,9 +451,9 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		}
 	}
 
-	resp, err := q.client.Query(ctx, query)
+	resp, err := client.Query(ctx, query)
 	if err != nil {
-		return nil, err
+		return core.Fail(err)
 	}
 
 	results := make([]SearchResult, len(resp))
@@ -389,9 +481,10 @@ func (q *QdrantClient) Search(ctx context.Context, collection string, vector []f
 			Payload:           payload,
 		}
 	}
-	return results, nil
+	return core.Ok(results)
 }
 
+// payloadChunkIndex extracts chunk_index from decoded Qdrant payload values.
 func payloadChunkIndex(payload map[string]any) (int, bool) {
 	if payload == nil {
 		return 0, false
@@ -426,10 +519,10 @@ func pointIDToString(id *qdrant.PointId) string {
 // Add inserts RFC-shaped Vector payloads into the collection.
 // It wraps UpsertPoints so callers can pass []Vector directly from ingestion pipelines.
 //
-//	err := client.Add(ctx, "docs", []Vector{{ID: "1", Values: embedding, Payload: meta}})
-func (q *QdrantClient) Add(ctx context.Context, collection string, vectors []Vector) error {
+//	r := client.Add(ctx, "docs", []Vector{{ID: "1", Values: embedding, Payload: meta}})
+func (q *QdrantClient) Add(ctx context.Context, collection string, vectors []Vector) core.Result {
 	if len(vectors) == 0 {
-		return nil
+		return core.Ok(nil)
 	}
 	points := make([]Point, len(vectors))
 	for i, v := range vectors {

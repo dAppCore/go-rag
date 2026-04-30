@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // skipIfServicesUnavailable skips the test if either Qdrant or Ollama is not
@@ -24,7 +24,7 @@ func skipIfServicesUnavailable(t *testing.T) {
 	}
 }
 
-func TestIntegration_Pipeline_Ugly(t *testing.T) {
+func TestIntegrationPipelineEndToEnd(t *testing.T) {
 	skipIfServicesUnavailable(t)
 
 	ctx := context.Background()

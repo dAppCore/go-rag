@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // --- Embedding benchmarks (Ollama on ROCm GPU) ---
@@ -251,7 +251,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 
 // --- Embedding throughput test (not a benchmark — reports human-readable stats) ---
 
-func TestBenchmarkGPU_EmbeddingThroughput_Ugly(t *testing.T) {
+func TestBenchmarkGPUEmbeddingThroughputReport(t *testing.T) {
 	skipIfOllamaUnavailable(t)
 
 	cfg := DefaultOllamaConfig()
@@ -300,7 +300,7 @@ func TestBenchmarkGPU_EmbeddingThroughput_Ugly(t *testing.T) {
 }
 
 // TestSearchLatency reports Qdrant search timing.
-func TestBenchmarkGPU_SearchLatency_Ugly(t *testing.T) {
+func TestBenchmarkGPUSearchLatencyReport(t *testing.T) {
 	skipIfQdrantUnavailable(t)
 	skipIfOllamaUnavailable(t)
 

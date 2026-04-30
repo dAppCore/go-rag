@@ -7,7 +7,7 @@ import (
 	"math"
 	"slices"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 const missingChunkIndex = -1
@@ -15,11 +15,16 @@ const missingChunkIndex = -1
 // QueryConfig holds query configuration.
 // cfg := QueryConfig{Collection: "project-docs", Limit: 5, Threshold: 0.6}
 type QueryConfig struct {
+	// Collection is the vector-store collection to search.
 	Collection string
-	Limit      uint64
-	Threshold  float32 // Minimum similarity score (0-1)
-	Category   string  // Filter by category
-	Keywords   bool    // When true, extract keywords from query and boost matching results
+	// Limit is the maximum number of ranked results returned.
+	Limit uint64
+	// Threshold is the minimum similarity score from 0 to 1.
+	Threshold float32
+	// Category filters search results by document category when set.
+	Category string
+	// Keywords enables keyword extraction and boosting when true.
+	Keywords bool
 }
 
 // DefaultQueryConfig returns default query configuration.
@@ -35,15 +40,24 @@ func DefaultQueryConfig() QueryConfig {
 // QueryResult represents a query result with metadata.
 // result := QueryResult{Source: "docs/go.md", Section: "Concurrency", Score: 0.92}
 type QueryResult struct {
-	Text              string
-	Source            string
-	Section           string
-	Category          string
-	ChunkIndex        int
-	Index             int
+	// Text is the matched chunk text.
+	Text string
+	// Source is the source document path.
+	Source string
+	// Section is the source Markdown section.
+	Section string
+	// Category is the inferred document category.
+	Category string
+	// ChunkIndex is the chunk's zero-based source position.
+	ChunkIndex int
+	// Index is a compatibility alias for ChunkIndex.
+	Index int
+	// ChunkIndexPresent distinguishes explicit zero from missing chunk metadata.
 	ChunkIndexPresent bool
-	IndexPresent      bool
-	Score             float32
+	// IndexPresent distinguishes explicit zero from missing index metadata.
+	IndexPresent bool
+	// Score is the vector or boosted relevance score.
+	Score float32
 }
 
 // GetText returns the result text (satisfies the rankedResult interface).
@@ -159,6 +173,7 @@ func rankKey[T rankedResult](result T) string {
 	return core.Sprintf("score:%f", result.GetScore())
 }
 
+// resultHasChunkIndex reports whether a ranked result carries explicit chunk metadata.
 func resultHasChunkIndex[T rankedResult](result T) bool {
 	if indexed, ok := any(result).(chunkIndexedResult); ok {
 		return indexed.HasChunkIndex()
@@ -168,22 +183,24 @@ func resultHasChunkIndex[T rankedResult](result T) bool {
 
 // Query searches for similar documents in the vector store.
 // Query(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
-func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) ([]QueryResult, error) {
-	it, err := QuerySeq(ctx, store, embedder, query, cfg)
-	if err != nil {
-		return nil, err
+func Query(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) core.Result {
+	itResult := QuerySeq(ctx, store, embedder, query, cfg)
+	if !itResult.OK {
+		return itResult
 	}
-	return slices.Collect(it), nil
+	it := itResult.Value.(iter.Seq[QueryResult])
+	return core.Ok(slices.Collect(it))
 }
 
 // QuerySeq returns an iterator that yields query results from the vector store.
 // it, _ := QuerySeq(ctx, store, embedder, "how do goroutines work?", DefaultQueryConfig())
-func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) (iter.Seq[QueryResult], error) {
+func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query string, cfg QueryConfig) core.Result {
 	// Generate embedding for query
-	embedding, err := embedder.Embed(ctx, query)
-	if err != nil {
-		return nil, core.E("rag.Query", "error generating query embedding", err)
+	embeddingResult := embedder.Embed(ctx, query)
+	if !embeddingResult.OK {
+		return core.Fail(core.E("rag.Query", "error generating query embedding", core.NewError(embeddingResult.Error())))
 	}
+	embedding := embeddingResult.Value.([]float32)
 
 	// Build filter
 	var filter map[string]string
@@ -192,11 +209,11 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 	}
 
 	// Search vector store
-	var results []SearchResult
-	results, err = store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
-	if err != nil {
-		return nil, core.E("rag.Query", "error searching", err)
+	resultsResult := store.Search(ctx, cfg.Collection, embedding, cfg.Limit, filter)
+	if !resultsResult.OK {
+		return core.Fail(core.E("rag.Query", "error searching", core.NewError(resultsResult.Error())))
 	}
+	results := resultsResult.Value.([]SearchResult)
 
 	// Filter by threshold and convert to iterator
 	filteredIt := func(yield func(QueryResult) bool) {
@@ -239,7 +256,7 @@ func QuerySeq(ctx context.Context, store VectorStore, embedder Embedder, query s
 		}
 	}
 
-	return filteredIt, nil
+	return core.Ok(iter.Seq[QueryResult](filteredIt))
 }
 
 // FormatResultsText formats query results as plain text.

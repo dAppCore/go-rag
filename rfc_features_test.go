@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// TestChunkBySentences covers sentence-aligned chunking required by the RFC surface.
 func TestChunkBySentences(t *testing.T) {
 	chunks := ChunkBySentences("One. Two. Three.", ChunkConfig{Size: 8, Overlap: 0})
 
@@ -13,6 +14,7 @@ func TestChunkBySentences(t *testing.T) {
 	assertEqual(t, "Three.", chunks[2].Text)
 }
 
+// TestChunkByParagraphs covers paragraph-aligned chunking required by the RFC surface.
 func TestChunkByParagraphs(t *testing.T) {
 	text := "First paragraph.\n\nSecond paragraph."
 	chunks := ChunkByParagraphs(text, ChunkConfig{Size: 100, Overlap: 0})
@@ -22,6 +24,7 @@ func TestChunkByParagraphs(t *testing.T) {
 	assertContains(t, chunks[0].Text, "Second paragraph.")
 }
 
+// TestRank verifies score ordering and duplicate removal for query results.
 func TestRank(t *testing.T) {
 	results := []QueryResult{
 		{Text: "duplicate low", Source: "a.md", ChunkIndex: 1, Score: 0.4},
@@ -36,6 +39,7 @@ func TestRank(t *testing.T) {
 	assertEqual(t, "other", ranked[1].Text)
 }
 
+// TestJoinResults verifies prompt text joining for query results.
 func TestJoinResults(t *testing.T) {
 	results := []QueryResult{
 		{Text: "alpha"},
@@ -45,6 +49,7 @@ func TestJoinResults(t *testing.T) {
 	assertEqual(t, "alpha\n\nbeta", JoinResults(results))
 }
 
+// TestJoinResultsSearchResult verifies prompt text joining for search results.
 func TestJoinResultsSearchResult(t *testing.T) {
 	results := []SearchResult{
 		{Text: "alpha"},
@@ -54,6 +59,7 @@ func TestJoinResultsSearchResult(t *testing.T) {
 	assertEqual(t, "alpha\n\nbeta", JoinResults(results))
 }
 
+// TestRankSearchResult verifies generic ranking against Qdrant search results.
 func TestRankSearchResult(t *testing.T) {
 	results := []SearchResult{
 		{Text: "duplicate low", Source: "a.md", Index: 1, Score: 0.4},
@@ -68,6 +74,7 @@ func TestRankSearchResult(t *testing.T) {
 	assertEqual(t, "other", ranked[1].Text)
 }
 
+// TestKeywordIndex verifies TF-IDF keyword lookup over chunk text.
 func TestKeywordIndex(t *testing.T) {
 	index := NewKeywordIndex([]Chunk{
 		{Text: "Kubernetes deployment guide", Section: "Ops", Index: 0},
@@ -81,15 +88,16 @@ func TestKeywordIndex(t *testing.T) {
 	assertEqual(t, "Ops", hits[0].Section)
 }
 
+// TestEndpointConfigParsing verifies endpoint URL parsing for Qdrant and Ollama clients.
 func TestEndpointConfigParsing(t *testing.T) {
-	qcfg, err := qdrantConfigFromEndpoint("https://example.com:6333")
-	assertNoError(t, err)
+	qr := qdrantConfigFromEndpoint("https://example.com:6333")
+	qcfg := resultValue[QdrantConfig](t, qr)
 	assertEqual(t, "example.com", qcfg.Host)
 	assertEqual(t, 6333, qcfg.Port)
 	assertTrue(t, qcfg.UseTLS)
 
-	ocfg, err := ollamaConfigFromEndpoint("http://ollama.local:11435")
-	assertNoError(t, err)
+	or := ollamaConfigFromEndpoint("http://ollama.local:11435")
+	ocfg := resultValue[OllamaConfig](t, or)
 	assertEqual(t, "ollama.local", ocfg.Host)
 	assertEqual(t, 11435, ocfg.Port)
 	assertEqual(t, "http", ocfg.Scheme)

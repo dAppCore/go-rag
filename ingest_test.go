@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // --- Ingest (directory) tests with mocks ---
@@ -20,9 +20,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-col"
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 1, stats.Files)
 		assertEqual(t, 1, stats.Chunks)
 		assertEqual(t, 0, stats.Errors)
@@ -48,9 +48,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-txt"
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 1, stats.Files)
 		assertEqual(t, 1, stats.Chunks)
 		assertEqual(t, 0, stats.Errors)
@@ -80,9 +80,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Collection = "test-chunks"
 		cfg.Chunk = ChunkConfig{Size: 200, Overlap: 20}
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 1, stats.Files)
 		assertGreater(t, stats.Chunks, 1, "large text should produce multiple chunks")
 
@@ -101,9 +101,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-embed"
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 2, stats.Files)
 		assertEqual(t, 2, stats.Chunks)
 		assertEqual(t, 2, embedder.embedCallCount())
@@ -126,8 +126,8 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-upsert"
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
-		assertNoError(t, err)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		assertNoError(t, r)
 
 		assertEqual(t, 1, store.upsertCallCount())
 		points := store.allPoints("test-upsert")
@@ -154,9 +154,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-err"
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err) // Ingest itself does not fail; it tracks errors in stats
 		assertEqual(t, 1, stats.Errors)
 		assertEqual(t, 0, stats.Chunks)
 
@@ -177,12 +177,10 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-upsert-err"
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error upserting batch")
-		// Stats should still report what was processed before failure
-		assertEqual(t, 1, stats.Files)
+		assertError(t, r)
+		assertContains(t, r.Error(), "error upserting batch")
 	})
 
 	t.Run("collection exists check failure returns error", func(t *testing.T) {
@@ -197,10 +195,10 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-exists-err"
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error checking collection")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error checking collection")
 	})
 
 	t.Run("batch size handling — multiple batches", func(t *testing.T) {
@@ -218,9 +216,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Collection = "test-batch"
 		cfg.BatchSize = 2 // Small batch size to force multiple upsert calls
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 5, stats.Files)
 		assertEqual(t, 5, stats.Chunks)
 
@@ -243,9 +241,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Collection = "test-batch-zero"
 		cfg.BatchSize = 0
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 1, stats.Chunks)
 		// Should still upsert (batch size defaulted to 100)
 		assertEqual(t, 1, store.upsertCallCount())
@@ -265,9 +263,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Collection = "test-recreate"
 		cfg.Recreate = true
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertNoError(t, err)
+		assertNoError(t, r)
 		assertLen(t, store.deleteCalls, 1)
 		assertEqual(t, "test-recreate", store.deleteCalls[0])
 		// Collection should be re-created after delete
@@ -287,9 +285,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Collection = "existing-col"
 		cfg.Recreate = false
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertNoError(t, err)
+		assertNoError(t, r)
 		assertEmpty(t, store.deleteCalls)
 		assertEmpty(t, store.createCalls)
 	})
@@ -301,10 +299,10 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = "/tmp/nonexistent-dir-for-go-rag-test"
 		cfg.Collection = "test-nodir"
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error accessing directory")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error accessing directory")
 	})
 
 	t.Run("directory with no matching files returns error", func(t *testing.T) {
@@ -317,10 +315,10 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-nomd"
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "no matching files found")
+		assertError(t, r)
+		assertContains(t, r.Error(), "no matching files found")
 	})
 
 	t.Run("empty file is skipped", func(t *testing.T) {
@@ -334,9 +332,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-empty"
 
-		stats, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
+		stats := resultValue[*IngestStats](t, r)
 
-		assertNoError(t, err)
 		// Only the real file should be processed
 		assertEqual(t, 1, stats.Files)
 		assertEqual(t, 1, stats.Chunks)
@@ -358,9 +356,9 @@ func TestIngest_Ingest_Good(t *testing.T) {
 			progressCalls = append(progressCalls, file)
 		}
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, progress)
+		r := Ingest(context.Background(), store, embedder, cfg, progress)
 
-		assertNoError(t, err)
+		assertNoError(t, r)
 		assertLen(t, progressCalls, 2)
 	})
 
@@ -378,10 +376,10 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Collection = "test-del-err"
 		cfg.Recreate = true
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error deleting collection")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error deleting collection")
 	})
 
 	t.Run("create collection failure returns error", func(t *testing.T) {
@@ -396,10 +394,10 @@ func TestIngest_Ingest_Good(t *testing.T) {
 		cfg.Directory = dir
 		cfg.Collection = "test-create-err"
 
-		_, err := Ingest(context.Background(), store, embedder, cfg, nil)
+		r := Ingest(context.Background(), store, embedder, cfg, nil)
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error creating collection")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error creating collection")
 	})
 }
 
@@ -414,9 +412,9 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 
-		count, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		r := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		count := resultValue[int](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 1, count)
 		assertEqual(t, 1, embedder.embedCallCount())
 
@@ -433,9 +431,9 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 
-		count, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		r := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		count := resultValue[int](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 0, count)
 		assertEqual(t, 0, embedder.embedCallCount())
 	})
@@ -444,10 +442,10 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 
-		_, err := IngestFile(context.Background(), store, embedder, "test-col", "/tmp/nonexistent-file.md", DefaultChunkConfig())
+		r := IngestFile(context.Background(), store, embedder, "test-col", "/tmp/nonexistent-file.md", DefaultChunkConfig())
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error reading file")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error reading file")
 	})
 
 	t.Run("embedder failure returns error", func(t *testing.T) {
@@ -459,10 +457,10 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		embedder := newMockEmbedder(768)
 		embedder.embedErr = core.E("mock.embed", "embed failed", nil)
 
-		_, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		r := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error embedding chunk")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error embedding chunk")
 	})
 
 	t.Run("store upsert failure returns error", func(t *testing.T) {
@@ -474,10 +472,10 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		store.upsertErr = core.E("mock.upsert", "upsert failed", nil)
 		embedder := newMockEmbedder(768)
 
-		_, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		r := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
 
-		assertError(t, err)
-		assertContains(t, err.Error(), "error upserting points")
+		assertError(t, r)
+		assertContains(t, r.Error(), "error upserting points")
 	})
 
 	t.Run("pdf fallback reads plaintext files with pdf extension", func(t *testing.T) {
@@ -485,9 +483,9 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		path := core.JoinPath(dir, "doc.pdf")
 		writeFile(t, path, "## Title\n\nPlaintext content in a mislabeled pdf file.\n")
 
-		content, err := readDocument((&core.Fs{}).NewUnrestricted(), path)
+		r := readDocument((&core.Fs{}).NewUnrestricted(), path)
+		content := resultValue[string](t, r)
 
-		assertNoError(t, err)
 		assertContains(t, content, "Plaintext content")
 	})
 
@@ -499,9 +497,9 @@ func TestIngest_IngestFile_Good(t *testing.T) {
 		store := newMockVectorStore()
 		embedder := newMockEmbedder(768)
 
-		count, err := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		r := IngestFile(context.Background(), store, embedder, "test-col", path, DefaultChunkConfig())
+		count := resultValue[int](t, r)
 
-		assertNoError(t, err)
 		assertEqual(t, 1, count)
 
 		points := store.allPoints("test-col")
@@ -517,4 +515,62 @@ func writeFile(t testing.TB, path string, content string) {
 	t.Helper()
 	result := (&core.Fs{}).NewUnrestricted().Write(path, content)
 	assertTruef(t, result.OK, "write %s: %v", path, result.Value)
+}
+
+func TestIngest_DefaultIngestConfig_Good(t *core.T) {
+	cfg := DefaultIngestConfig()
+
+	core.AssertEqual(t, "hostuk-docs", cfg.Collection)
+	core.AssertEqual(t, 100, cfg.BatchSize)
+	core.AssertEqual(t, DefaultChunkConfig(), cfg.Chunk)
+}
+
+func TestIngest_DefaultIngestConfig_Bad(t *core.T) {
+	cfg := DefaultIngestConfig()
+
+	core.AssertNotEqual(t, "", cfg.Collection)
+	core.AssertNotEqual(t, 0, cfg.BatchSize)
+}
+
+func TestIngest_DefaultIngestConfig_Ugly(t *core.T) {
+	cfg := DefaultIngestConfig()
+	cfg.Collection = "mutated"
+
+	core.AssertEqual(t, "hostuk-docs", DefaultIngestConfig().Collection)
+	core.AssertEqual(t, "mutated", cfg.Collection)
+}
+
+func TestIngest_Ingest_Bad(t *core.T) {
+	dir := t.TempDir()
+	path := core.PathJoin(dir, "not-dir.md")
+	writeFile(t, path, "content")
+	r := Ingest(core.Background(), newMockVectorStore(), newMockEmbedder(2), IngestConfig{Directory: path, Collection: "docs", Chunk: DefaultChunkConfig()}, nil)
+
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not a directory")
+}
+
+func TestIngest_Ingest_Ugly(t *core.T) {
+	dir := t.TempDir()
+	r := Ingest(core.Background(), newMockVectorStore(), newMockEmbedder(2), IngestConfig{Directory: dir, Collection: "docs", Chunk: DefaultChunkConfig()}, nil)
+
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "no matching files")
+}
+
+func TestIngest_IngestFile_Bad(t *core.T) {
+	r := IngestFile(core.Background(), newMockVectorStore(), newMockEmbedder(2), "docs", core.PathJoin(t.TempDir(), "missing.md"), DefaultChunkConfig())
+
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "reading file")
+}
+
+func TestIngest_IngestFile_Ugly(t *core.T) {
+	path := core.PathJoin(t.TempDir(), "empty.md")
+	writeFile(t, path, " \n\t")
+	r := IngestFile(core.Background(), newMockVectorStore(), newMockEmbedder(2), "docs", path, DefaultChunkConfig())
+	count := r.Value.(int)
+
+	core.AssertTrue(t, r.OK)
+	core.AssertEqual(t, 0, count)
 }

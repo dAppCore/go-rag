@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // generateMarkdownDoc creates a ~10KB markdown document for benchmarking.
@@ -95,7 +95,7 @@ func BenchmarkQuery_Mock(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = Query(ctx, store, embedder, "benchmark query text", cfg)
+		_ = Query(ctx, store, embedder, "benchmark query text", cfg)
 	}
 }
 
@@ -120,7 +120,7 @@ func BenchmarkIngest_Mock(b *testing.B) {
 		cfg.Directory = dir
 		cfg.Collection = "bench-ingest"
 
-		_, _ = Ingest(ctx, store, embedder, cfg, nil)
+		_ = Ingest(ctx, store, embedder, cfg, nil)
 	}
 }
 

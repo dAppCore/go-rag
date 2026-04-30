@@ -1,22 +1,20 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
-	"dappco.re/go/cli/pkg/cli"
+	core "dappco.re/go"
 	ragcmd "dappco.re/go/rag/cmd/rag"
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	root := cli.NewGroup("core", "RAG CLI artifact test driver", "")
-	ai := cli.NewGroup("ai", "", "")
+	root := &cobra.Command{Use: "core", Short: "RAG CLI artifact test driver"}
+	ai := &cobra.Command{Use: "ai"}
 	root.AddCommand(ai)
 	ragcmd.AddRAGSubcommands(ai)
-	root.SetArgs(os.Args[1:])
+	root.SetArgs(core.Args()[1:])
 
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		core.Print(core.Stderr(), "%v", err)
+		core.Exit(1)
 	}
 }

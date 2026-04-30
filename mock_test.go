@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // mockEmbedder is a test-only Embedder that returns deterministic vectors.
@@ -23,20 +23,22 @@ type mockEmbedder struct {
 	embedFunc func(text string) ([]float32, error)
 }
 
+// newMockEmbedder creates a mock embedder with deterministic vector length.
 func newMockEmbedder(dimension uint64) *mockEmbedder {
 	return &mockEmbedder{dimension: dimension}
 }
 
-func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+// Embed records text and returns either injected errors or deterministic vectors.
+func (m *mockEmbedder) Embed(ctx context.Context, text string) core.Result {
 	m.mu.Lock()
 	m.embedCalls = append(m.embedCalls, text)
 	m.mu.Unlock()
 
 	if m.embedErr != nil {
-		return nil, m.embedErr
+		return core.Fail(m.embedErr)
 	}
 	if m.embedFunc != nil {
-		return m.embedFunc(text)
+		return core.ResultOf(m.embedFunc(text))
 	}
 
 	// Return a deterministic vector: all 0.1 values of the configured dimension.
@@ -44,29 +46,32 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 	for i := range vec {
 		vec[i] = 0.1
 	}
-	return vec, nil
+	return core.Ok(vec)
 }
 
-func (m *mockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+// EmbedBatch records a batch call and embeds each text in input order.
+func (m *mockEmbedder) EmbedBatch(ctx context.Context, texts []string) core.Result {
 	m.mu.Lock()
 	m.batchCalls = append(m.batchCalls, texts)
 	m.mu.Unlock()
 
 	if m.batchErr != nil {
-		return nil, m.batchErr
+		return core.Fail(m.batchErr)
 	}
 
 	results := make([][]float32, len(texts))
 	for i, text := range texts {
-		vec, err := m.Embed(ctx, text)
-		if err != nil {
-			return nil, err
+		vecResult := m.Embed(ctx, text)
+		if !vecResult.OK {
+			return vecResult
 		}
+		vec := vecResult.Value.([]float32)
 		results[i] = vec
 	}
-	return results, nil
+	return core.Ok(results)
 }
 
+// EmbedDimension returns the configured mock vector dimension.
 func (m *mockEmbedder) EmbedDimension() uint64 {
 	return m.dimension
 }
@@ -124,6 +129,7 @@ type searchCall struct {
 	Filter     map[string]string
 }
 
+// newMockVectorStore creates an empty in-memory vector store for tests.
 func newMockVectorStore() *mockVectorStore {
 	return &mockVectorStore{
 		collections: make(map[string]uint64),
@@ -131,57 +137,61 @@ func newMockVectorStore() *mockVectorStore {
 	}
 }
 
-func (m *mockVectorStore) CreateCollection(ctx context.Context, name string, vectorSize uint64) error {
+// CreateCollection records collection creation and stores the requested vector size.
+func (m *mockVectorStore) CreateCollection(ctx context.Context, name string, vectorSize uint64) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.createCalls = append(m.createCalls, createCollectionCall{Name: name, VectorSize: vectorSize})
 
 	if m.createErr != nil {
-		return m.createErr
+		return core.Fail(m.createErr)
 	}
 
 	m.collections[name] = vectorSize
-	return nil
+	return core.Ok(nil)
 }
 
-func (m *mockVectorStore) CollectionExists(ctx context.Context, name string) (bool, error) {
+// CollectionExists records existence checks and reports whether the collection exists.
+func (m *mockVectorStore) CollectionExists(ctx context.Context, name string) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.existsCalls = append(m.existsCalls, name)
 
 	if m.existsErr != nil {
-		return false, m.existsErr
+		return core.Fail(m.existsErr)
 	}
 
 	_, exists := m.collections[name]
-	return exists, nil
+	return core.Ok(exists)
 }
 
-func (m *mockVectorStore) DeleteCollection(ctx context.Context, name string) error {
+// DeleteCollection records deletion and removes the collection from memory.
+func (m *mockVectorStore) DeleteCollection(ctx context.Context, name string) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.deleteCalls = append(m.deleteCalls, name)
 
 	if m.deleteErr != nil {
-		return m.deleteErr
+		return core.Fail(m.deleteErr)
 	}
 
 	delete(m.collections, name)
 	delete(m.points, name)
-	return nil
+	return core.Ok(nil)
 }
 
-func (m *mockVectorStore) ListCollections(ctx context.Context) ([]string, error) {
+// ListCollections records listing and returns collection names in stable order.
+func (m *mockVectorStore) ListCollections(ctx context.Context) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.listCalls++
 
 	if m.listErr != nil {
-		return nil, m.listErr
+		return core.Fail(m.listErr)
 	}
 
 	names := make([]string, 0, len(m.collections))
@@ -189,27 +199,28 @@ func (m *mockVectorStore) ListCollections(ctx context.Context) ([]string, error)
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	return names, nil
+	return core.Ok(names)
 }
 
-func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*CollectionInfo, error) {
+// CollectionInfo records metadata lookup and returns in-memory collection statistics.
+func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.infoCalls = append(m.infoCalls, name)
 
 	if m.infoErr != nil {
-		return nil, m.infoErr
+		return core.Fail(m.infoErr)
 	}
 
 	vectorSize, exists := m.collections[name]
 	if !exists {
-		return nil, core.E("mockVectorStore.CollectionInfo", core.Sprintf("collection %q not found", name), nil)
+		return core.Fail(core.E("mockVectorStore.CollectionInfo", core.Sprintf("collection %q not found", name), nil))
 	}
 
 	pointCount := uint64(len(m.points[name]))
 
-	return &CollectionInfo{
+	return core.Ok(&CollectionInfo{
 		Name:       name,
 		Count:      pointCount,
 		Vectors:    pointCount,
@@ -217,24 +228,26 @@ func (m *mockVectorStore) CollectionInfo(ctx context.Context, name string) (*Col
 		VectorSize: vectorSize,
 		Index:      "hnsw",
 		Status:     "green",
-	}, nil
+	})
 }
 
-func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, points []Point) error {
+// UpsertPoints records upserts and appends points to the named collection.
+func (m *mockVectorStore) UpsertPoints(ctx context.Context, collection string, points []Point) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.upsertCalls = append(m.upsertCalls, upsertCall{Collection: collection, Points: points})
 
 	if m.upsertErr != nil {
-		return m.upsertErr
+		return core.Fail(m.upsertErr)
 	}
 
 	m.points[collection] = append(m.points[collection], points...)
-	return nil
+	return core.Ok(nil)
 }
 
-func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) ([]SearchResult, error) {
+// Search records vector searches and returns either custom or stored mock results.
+func (m *mockVectorStore) Search(ctx context.Context, collection string, vector []float32, limit uint64, filter map[string]string) core.Result {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -246,11 +259,11 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 	})
 
 	if m.searchErr != nil {
-		return nil, m.searchErr
+		return core.Fail(m.searchErr)
 	}
 
 	if m.searchFunc != nil {
-		return m.searchFunc(collection, vector, limit, filter)
+		return core.ResultOf(m.searchFunc(collection, vector, limit, filter))
 	}
 
 	// Default: return stored points as search results, sorted by a fake
@@ -295,7 +308,7 @@ func (m *mockVectorStore) Search(ctx context.Context, collection string, vector 
 		results = results[:limit]
 	}
 
-	return results, nil
+	return core.Ok(results)
 }
 
 // allPoints returns all points stored across all collections.

@@ -2,13 +2,13 @@ package rag
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 
+	core "dappco.re/go"
 	"github.com/ollama/ollama/api"
 )
 
@@ -28,9 +28,9 @@ func TestOllama_DefaultOllamaConfig_Good(t *testing.T) {
 
 func TestOllama_NewOllamaClient_Good(t *testing.T) {
 	t.Run("constructs client with default config", func(t *testing.T) {
-		client, err := NewOllamaClient(DefaultOllamaConfig())
+		r := NewOllamaClient(DefaultOllamaConfig())
+		client := resultValue[*OllamaClient](t, r)
 
-		assertNoError(t, err)
 		assertNotNil(t, client)
 		assertEqual(t, "nomic-embed-text", client.Model())
 		assertEqual(t, uint64(768), client.EmbedDimension())
@@ -42,9 +42,9 @@ func TestOllama_NewOllamaClient_Good(t *testing.T) {
 			Port:  8080,
 			Model: "mxbai-embed-large",
 		}
-		client, err := NewOllamaClient(cfg)
+		r := NewOllamaClient(cfg)
+		client := resultValue[*OllamaClient](t, r)
 
-		assertNoError(t, err)
 		assertNotNil(t, client)
 		assertEqual(t, "mxbai-embed-large", client.Model())
 		assertEqual(t, uint64(1024), client.EmbedDimension())
@@ -135,7 +135,8 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 		var req struct {
 			Input string `json:"input"`
 		}
-		assertNoError(t, json.Unmarshal(body, &req))
+		result := core.JSONUnmarshalString(string(body), &req)
+		assertTrue(t, result.OK, "request body should decode")
 		capturedInput = append(capturedInput, req.Input)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -155,8 +156,8 @@ func TestOllama_EmbedBatch_Good(t *testing.T) {
 		config: OllamaConfig{Model: "nomic-embed-text"},
 	}
 
-	vectors, err := client.EmbedBatch(context.Background(), []string{"first", "second"})
-	assertNoError(t, err)
+	r := client.EmbedBatch(context.Background(), []string{"first", "second"})
+	vectors := resultValue[[][]float32](t, r)
 	assertLen(t, vectors, 2)
 	assertEqual(t, []float32{0.1, 0.2}, vectors[0])
 	assertEqual(t, []float32{0.3, 0.4}, vectors[1])
@@ -186,8 +187,225 @@ func TestOllama_EmbedBatch_Bad(t *testing.T) {
 		config: OllamaConfig{Model: "nomic-embed-text"},
 	}
 
-	_, err = client.EmbedBatch(context.Background(), []string{"first", "second"})
-	assertError(t, err)
-	assertContains(t, err.Error(), "item 1")
+	r := client.EmbedBatch(context.Background(), []string{"first", "second"})
+	assertError(t, r)
+	assertContains(t, r.Error(), "item 1")
 	assertEqual(t, 2, requestCount)
+}
+
+func testOllamaClient(t *core.T, handler http.HandlerFunc) (*OllamaClient, func()) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	baseURL, err := url.Parse(server.URL)
+	core.RequireNoError(t, err)
+
+	return &OllamaClient{
+		client: api.NewClient(baseURL, server.Client()),
+		config: OllamaConfig{Model: "nomic-embed-text"},
+	}, server.Close
+}
+
+func TestOllama_DefaultOllamaConfig_Bad(t *core.T) {
+	cfg := DefaultOllamaConfig()
+
+	core.AssertNotEqual(t, "", cfg.Host)
+	core.AssertNotEqual(t, 0, cfg.Port)
+}
+
+func TestOllama_DefaultOllamaConfig_Ugly(t *core.T) {
+	cfg := DefaultOllamaConfig()
+	cfg.Model = "mutated"
+
+	core.AssertEqual(t, "nomic-embed-text", DefaultOllamaConfig().Model)
+	core.AssertEqual(t, "mutated", cfg.Model)
+}
+
+func TestOllama_NewOllamaClient_Bad(t *core.T) {
+	r := NewOllamaClient(OllamaConfig{Host: "localhost", Port: 0})
+
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "port out of range")
+}
+
+func TestOllama_NewOllamaClient_Ugly(t *core.T) {
+	r := NewOllamaClient(OllamaConfig{Host: "localhost", Port: 11434, Model: ""})
+	client := r.Value.(*OllamaClient)
+
+	core.AssertTrue(t, r.OK)
+	core.AssertEqual(t, "", client.Model())
+}
+
+func TestOllama_NewOllamaEmbedder_Good(t *core.T) {
+	r := NewOllamaEmbedder("http://localhost:11434", "custom-model")
+	client := r.Value.(*OllamaClient)
+
+	core.AssertTrue(t, r.OK)
+	core.AssertEqual(t, "custom-model", client.Model())
+}
+
+func TestOllama_NewOllamaEmbedder_Bad(t *core.T) {
+	r := NewOllamaEmbedder("http://[::1", "custom-model")
+
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "invalid Ollama endpoint")
+}
+
+func TestOllama_NewOllamaEmbedder_Ugly(t *core.T) {
+	r := NewOllamaEmbedder("", "")
+	client := r.Value.(*OllamaClient)
+
+	core.AssertTrue(t, r.OK)
+	core.AssertEqual(t, "nomic-embed-text", client.Model())
+}
+
+func TestOllama_OllamaClient_Embed_Good(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"embeddings":[[0.1,0.2]]}`))
+	})
+	defer closeServer()
+
+	r := client.Embed(core.Background(), "hello")
+	vector := r.Value.([]float32)
+	core.AssertTrue(t, r.OK)
+	core.AssertEqual(t, []float32{0.1, 0.2}, vector)
+}
+
+func TestOllama_OllamaClient_Embed_Bad(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"embeddings":[]}`))
+	})
+	defer closeServer()
+
+	r := client.Embed(core.Background(), "hello")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "empty embedding")
+}
+
+func TestOllama_OllamaClient_Embed_Ugly(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{not-json}`))
+	})
+	defer closeServer()
+
+	r := client.Embed(core.Background(), "hello")
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "failed to generate embedding")
+}
+
+func TestOllama_OllamaClient_EmbedBatch_Good(t *core.T) {
+	calls := 0
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"embeddings":[[0.1,0.2]]}`))
+	})
+	defer closeServer()
+
+	r := client.EmbedBatch(core.Background(), []string{"first", "second"})
+	vectors := r.Value.([][]float32)
+	core.AssertTrue(t, r.OK)
+	core.AssertLen(t, vectors, 2)
+	core.AssertEqual(t, 2, calls)
+}
+
+func TestOllama_OllamaClient_EmbedBatch_Bad(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"embeddings":[]}`))
+	})
+	defer closeServer()
+
+	r := client.EmbedBatch(core.Background(), []string{"first"})
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "item 0")
+}
+
+func TestOllama_OllamaClient_EmbedBatch_Ugly(t *core.T) {
+	client := &OllamaClient{}
+	r := client.EmbedBatch(core.Background(), nil)
+	vectors := r.Value.([][]float32)
+
+	core.AssertTrue(t, r.OK)
+	core.AssertEmpty(t, vectors)
+}
+
+func TestOllama_OllamaClient_EmbedDimension_Good(t *core.T) {
+	client := &OllamaClient{config: OllamaConfig{Model: "mxbai-embed-large"}}
+
+	core.AssertEqual(t, uint64(1024), client.EmbedDimension())
+	core.AssertGreater(t, client.EmbedDimension(), uint64(768))
+}
+
+func TestOllama_OllamaClient_EmbedDimension_Bad(t *core.T) {
+	client := &OllamaClient{config: OllamaConfig{Model: "unknown"}}
+
+	core.AssertEqual(t, uint64(768), client.EmbedDimension())
+	core.AssertNotEqual(t, uint64(1024), client.EmbedDimension())
+}
+
+func TestOllama_OllamaClient_EmbedDimension_Ugly(t *core.T) {
+	client := &OllamaClient{config: OllamaConfig{Model: ""}}
+
+	core.AssertEqual(t, uint64(768), client.EmbedDimension())
+	core.AssertGreater(t, client.EmbedDimension(), uint64(0))
+}
+
+func TestOllama_OllamaClient_Model_Good(t *core.T) {
+	client := &OllamaClient{config: OllamaConfig{Model: "nomic-embed-text"}}
+
+	core.AssertEqual(t, "nomic-embed-text", client.Model())
+	core.AssertNotEmpty(t, client.Model())
+}
+
+func TestOllama_OllamaClient_Model_Bad(t *core.T) {
+	client := &OllamaClient{}
+
+	core.AssertEqual(t, "", client.Model())
+	core.AssertEmpty(t, client.Model())
+}
+
+func TestOllama_OllamaClient_Model_Ugly(t *core.T) {
+	client := &OllamaClient{config: OllamaConfig{Model: "model/with:tag"}}
+
+	core.AssertEqual(t, "model/with:tag", client.Model())
+	core.AssertContains(t, client.Model(), ":tag")
+}
+
+func TestOllama_OllamaClient_VerifyModel_Good(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"embeddings":[[0.1]]}`))
+	})
+	defer closeServer()
+
+	r := client.VerifyModel(core.Background())
+	core.AssertTrue(t, r.OK)
+	core.AssertNil(t, r.Value)
+}
+
+func TestOllama_OllamaClient_VerifyModel_Bad(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"embeddings":[]}`))
+	})
+	defer closeServer()
+
+	r := client.VerifyModel(core.Background())
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "not available")
+}
+
+func TestOllama_OllamaClient_VerifyModel_Ugly(t *core.T) {
+	client, closeServer := testOllamaClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`server failed`))
+	})
+	defer closeServer()
+
+	r := client.VerifyModel(core.Background())
+	core.AssertFalse(t, r.OK)
+	core.AssertContains(t, r.Error(), "nomic-embed-text")
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 // testCollectionName returns a unique collection name for the current test run
@@ -39,7 +39,7 @@ func skipIfQdrantUnavailable(t *testing.T) {
 	_ = conn.Close()
 }
 
-func TestQdrant_Integration_Ugly(t *testing.T) {
+func TestQdrantIntegrationWithService(t *testing.T) {
 	skipIfQdrantUnavailable(t)
 
 	cfg := DefaultQdrantConfig()
