@@ -221,10 +221,10 @@ func tokenise(text string) []string {
 	}
 
 	for _, r := range text {
-		switch {
-		case r == ' ' || r == '\t' || r == '\n' || r == '\r':
+		switch r {
+		case ' ', '\t', '\n', '\r':
 			flush()
-		case r == '.' || r == ',' || r == ';' || r == ':' || r == '!' || r == '?' || r == '"' || r == '\'' || r == '(' || r == ')' || r == '[' || r == ']' || r == '{' || r == '}' || r == '<' || r == '>':
+		case '.', ',', ';', ':', '!', '?', '"', '\'', '(', ')', '[', ']', '{', '}', '<', '>':
 			flush()
 		default:
 			current.WriteRune(r)
@@ -339,6 +339,8 @@ func extractKeywordsSeq(query string) iter.Seq[string] {
 		}
 	}
 }
+
+var _ = fields
 
 func fields(text string) []string {
 	var words []string

@@ -556,14 +556,13 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 
 		for len(remaining) > 0 {
 			boundary := -1
+
+		BoundarySearch:
 			for i, r := range remaining {
 				switch r {
 				case '.', '!', '?', '\n':
 					boundary = i + len(string(r))
-					break
-				}
-				if boundary >= 0 {
-					break
+					break BoundarySearch
 				}
 			}
 
@@ -585,11 +584,6 @@ func splitBySentencesSeq(text string) iter.Seq[string] {
 			remaining = trimLeftSpace(remaining[boundary:])
 		}
 	}
-}
-
-// splitBySections splits text by ## headers while preserving the header with its content.
-func splitBySections(text string) []string {
-	return slices.Collect(splitBySectionsSeq(text))
 }
 
 // splitBySectionsSeq returns an iterator that yields text sections split by ## headers.
@@ -616,11 +610,6 @@ func splitBySectionsSeq(text string) iter.Seq[string] {
 			yield(currentSection.String())
 		}
 	}
-}
-
-// splitByParagraphs splits text by double newlines.
-func splitByParagraphs(text string) []string {
-	return slices.Collect(splitByParagraphsSeq(text))
 }
 
 // splitByParagraphsSeq returns an iterator that yields paragraphs split by double newlines.
@@ -745,6 +734,11 @@ func markdownSectionTitle(section string) (string, string) {
 
 	return parentTitle, title
 }
+
+var (
+	_ = splitBySentences
+	_ = indexOf
+)
 
 func indexOf(s, substr string) int {
 	if substr == "" || len(substr) > len(s) {
