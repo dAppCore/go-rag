@@ -2,13 +2,13 @@ package main
 
 import (
 	core "dappco.re/go"
-	"dappco.re/go/cli/pkg/cli"
 	ragcmd "dappco.re/go/rag/cmd/rag"
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	root := cli.NewGroup("core", "RAG CLI artifact test driver", "")
-	ai := cli.NewGroup("ai", "", "")
+	root := &cobra.Command{Use: "core", Short: "RAG CLI artifact test driver"}
+	ai := &cobra.Command{Use: "ai"}
 	root.AddCommand(ai)
 	ragcmd.AddRAGSubcommands(ai)
 	root.SetArgs(core.Args()[1:])

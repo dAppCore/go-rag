@@ -6,7 +6,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )
 
@@ -19,8 +18,8 @@ var (
 
 var ingestCmd = &cli.Command{
 	Use:   "ingest [directory]",
-	Short: i18n.T("cmd.rag.ingest.short"),
-	Long:  i18n.T("cmd.rag.ingest.long"),
+	Short: "Ingest documents",
+	Long:  "Chunk supported documents and store their embeddings in Qdrant.",
 	Args:  cli.MaximumNArgs(1),
 	RunE: func(cmd *cli.Command, args []string) error {
 		r := runIngest(cmd, args)

@@ -35,7 +35,7 @@ func NewGroup(use string, short string, long string) *Command {
 // Style renders terminal text for command output.
 type Style struct{}
 
-// Render returns text unchanged for the compatibility CLI surface.
+// Render returns text unchanged for the local CLI surface.
 func (Style) Render(text string) string { return text }
 
 var (

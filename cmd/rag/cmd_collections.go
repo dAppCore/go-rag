@@ -6,7 +6,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )
 
@@ -18,8 +17,8 @@ var (
 
 var collectionsCmd = &cli.Command{
 	Use:   "collections",
-	Short: i18n.T("cmd.rag.collections.short"),
-	Long:  i18n.T("cmd.rag.collections.long"),
+	Short: "Manage collections",
+	Long:  "List, inspect, and delete RAG vector collections.",
 	RunE: func(cmd *cli.Command, args []string) error {
 		r := runCollections(cmd, args)
 		if r.OK {

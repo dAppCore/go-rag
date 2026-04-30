@@ -6,7 +6,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
 )
 
 // Shared flags
@@ -23,8 +22,8 @@ var initFlagsOnce sync.Once
 
 var ragCmd = &cli.Command{
 	Use:   "rag",
-	Short: i18n.T("cmd.rag.short"),
-	Long:  i18n.T("cmd.rag.long"),
+	Short: "RAG commands",
+	Long:  "Ingest documents, query vector collections, and manage RAG storage.",
 }
 
 // initFlags initialises persistent and subcommand flags once.
@@ -35,48 +34,48 @@ func initFlags() {
 		if v := core.Env("QDRANT_HOST"); v != "" {
 			qHost = v
 		}
-		ragCmd.PersistentFlags().StringVar(&qdrantHost, "qdrant-host", qHost, i18n.T("cmd.rag.flag.qdrant_host"))
+		ragCmd.PersistentFlags().StringVar(&qdrantHost, "qdrant-host", qHost, "Qdrant host")
 
 		qPort := envPortOrDefault("QDRANT_PORT", 6334)
-		ragCmd.PersistentFlags().IntVar(&qdrantPort, "qdrant-port", qPort, i18n.T("cmd.rag.flag.qdrant_port"))
+		ragCmd.PersistentFlags().IntVar(&qdrantPort, "qdrant-port", qPort, "Qdrant gRPC port")
 
 		// Ollama connection flags (persistent) - defaults to localhost for local development
 		oHost := "localhost"
 		if v := core.Env("OLLAMA_HOST"); v != "" {
 			oHost = v
 		}
-		ragCmd.PersistentFlags().StringVar(&ollamaHost, "ollama-host", oHost, i18n.T("cmd.rag.flag.ollama_host"))
+		ragCmd.PersistentFlags().StringVar(&ollamaHost, "ollama-host", oHost, "Ollama host")
 
 		oPort := envPortOrDefault("OLLAMA_PORT", 11434)
-		ragCmd.PersistentFlags().IntVar(&ollamaPort, "ollama-port", oPort, i18n.T("cmd.rag.flag.ollama_port"))
+		ragCmd.PersistentFlags().IntVar(&ollamaPort, "ollama-port", oPort, "Ollama port")
 
 		m := "nomic-embed-text"
 		if v := core.Env("EMBEDDING_MODEL"); v != "" {
 			m = v
 		}
-		ragCmd.PersistentFlags().StringVar(&model, "model", m, i18n.T("cmd.rag.flag.model"))
+		ragCmd.PersistentFlags().StringVar(&model, "model", m, "Embedding model")
 
 		// Verbose flag (persistent)
-		ragCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, i18n.T("common.flag.verbose"))
+		ragCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 		// Ingest command flags
-		ingestCmd.Flags().StringVar(&collection, "collection", "hostuk-docs", i18n.T("cmd.rag.ingest.flag.collection"))
-		ingestCmd.Flags().BoolVar(&recreate, "recreate", false, i18n.T("cmd.rag.ingest.flag.recreate"))
-		ingestCmd.Flags().IntVar(&chunkSize, "chunk-size", 500, i18n.T("cmd.rag.ingest.flag.chunk_size"))
-		ingestCmd.Flags().IntVar(&chunkOverlap, "chunk-overlap", 50, i18n.T("cmd.rag.ingest.flag.chunk_overlap"))
+		ingestCmd.Flags().StringVar(&collection, "collection", "hostuk-docs", "Collection name")
+		ingestCmd.Flags().BoolVar(&recreate, "recreate", false, "Recreate the collection before ingesting")
+		ingestCmd.Flags().IntVar(&chunkSize, "chunk-size", 500, "Chunk size in characters")
+		ingestCmd.Flags().IntVar(&chunkOverlap, "chunk-overlap", 50, "Chunk overlap in characters")
 
 		// Query command flags
-		queryCmd.Flags().StringVar(&queryCollection, "collection", "hostuk-docs", i18n.T("cmd.rag.query.flag.collection"))
-		queryCmd.Flags().IntVar(&limit, "top", 5, i18n.T("cmd.rag.query.flag.top"))
-		queryCmd.Flags().Float32Var(&threshold, "threshold", 0.5, i18n.T("cmd.rag.query.flag.threshold"))
-		queryCmd.Flags().StringVar(&category, "category", "", i18n.T("cmd.rag.query.flag.category"))
-		queryCmd.Flags().BoolVar(&keywords, "keywords", false, i18n.T("cmd.rag.query.flag.keywords"))
-		queryCmd.Flags().StringVar(&format, "format", "text", i18n.T("cmd.rag.query.flag.format"))
+		queryCmd.Flags().StringVar(&queryCollection, "collection", "hostuk-docs", "Collection name")
+		queryCmd.Flags().IntVar(&limit, "top", 5, "Maximum results")
+		queryCmd.Flags().Float32Var(&threshold, "threshold", 0.5, "Minimum score threshold")
+		queryCmd.Flags().StringVar(&category, "category", "", "Category filter")
+		queryCmd.Flags().BoolVar(&keywords, "keywords", false, "Enable keyword fallback")
+		queryCmd.Flags().StringVar(&format, "format", "text", "Output format: text, json, or context")
 
 		// Collections command flags
-		collectionsCmd.Flags().BoolVar(&listCollections, "list", false, i18n.T("cmd.rag.collections.flag.list"))
-		collectionsCmd.Flags().BoolVar(&showStats, "stats", false, i18n.T("cmd.rag.collections.flag.stats"))
-		collectionsCmd.Flags().StringVar(&deleteCollection, "delete", "", i18n.T("cmd.rag.collections.flag.delete"))
+		collectionsCmd.Flags().BoolVar(&listCollections, "list", false, "List collections")
+		collectionsCmd.Flags().BoolVar(&showStats, "stats", false, "Show collection statistics")
+		collectionsCmd.Flags().StringVar(&deleteCollection, "delete", "", "Delete a collection")
 	})
 }
 

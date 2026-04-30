@@ -6,7 +6,6 @@ import (
 
 	"dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	"dappco.re/go/i18n"
 	"dappco.re/go/rag"
 )
 
@@ -21,8 +20,8 @@ var (
 
 var queryCmd = &cli.Command{
 	Use:   "query [question]",
-	Short: i18n.T("cmd.rag.query.short"),
-	Long:  i18n.T("cmd.rag.query.long"),
+	Short: "Query documents",
+	Long:  "Embed a question and search a RAG collection for relevant context.",
 	Args:  cli.ExactArgs(1),
 	RunE: func(cmd *cli.Command, args []string) error {
 		r := runQuery(cmd, args)

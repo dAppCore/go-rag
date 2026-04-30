@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"dappco.re/go"
+	corelog "dappco.re/go/log"
 )
 
 const maxConcurrentEmbeddings = 8
@@ -88,7 +89,7 @@ func QueryDocs(ctx context.Context, question, collectionName string, topK int) c
 	}
 	defer func() {
 		if r := qdrantClient.Close(); !r.OK {
-			core.Print(nil, "qdrant close failed: %s", r.Error())
+			corelog.Warn("qdrant close failed", "err", r.Error())
 		}
 	}()
 
@@ -120,7 +121,7 @@ func IngestDirectory(ctx context.Context, directory, collectionName string, recr
 	}
 	defer func() {
 		if r := qdrantClient.Close(); !r.OK {
-			core.Print(nil, "qdrant close failed: %s", r.Error())
+			corelog.Warn("qdrant close failed", "err", r.Error())
 		}
 	}()
 
@@ -149,7 +150,7 @@ func IngestSingleFile(ctx context.Context, filePath, collectionName string) core
 	}
 	defer func() {
 		if r := qdrantClient.Close(); !r.OK {
-			core.Print(nil, "qdrant close failed: %s", r.Error())
+			corelog.Warn("qdrant close failed", "err", r.Error())
 		}
 	}()
 
