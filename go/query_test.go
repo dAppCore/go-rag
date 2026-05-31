@@ -517,6 +517,24 @@ func TestQuery_Query_Good(t *testing.T) {
 	})
 }
 
+// TestQuery_Rank_SortTieBreakers — equal score + equal source forces the
+// sort down to the chunk-index tie-breaker, so the lower chunk index sorts
+// first regardless of input order.
+func TestQuery_Rank_SortTieBreakers(t *testing.T) {
+	results := []QueryResult{
+		{Text: "chunk three", Source: "doc.md", Score: 0.9, ChunkIndex: 3, ChunkIndexPresent: true},
+		{Text: "chunk one", Source: "doc.md", Score: 0.9, ChunkIndex: 1, ChunkIndexPresent: true},
+		{Text: "chunk two", Source: "doc.md", Score: 0.9, ChunkIndex: 2, ChunkIndexPresent: true},
+	}
+
+	ranked := Rank(results, 10)
+
+	assertLen(t, ranked, 3)
+	assertEqual(t, 1, ranked[0].GetChunkIndex())
+	assertEqual(t, 2, ranked[1].GetChunkIndex())
+	assertEqual(t, 3, ranked[2].GetChunkIndex())
+}
+
 func TestQuery_Rank_Good_ChunklessSourceKeepsDistinctText(t *testing.T) {
 	results := []QueryResult{
 		{Text: "first chunkless hit", Source: "same.md", Score: 0.9},
@@ -529,6 +547,79 @@ func TestQuery_Rank_Good_ChunklessSourceKeepsDistinctText(t *testing.T) {
 	assertEqual(t, missingChunkIndex, ranked[0].GetChunkIndex())
 	assertEqual(t, "first chunkless hit", ranked[0].Text)
 	assertEqual(t, "second chunkless hit", ranked[1].Text)
+}
+
+// bareRanked is a minimal rankedResult that deliberately does NOT implement
+// the optional chunkIndexedResult (HasChunkIndex) interface, so it forces
+// resultHasChunkIndex down its GetChunkIndex()-comparison fallback path.
+type bareRanked struct {
+	text       string
+	score      float32
+	source     string
+	chunkIndex int
+}
+
+func (b bareRanked) GetText() string    { return b.text }
+func (b bareRanked) GetScore() float32  { return b.score }
+func (b bareRanked) GetSource() string  { return b.source }
+func (b bareRanked) GetChunkIndex() int { return b.chunkIndex }
+
+// TestQuery_Rank_BareRanked_FallbackChunkDetection — a rankedResult without
+// HasChunkIndex falls back to comparing GetChunkIndex against the sentinel.
+// A real (non-sentinel) index keys on (source, chunkIndex) and so dedupes
+// two identical-keyed entries down to one.
+func TestQuery_Rank_BareRanked_FallbackChunkDetection(t *testing.T) {
+	results := []bareRanked{
+		{text: "a", score: 0.9, source: "doc.md", chunkIndex: 2},
+		{text: "b", score: 0.8, source: "doc.md", chunkIndex: 2}, // same key -> deduped
+		{text: "c", score: 0.7, source: "doc.md", chunkIndex: 3},
+	}
+
+	ranked := Rank(results, 10)
+
+	assertLen(t, ranked, 2)
+	assertEqual(t, "a", ranked[0].text)
+	assertEqual(t, "c", ranked[1].text)
+}
+
+// TestQuery_Rank_BareRanked_ScoreFallbackKeys — exercises rankKey's
+// score-based fallbacks: a sourced result with no text + sentinel chunk
+// index, and a sourceless+textless result, both key on score so distinct
+// scores stay distinct.
+func TestQuery_Rank_BareRanked_ScoreFallbackKeys(t *testing.T) {
+	t.Run("sourced result with sentinel chunk and no text keys on score", func(t *testing.T) {
+		results := []bareRanked{
+			{score: 0.9, source: "doc.md", chunkIndex: missingChunkIndex},
+			{score: 0.8, source: "doc.md", chunkIndex: missingChunkIndex},
+		}
+
+		ranked := Rank(results, 10)
+
+		assertLen(t, ranked, 2)
+	})
+
+	t.Run("sourceless textless results key on score", func(t *testing.T) {
+		results := []bareRanked{
+			{score: 0.9, chunkIndex: missingChunkIndex},
+			{score: 0.8, chunkIndex: missingChunkIndex},
+		}
+
+		ranked := Rank(results, 10)
+
+		assertLen(t, ranked, 2)
+	})
+
+	t.Run("sourceless results dedupe by text", func(t *testing.T) {
+		results := []bareRanked{
+			{text: "same body", score: 0.9, chunkIndex: missingChunkIndex},
+			{text: "same body", score: 0.8, chunkIndex: missingChunkIndex},
+		}
+
+		ranked := Rank(results, 10)
+
+		assertLen(t, ranked, 1)
+		assertEqual(t, "same body", ranked[0].text)
+	})
 }
 
 func TestQuery_QueryResult_GetText_Good(t *core.T) {

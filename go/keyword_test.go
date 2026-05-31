@@ -134,6 +134,31 @@ func TestKeyword_KeywordFilter_Good(t *testing.T) {
 	})
 }
 
+// TestKeyword_KeywordFilter_TieBreakers — when boosted scores tie, ordering
+// falls through to the deterministic Source -> ChunkIndex -> Text
+// tie-breakers so the result order is stable regardless of input order.
+func TestKeyword_KeywordFilter_TieBreakers(t *testing.T) {
+	// All four share Score 0.5 and contain no keyword, so no boost applies
+	// and the tie-breakers fully determine the order.
+	results := []QueryResult{
+		{Text: "zeta body", Score: 0.5, Source: "b.md", ChunkIndex: 0},
+		{Text: "alpha body", Score: 0.5, Source: "a.md", ChunkIndex: 1},
+		{Text: "alpha body", Score: 0.5, Source: "a.md", ChunkIndex: 0},
+		{Text: "another body", Score: 0.5, Source: "a.md", ChunkIndex: 1},
+	}
+
+	filtered := KeywordFilter(results, []string{"nomatch"})
+
+	assertLen(t, filtered, 4)
+	// a.md/0 first (lowest source+chunk), then the two a.md/1 entries
+	// ordered by Text ("alpha" < "another"), then b.md/0 last.
+	assertEqual(t, "a.md", filtered[0].Source)
+	assertEqual(t, 0, filtered[0].ChunkIndex)
+	assertEqual(t, "alpha body", filtered[1].Text)
+	assertEqual(t, "another body", filtered[2].Text)
+	assertEqual(t, "b.md", filtered[3].Source)
+}
+
 // --- KeywordFilterSeq tests ---
 
 func TestKeyword_KeywordFilterSeq_Good(t *testing.T) {
@@ -213,6 +238,21 @@ func TestKeyword_extractKeywords_Good(t *testing.T) {
 		assertContains(t, keywords, "deployment")
 		assertNotContains(t, keywords, "go")
 	})
+}
+
+// TestKeyword_extractKeywordsSeq_EarlyBreak — a consumer that stops after
+// the first keyword exercises the iterator's !yield short-circuit return.
+func TestKeyword_extractKeywordsSeq_EarlyBreak(t *testing.T) {
+	var first string
+	count := 0
+	for kw := range extractKeywordsSeq("kubernetes deployment service") {
+		first = kw
+		count++
+		break
+	}
+
+	assertEqual(t, "kubernetes", first)
+	assertEqual(t, 1, count)
 }
 
 // --- KeywordIndex tests ---
