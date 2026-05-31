@@ -883,3 +883,52 @@ func TestChunk_ShouldProcess_Ugly(t *core.T) {
 	core.AssertTrue(t, ok)
 	core.AssertTrue(t, ShouldProcess("archive.PDF"))
 }
+
+// TestChunk_indexOf_Good — finds the substring at its first occurrence,
+// including a match at the very start.
+func TestChunk_indexOf_Good(t *core.T) {
+	core.AssertEqual(t, 0, indexOf("hello world", "hello"))
+	core.AssertEqual(t, 6, indexOf("hello world", "world"))
+	core.AssertEqual(t, 2, indexOf("aabbcc", "bb"))
+}
+
+// TestChunk_indexOf_Bad — a substring that is not present returns -1.
+func TestChunk_indexOf_Bad(t *core.T) {
+	core.AssertEqual(t, -1, indexOf("hello world", "xyz"))
+}
+
+// TestChunk_indexOf_Ugly — empty substring and substring longer than the
+// haystack both short-circuit to -1 rather than scanning.
+func TestChunk_indexOf_Ugly(t *core.T) {
+	core.AssertEqual(t, -1, indexOf("hello", ""))
+	core.AssertEqual(t, -1, indexOf("hi", "hello"))
+}
+
+// TestChunk_markdownSectionTitle_Good — an H1 followed by an H2 yields the
+// H1 as parent title and the H2 as the section title.
+func TestChunk_markdownSectionTitle_Good(t *core.T) {
+	parent, title := markdownSectionTitle("# Guide\n\n## Setup\n\nbody")
+
+	core.AssertEqual(t, "Guide", parent)
+	core.AssertEqual(t, "Setup", title)
+}
+
+// TestChunk_markdownSectionTitle_Bad — a section with no headings yields
+// two empty strings.
+func TestChunk_markdownSectionTitle_Bad(t *core.T) {
+	parent, title := markdownSectionTitle("just a paragraph\nwith no headings")
+
+	core.AssertEqual(t, "", parent)
+	core.AssertEqual(t, "", title)
+}
+
+// TestChunk_markdownSectionTitle_Ugly — malformed heading markers are
+// skipped: an over-deep level (>6), a marker with no following space, and
+// a marker with an empty heading. A lone H3 still seeds the title via the
+// default arm.
+func TestChunk_markdownSectionTitle_Ugly(t *core.T) {
+	parent, title := markdownSectionTitle("####### too deep\n#nospace\n#### \n### Real Heading")
+
+	core.AssertEqual(t, "", parent)
+	core.AssertEqual(t, "Real Heading", title)
+}
