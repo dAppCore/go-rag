@@ -833,6 +833,46 @@ func TestChunk_ChunkByParagraphsSeq_Ugly(t *core.T) {
 	core.AssertEqual(t, 0, chunks[0].Index)
 }
 
+// TestChunk_ChunkBySentencesSeq_EarlyBreak — a consumer that stops after the
+// first chunk exercises the iterator's !yield short-circuit so the producer
+// returns without emitting the remaining sentences. A small size against a
+// multi-sentence body guarantees more than one chunk would otherwise emit.
+func TestChunk_ChunkBySentencesSeq_EarlyBreak(t *core.T) {
+	count := 0
+	for range ChunkBySentencesSeq("Alpha sentence. Beta sentence. Gamma sentence.", ChunkConfig{Size: 12, Overlap: 0}) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+}
+
+// TestChunk_ChunkByParagraphsSeq_EarlyBreak — same short-circuit for the
+// paragraph iterator: a long oversized paragraph would yield many chunks,
+// but the consumer stops after the first.
+func TestChunk_ChunkByParagraphsSeq_EarlyBreak(t *core.T) {
+	count := 0
+	for range ChunkByParagraphsSeq(repeatString("long paragraph ", 40), ChunkConfig{Size: 20, Overlap: 0}) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+}
+
+// TestChunk_ChunkMarkdownSeq_EarlyBreak — the top-level markdown iterator
+// also honours an early consumer break across multiple sections.
+func TestChunk_ChunkMarkdownSeq_EarlyBreak(t *core.T) {
+	doc := "# One\n\n" + repeatString("alpha ", 60) + "\n\n# Two\n\n" + repeatString("beta ", 60)
+	count := 0
+	for range ChunkMarkdownSeq(doc, ChunkConfig{Size: 20, Overlap: 0}) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+}
+
 func TestChunk_DefaultChunkConfig_Bad(t *core.T) {
 	cfg := DefaultChunkConfig()
 
