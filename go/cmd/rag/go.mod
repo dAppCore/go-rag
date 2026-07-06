@@ -3,13 +3,9 @@ module dappco.re/go/rag/cmd/rag
 go 1.26.0
 
 require (
-	dappco.re/go v0.9.0
-	dappco.re/go/cli v0.9.0
-	dappco.re/go/rag v0.0.0
 )
 
 require (
-	dappco.re/go/log v0.9.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -31,6 +27,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace dappco.re/go/cli => ../../internal/cli
 
-replace dappco.re/go/rag => ../..

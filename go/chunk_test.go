@@ -833,6 +833,46 @@ func TestChunk_ChunkByParagraphsSeq_Ugly(t *core.T) {
 	core.AssertEqual(t, 0, chunks[0].Index)
 }
 
+// TestChunk_ChunkBySentencesSeq_EarlyBreak — a consumer that stops after the
+// first chunk exercises the iterator's !yield short-circuit so the producer
+// returns without emitting the remaining sentences. A small size against a
+// multi-sentence body guarantees more than one chunk would otherwise emit.
+func TestChunk_ChunkBySentencesSeq_EarlyBreak(t *core.T) {
+	count := 0
+	for range ChunkBySentencesSeq("Alpha sentence. Beta sentence. Gamma sentence.", ChunkConfig{Size: 12, Overlap: 0}) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+}
+
+// TestChunk_ChunkByParagraphsSeq_EarlyBreak — same short-circuit for the
+// paragraph iterator: a long oversized paragraph would yield many chunks,
+// but the consumer stops after the first.
+func TestChunk_ChunkByParagraphsSeq_EarlyBreak(t *core.T) {
+	count := 0
+	for range ChunkByParagraphsSeq(repeatString("long paragraph ", 40), ChunkConfig{Size: 20, Overlap: 0}) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+}
+
+// TestChunk_ChunkMarkdownSeq_EarlyBreak — the top-level markdown iterator
+// also honours an early consumer break across multiple sections.
+func TestChunk_ChunkMarkdownSeq_EarlyBreak(t *core.T) {
+	doc := "# One\n\n" + repeatString("alpha ", 60) + "\n\n# Two\n\n" + repeatString("beta ", 60)
+	count := 0
+	for range ChunkMarkdownSeq(doc, ChunkConfig{Size: 20, Overlap: 0}) {
+		count++
+		break
+	}
+
+	core.AssertEqual(t, 1, count)
+}
+
 func TestChunk_DefaultChunkConfig_Bad(t *core.T) {
 	cfg := DefaultChunkConfig()
 
@@ -882,4 +922,53 @@ func TestChunk_ShouldProcess_Ugly(t *core.T) {
 
 	core.AssertTrue(t, ok)
 	core.AssertTrue(t, ShouldProcess("archive.PDF"))
+}
+
+// TestChunk_indexOf_Good — finds the substring at its first occurrence,
+// including a match at the very start.
+func TestChunk_indexOf_Good(t *core.T) {
+	core.AssertEqual(t, 0, indexOf("hello world", "hello"))
+	core.AssertEqual(t, 6, indexOf("hello world", "world"))
+	core.AssertEqual(t, 2, indexOf("aabbcc", "bb"))
+}
+
+// TestChunk_indexOf_Bad — a substring that is not present returns -1.
+func TestChunk_indexOf_Bad(t *core.T) {
+	core.AssertEqual(t, -1, indexOf("hello world", "xyz"))
+}
+
+// TestChunk_indexOf_Ugly — empty substring and substring longer than the
+// haystack both short-circuit to -1 rather than scanning.
+func TestChunk_indexOf_Ugly(t *core.T) {
+	core.AssertEqual(t, -1, indexOf("hello", ""))
+	core.AssertEqual(t, -1, indexOf("hi", "hello"))
+}
+
+// TestChunk_markdownSectionTitle_Good — an H1 followed by an H2 yields the
+// H1 as parent title and the H2 as the section title.
+func TestChunk_markdownSectionTitle_Good(t *core.T) {
+	parent, title := markdownSectionTitle("# Guide\n\n## Setup\n\nbody")
+
+	core.AssertEqual(t, "Guide", parent)
+	core.AssertEqual(t, "Setup", title)
+}
+
+// TestChunk_markdownSectionTitle_Bad — a section with no headings yields
+// two empty strings.
+func TestChunk_markdownSectionTitle_Bad(t *core.T) {
+	parent, title := markdownSectionTitle("just a paragraph\nwith no headings")
+
+	core.AssertEqual(t, "", parent)
+	core.AssertEqual(t, "", title)
+}
+
+// TestChunk_markdownSectionTitle_Ugly — malformed heading markers are
+// skipped: an over-deep level (>6), a marker with no following space, and
+// a marker with an empty heading. A lone H3 still seeds the title via the
+// default arm.
+func TestChunk_markdownSectionTitle_Ugly(t *core.T) {
+	parent, title := markdownSectionTitle("####### too deep\n#nospace\n#### \n### Real Heading")
+
+	core.AssertEqual(t, "", parent)
+	core.AssertEqual(t, "Real Heading", title)
 }

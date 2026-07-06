@@ -518,3 +518,71 @@ func TestHelpers_JoinResults_Ugly(t *core.T) {
 	core.AssertEqual(t, "Alpha\n\nBeta", output)
 	core.AssertNotContains(t, output, "\n\n\n")
 }
+
+// --- embedBatchConcurrent tests ---
+
+// TestHelpers_embedBatchConcurrent_Good — embeds every text in order,
+// preserving the input-to-vector positional mapping across workers.
+func TestHelpers_embedBatchConcurrent_Good(t *testing.T) {
+	embedder := newMockEmbedder(3)
+	texts := []string{"alpha", "beta", "gamma"}
+
+	r := embedBatchConcurrent(context.Background(), texts, embedder.Embed)
+	batch := resultValue[embedChunkBatchResult](t, r)
+
+	assertLen(t, batch.Embeddings, 3)
+	assertLen(t, batch.Results, 3)
+	for i := range batch.Results {
+		assertNoError(t, batch.Results[i])
+		assertLen(t, batch.Embeddings[i], 3)
+	}
+}
+
+// TestHelpers_embedBatchConcurrent_Bad — an empty input yields empty
+// (non-nil) embedding + result slices without spinning up workers.
+func TestHelpers_embedBatchConcurrent_Bad(t *testing.T) {
+	r := embedBatchConcurrent(context.Background(), nil, newMockEmbedder(2).Embed)
+	batch := resultValue[embedChunkBatchResult](t, r)
+
+	assertEmpty(t, batch.Embeddings)
+	assertEmpty(t, batch.Results)
+}
+
+// TestHelpers_embedBatchConcurrent_Ugly — a context cancelled before
+// dispatch causes every per-input result to carry the cancellation error
+// rather than a vector.
+func TestHelpers_embedBatchConcurrent_Ugly(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	texts := []string{"a", "b", "c", "d"}
+	r := embedBatchConcurrent(ctx, texts, newMockEmbedder(2).Embed)
+	batch := resultValue[embedChunkBatchResult](t, r)
+
+	assertLen(t, batch.Results, 4)
+	cancelled := 0
+	for _, res := range batch.Results {
+		if !res.OK {
+			cancelled++
+		}
+	}
+	// At least one input must observe the cancellation; with a pre-cancelled
+	// context the dispatch loop short-circuits the remaining sends.
+	if cancelled == 0 {
+		t.Fatal("expected cancelled context to fail at least one embedding")
+	}
+}
+
+// TestHelpers_embedBatchConcurrent_PropagatesEmbedError — a failing
+// embedder surfaces the error in the matching result slot while leaving
+// the overall batch OK for partial-failure reporting.
+func TestHelpers_embedBatchConcurrent_PropagatesEmbedError(t *testing.T) {
+	embedder := newMockEmbedder(2)
+	embedder.embedErr = core.E("mock.embed", "boom", nil)
+
+	r := embedBatchConcurrent(context.Background(), []string{"x"}, embedder.Embed)
+	batch := resultValue[embedChunkBatchResult](t, r)
+
+	assertLen(t, batch.Results, 1)
+	assertError(t, batch.Results[0])
+}

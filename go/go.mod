@@ -3,8 +3,7 @@ module dappco.re/go/rag
 go 1.26.0
 
 require (
-	dappco.re/go v0.9.0 // Note: structured errors, formatting helpers, and filesystem wrappers used across the RAG package.
-	dappco.re/go/log v0.9.0 // Note: registry-declared structured logging dependency.
+	dappco.re/go v0.11.0 // Note: structured errors, formatting helpers, and filesystem wrappers used across the RAG package.
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // Note: PDF text extraction lets .pdf documents enter the chunking pipeline.
 	github.com/ollama/ollama v0.18.1 // Note: Ollama embeddings client backing the repository's Embedder implementation.
 	github.com/qdrant/go-client v1.17.1 // Note: Qdrant vector database client backing the repository's VectorStore implementation.

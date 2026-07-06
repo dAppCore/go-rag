@@ -80,6 +80,14 @@ func TestQdrant_pointIDToString_Good(t *testing.T) {
 		result := pointIDToString(id)
 		assertEqual(t, uuid, result)
 	})
+
+	t.Run("PointId with nil options hits the default branch", func(t *testing.T) {
+		// A PointId carrying no PointIdOptions oneof value falls through to
+		// the default case and yields an empty string.
+		id := &qdrant.PointId{}
+		result := pointIDToString(id)
+		assertEqual(t, "", result)
+	})
 }
 
 // --- valueToGo tests ---
@@ -708,6 +716,62 @@ func TestQdrant_QdrantClient_CollectionInfo_Ugly(t *core.T) {
 	core.AssertContains(t, r.Error(), "info failed")
 }
 
+// TestQdrant_QdrantClient_CollectionInfo_StatusMapping — each Qdrant
+// collection status maps to its simple string form, with an unrecognised
+// status falling through to "unknown".
+func TestQdrant_QdrantClient_CollectionInfo_StatusMapping(t *testing.T) {
+	cases := []struct {
+		status qdrant.CollectionStatus
+		want   string
+	}{
+		{qdrant.CollectionStatus_Green, "green"},
+		{qdrant.CollectionStatus_Yellow, "yellow"},
+		{qdrant.CollectionStatus_Red, "red"},
+		{qdrant.CollectionStatus_UnknownCollectionStatus, "unknown"},
+	}
+	for _, tc := range cases {
+		info := qdrantTestCollectionInfo(1, 64, tc.status)
+		r := (&QdrantClient{client: &qdrantTestAPI{info: info}}).CollectionInfo(context.Background(), "docs")
+		ci := resultValue[*CollectionInfo](t, r)
+		assertEqual(t, tc.want, ci.Status)
+	}
+}
+
+// TestQdrant_QdrantClient_CollectionInfo_NilConfig — a CollectionInfo with
+// no Config leaves vector size + index at their unknown defaults rather
+// than panicking on the nil config dereference.
+func TestQdrant_QdrantClient_CollectionInfo_NilConfig(t *testing.T) {
+	info := &qdrant.CollectionInfo{
+		Status:      qdrant.CollectionStatus_Green,
+		PointsCount: qdrant.PtrOf(uint64(5)),
+	}
+	r := (&QdrantClient{client: &qdrantTestAPI{info: info}}).CollectionInfo(context.Background(), "docs")
+	ci := resultValue[*CollectionInfo](t, r)
+
+	assertEqual(t, uint64(0), ci.VectorSize)
+	assertEqual(t, "unknown", ci.Index)
+	assertEqual(t, uint64(5), ci.PointCount)
+}
+
+// TestQdrant_QdrantClient_CollectionInfo_HnswFallbackIndex — when the
+// params carry no vectors config but an HNSW config is present, the index
+// type is still reported as hnsw.
+func TestQdrant_QdrantClient_CollectionInfo_HnswFallbackIndex(t *testing.T) {
+	info := &qdrant.CollectionInfo{
+		Status:      qdrant.CollectionStatus_Green,
+		PointsCount: qdrant.PtrOf(uint64(2)),
+		Config: &qdrant.CollectionConfig{
+			Params:     &qdrant.CollectionParams{},
+			HnswConfig: &qdrant.HnswConfigDiff{},
+		},
+	}
+	r := (&QdrantClient{client: &qdrantTestAPI{info: info}}).CollectionInfo(context.Background(), "docs")
+	ci := resultValue[*CollectionInfo](t, r)
+
+	assertEqual(t, "hnsw", ci.Index)
+	assertEqual(t, uint64(0), ci.VectorSize)
+}
+
 func TestQdrant_QdrantClient_UpsertPoints_Good(t *core.T) {
 	fake := &qdrantTestAPI{}
 	r := (&QdrantClient{client: fake}).UpsertPoints(core.Background(), "docs", []Point{{ID: "id", Vector: []float32{0.1}, Payload: map[string]any{"text": "alpha"}}})
@@ -804,6 +868,15 @@ func TestQdrant_SearchResult_GetText_Ugly(t *core.T) {
 
 	core.AssertEqual(t, "payload text", result.GetText())
 	core.AssertContains(t, result.GetText(), "payload")
+}
+
+// TestQdrant_SearchResult_GetText_NonStringPayload — a payload "text" entry
+// of a non-string type is ignored (the type assertion fails) and GetText
+// returns empty rather than a stringified value.
+func TestQdrant_SearchResult_GetText_NonStringPayload(t *core.T) {
+	result := SearchResult{Payload: map[string]any{"text": 12345}}
+
+	core.AssertEqual(t, "", result.GetText())
 }
 
 func TestQdrant_SearchResult_GetScore_Good(t *core.T) {

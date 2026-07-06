@@ -565,6 +565,112 @@ func TestIngest_IngestFile_Bad(t *core.T) {
 	core.AssertContains(t, r.Error(), "reading file")
 }
 
+// TestIngest_shouldFallbackToPlainText_Good — every recognised
+// malformed-PDF error message routes the reader to a plain-text retry.
+func TestIngest_shouldFallbackToPlainText_Good(t *testing.T) {
+	fallbackMessages := []string{
+		"not a PDF file",
+		"missing %%EOF marker in pdf",
+		"unexpected EOF reading pdf",
+		"invalid PDF structure",
+		"malformed PDF body",
+		"no PDF header found",
+		"pdf header missing",
+	}
+	for _, msg := range fallbackMessages {
+		if !shouldFallbackToPlainText(core.E("test", msg, nil)) {
+			t.Fatalf("expected fallback for %q", msg)
+		}
+	}
+}
+
+// TestIngest_shouldFallbackToPlainText_Bad — a nil error or a non-PDF
+// error never triggers a plain-text fallback.
+func TestIngest_shouldFallbackToPlainText_Bad(t *testing.T) {
+	if shouldFallbackToPlainText(nil) {
+		t.Fatal("nil error must not fall back")
+	}
+	if shouldFallbackToPlainText(core.E("test", "permission denied", nil)) {
+		t.Fatal("non-pdf error must not fall back")
+	}
+}
+
+// TestIngest_shouldFallbackToPlainText_Ugly — an error that mentions PDF
+// but is a genuine extraction failure (not a malformed-file signal) is
+// NOT treated as a fallback candidate.
+func TestIngest_shouldFallbackToPlainText_Ugly(t *testing.T) {
+	if shouldFallbackToPlainText(core.E("test", "pdf font decode failed", nil)) {
+		t.Fatal("genuine pdf decode failure must not fall back")
+	}
+}
+
+// TestIngest_readDocument_Good — a non-PDF file is read straight through
+// the supplied Fs.
+func TestIngest_readDocument_Good(t *testing.T) {
+	dir := t.TempDir()
+	path := core.JoinPath(dir, "doc.txt")
+	writeFile(t, path, "plain text body")
+
+	r := readDocument((&core.Fs{}).NewUnrestricted(), path)
+	content := resultValue[string](t, r)
+	assertEqual(t, "plain text body", content)
+}
+
+// TestIngest_readDocument_Bad — a missing file surfaces the Fs read error.
+func TestIngest_readDocument_Bad(t *testing.T) {
+	r := readDocument((&core.Fs{}).NewUnrestricted(), core.JoinPath(t.TempDir(), "missing.txt"))
+	assertError(t, r)
+}
+
+// TestIngest_readDocument_Ugly — a .pdf-extension file that is actually
+// plain text falls back to a plain-text read rather than failing.
+func TestIngest_readDocument_Ugly(t *testing.T) {
+	dir := t.TempDir()
+	path := core.JoinPath(dir, "mislabelled.pdf")
+	writeFile(t, path, "not really a pdf, just text")
+
+	r := readDocument((&core.Fs{}).NewUnrestricted(), path)
+	content := resultValue[string](t, r)
+	assertContains(t, content, "not really a pdf")
+}
+
+// TestIngest_collectMarkdownFiles_Good — recursive collection descends
+// into subdirectories and only keeps ingestible files in sorted order.
+func TestIngest_collectMarkdownFiles_Good(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, core.JoinPath(dir, "b.md"), "b")
+	writeFile(t, core.JoinPath(dir, "a.md"), "a")
+	writeFile(t, core.JoinPath(dir, "ignore.bin"), "binary")
+	writeFile(t, core.JoinPath(dir, "nested", "c.txt"), "c")
+
+	var files []string
+	r := collectMarkdownFiles((&core.Fs{}).NewUnrestricted(), dir, "", &files)
+	assertNoError(t, r)
+
+	assertEqual(t, []string{"a.md", "b.md", core.JoinPath("nested", "c.txt")}, files)
+}
+
+// TestIngest_collectMarkdownFiles_Bad — listing a path that does not
+// exist propagates the failed list result.
+func TestIngest_collectMarkdownFiles_Bad(t *testing.T) {
+	var files []string
+	r := collectMarkdownFiles((&core.Fs{}).NewUnrestricted(), core.JoinPath(t.TempDir(), "no-such-dir"), "", &files)
+	assertError(t, r)
+}
+
+// TestIngest_collectMarkdownFiles_Ugly — a directory with no ingestible
+// files yields an empty slice without error.
+func TestIngest_collectMarkdownFiles_Ugly(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, core.JoinPath(dir, "image.png"), "binary")
+	writeFile(t, core.JoinPath(dir, "data.json"), "{}")
+
+	var files []string
+	r := collectMarkdownFiles((&core.Fs{}).NewUnrestricted(), dir, "", &files)
+	assertNoError(t, r)
+	assertEmpty(t, files)
+}
+
 func TestIngest_IngestFile_Ugly(t *core.T) {
 	path := core.PathJoin(t.TempDir(), "empty.md")
 	writeFile(t, path, " \n\t")
